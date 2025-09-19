@@ -23,6 +23,10 @@ const SalesPrint = ({ invoice }) => {
     sfpNumber: "SFP-2023-001",
   };
 
+  const formatDiscount = (discount) => {
+    return discount === "" ? 0 : discount;
+  };
+
   const termsAndConditions = `
   1. All goods sold are subject to our terms and conditions.
   `;
@@ -32,18 +36,18 @@ const SalesPrint = ({ invoice }) => {
     const quantity = item.quantity || 1;
     const taxRate = item.taxSlab || 18;
     const taxMultiplier = 1 + (taxRate / 100);
-    
+
     // Calculate base value for this item
     const itemBaseValue = (item.price * quantity) / taxMultiplier;
-    
+
     // Apply discount to this item
     const discountPercentage = item.discount || 0;
     const itemDiscountAmount = itemBaseValue * (discountPercentage / 100);
     const itemDiscountedBase = itemBaseValue - itemDiscountAmount;
-    
+
     // Recalculate tax for this item
     const itemTaxAfterDiscount = itemDiscountedBase * (taxRate / 100);
-    
+
     // Total amount for this item
     return itemDiscountedBase + itemTaxAfterDiscount;
   };
@@ -53,8 +57,14 @@ const SalesPrint = ({ invoice }) => {
       <div className="invoice-container">
 
         {/* Top Logo */}
-        <div className="invoice-logo">
-          <img src={logo} alt="Company Logo" />
+        <div className="invoice-header">
+          <div className="invoice-logo">
+            <img src={logo} alt="Company Logo" />
+          </div>
+          <div className="company-info">
+            <p>SFP Sons India Pvt Ltd</p>
+            <p>24AAAFP0763BAZV</p>
+          </div>
         </div>
 
         {/* Invoice + Billing Section */}
@@ -67,10 +77,10 @@ const SalesPrint = ({ invoice }) => {
                   <td>Customer Name:</td>
                   <td>{customer.name}</td>
                 </tr>
-                <tr>
+                {/* <tr>
                   <td>Customer ID:</td>
                   <td>{customer.customerNumber}</td>
-                </tr>
+                </tr> */}
                 {customer.email && (
                   <tr>
                     <td>Email:</td>
@@ -97,16 +107,13 @@ const SalesPrint = ({ invoice }) => {
                 </tr>
                 <tr>
                   <td>Date:</td>
-                  <td>{date}</td>
+                  <td>{date} {new Date().toLocaleTimeString()}</td>
                 </tr>
-                <tr>
+                {/* <tr>
                   <td>SFP Number:</td>
                   <td>{companyInfo.sfpNumber}</td>
-                </tr>
-                <tr>
-                  <td>Time:</td>
-                  <td>{new Date().toLocaleTimeString()}</td>
-                </tr>
+                </tr> */}
+
                 <tr>
                   <td>Payment Type:</td>
                   <td>{paymentType.toUpperCase()}</td>

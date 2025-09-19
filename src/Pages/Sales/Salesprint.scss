@@ -14,15 +14,42 @@
     gap: 15px;
   }
 
+
+
   /* Centered Logo */
-  .invoice-logo {
+  .invoice-header {
     display: flex;
     justify-content: center;
+    /* center logo+info container */
+    align-items: center;
     margin-bottom: 20px;
+    position: relative;
 
-    img {
-      max-width: 160px;
-      height: auto;
+    .invoice-logo {
+      flex: 0 0 auto;
+
+      img {
+        max-width: 160px;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        /* keep logo centered */
+      }
+    }
+
+    .company-info {
+      position: absolute;
+      right: 0;
+      /* stick to the right side */
+      text-align: right;
+      font-size: 12px;
+      line-height: 1.4;
+
+      p {
+        margin: 0;
+        font-weight: bold;
+        color: #333;
+      }
     }
   }
 

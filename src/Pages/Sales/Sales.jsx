@@ -2,35 +2,14 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
-import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf } from "react-icons/fa";
+import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf, FaSpinner } from "react-icons/fa";
 import Navbar from "../../Components/Sidebar/Navbar";
 import "react-toastify/dist/ReactToastify.css";
 import "./Sales.scss";
 import * as XLSX from 'xlsx';
 import html2pdf from 'html2pdf.js';
 import SalesPrint from "./SalesPrint";
-
-// Dummy items data
-const DUMMY_ITEMS = [
-  { id: 1, barcode: "8901234567890", name: "Premium Steel Pipe", hsn: "73045900", price: 2000, taxSlab: 18 },
-  { id: 2, barcode: "8901234567891", name: "Stainless Steel Sheet", hsn: "72191100", price: 850, taxSlab: 18 },
-  { id: 3, barcode: "8901234567892", name: "Iron Rods", hsn: "72142000", price: 650, taxSlab: 18 },
-  { id: 4, barcode: "8901234567893", name: "Aluminum Extrusion", hsn: "76042900", price: 5000, taxSlab: 18 },
-  { id: 5, barcode: "8901234567894", name: "Copper Wire", hsn: "74081900", price: 950, taxSlab: 18 },
-  { id: 6, barcode: "8901234567895", name: "Brass Fittings", hsn: "74122000", price: 780, taxSlab: 5 },
-  { id: 7, barcode: "8901234567896", name: "Zinc Coating", hsn: "79070000", price: 520, taxSlab: 18 },
-  { id: 8, barcode: "8901234567897", name: "Steel Nuts & Bolts", hsn: "73181500", price: 320, taxSlab: 18 },
-  { id: 9, barcode: "8901234567898", name: "Steel Pipe", hsn: "73181544", price: 500, taxSlab: 5 },
-  { id: 10, barcode: "8901234567899", name: "Galvanized Sheets", hsn: "72104100", price: 870, taxSlab: 18 },
-];
-
-// Dummy customers data with mobile numbers
-const DUMMY_CUSTOMERS = [
-  { id: 1, customerNumber: "CUST001", name: "Sharma Steel Works", email: "sharma@steel.com", mobile: "9876543210" },
-  { id: 2, customerNumber: "CUST002", name: "Metal Craft Industries", email: "info@metalcraft.com", mobile: "8765432109" },
-  { id: 3, customerNumber: "CUST003", name: "Precision Forge Ltd", email: "sales@precisionforge.com", mobile: "7654321098" },
-  { id: 4, customerNumber: "CUST004", name: "Bharat Metal Works", email: "contact@bharatmetal.com", mobile: "6543210987" },
-];
+import axios from "axios";
 
 const Sales = () => {
   const [invoices, setInvoices] = useState([]);
@@ -42,15 +21,83 @@ const Sales = () => {
   const [selectedItems, setSelectedItems] = useState([]);
   const [customerMobileSearch, setCustomerMobileSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ 
-    customerNumber: "", 
-    name: "", 
+  const [newCustomer, setNewCustomer] = useState({
+    customerNumber: "",
+    name: "",
     email: "",
     mobile: ""
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [customers, setCustomers] = useState(DUMMY_CUSTOMERS);
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const customerSearchRef = useRef(null);
+
+  // Fetch customers, products and invoices from backend
+  useEffect(() => {
+    fetchCustomers();
+    fetchProducts();
+    fetchInvoices();
+  }, []);
+
+  const fetchInvoices = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axios.get("http://localhost:5000/invoices/get-invoices");
+      setInvoices(response.data.data);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      toast.error("Failed to load invoices");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      setIsLoadingCustomers(true);
+      const response = await axios.get("http://localhost:5000/customer/get-customers");
+      const customersData = response.data.map(customer => ({
+        id: customer.customerId,
+        customerNumber: customer.customerId,
+        name: customer.customerName || "",
+        email: customer.email || "",
+        mobile: customer.contactNumber || ""
+      }));
+      setCustomers(customersData);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast.error("Failed to load customers");
+    } finally {
+      setIsLoadingCustomers(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      setIsLoadingProducts(true);
+      const response = await axios.get("http://localhost:5000/products/get-products");
+      setProducts(response.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      toast.error("Failed to load products");
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  // Save invoice to database
+  const saveInvoiceToDB = async (invoice) => {
+    try {
+      const response = await axios.post("http://localhost:5000/invoices/create-invoice", invoice);
+      return response.data;
+    } catch (error) {
+      console.error("Error saving invoice to database:", error);
+      throw error;
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -66,121 +113,104 @@ const Sales = () => {
     };
   }, []);
 
-  // Filter items based on search term
-  const filteredItems = useMemo(() => {
+  // Filter products based on search term
+  const filteredProducts = useMemo(() => {
     if (!itemSearchTerm) return [];
-    
+
     const term = itemSearchTerm.toLowerCase();
-    return DUMMY_ITEMS.filter(item => 
-      item.name.toLowerCase().includes(term) || 
-      item.hsn.toLowerCase().includes(term) ||
-      item.barcode.includes(term) ||
-      item.price.toString().includes(term)
+    return products.filter(product =>
+      (product.productName && product.productName.toLowerCase().includes(term)) ||
+      (product.hsnCode && product.hsnCode.toLowerCase().includes(term)) ||
+      (product.barcode && product.barcode.includes(term)) ||
+      (product.price && product.price.toString().includes(term))
     );
-  }, [itemSearchTerm]);
+  }, [itemSearchTerm, products]);
 
   // Filter customers based on mobile search term
   const filteredCustomers = useMemo(() => {
     if (!customerMobileSearch) return [];
-    
+
     const term = customerMobileSearch.toLowerCase();
-    return customers.filter(customer => 
-      customer.mobile.includes(term) || 
-      customer.name.toLowerCase().includes(term)
+    return customers.filter(customer =>
+      (customer.mobile && customer.mobile.includes(term)) ||
+      (customer.name && customer.name.toLowerCase().includes(term))
     );
   }, [customerMobileSearch, customers]);
 
   // Calculate invoice totals based on new requirements
+  // Updated calculateInvoiceTotals function
+  // Updated calculateInvoiceTotals function
   const calculateInvoiceTotals = () => {
-    // Step 1: Calculate subtotal (inclusive price × qty)
-    const subtotal = selectedItems.reduce((sum, item) => {
-      return sum + (item.price * (item.quantity || 1));
-    }, 0);
-    
-    // Step 2: Break GST from subtotal for each item and calculate base value
+    // Initialize all totals
+    let subtotal = 0;
     let totalBaseValue = 0;
-    let totalTaxBeforeDiscount = 0;
-    
-    selectedItems.forEach(item => {
-      const quantity = item.quantity || 1;
-      const taxRate = item.taxSlab || 18;
-      const taxMultiplier = 1 + (taxRate / 100);
-      
-      // Calculate base value for this item
-      const itemBaseValue = (item.price * quantity) / taxMultiplier;
-      totalBaseValue += itemBaseValue;
-      
-      // Calculate tax for this item
-      const itemTax = (item.price * quantity) - itemBaseValue;
-      totalTaxBeforeDiscount += itemTax;
-    });
-    
-    // Step 3: Apply Discount (on base value) - now considering item-level discounts
     let totalDiscountAmount = 0;
-    
-    selectedItems.forEach(item => {
-      const quantity = item.quantity || 1;
-      const taxRate = item.taxSlab || 18;
-      const taxMultiplier = 1 + (taxRate / 100);
-      const discountPercentage = item.discount || 0;
-      
-      // Calculate base value for this item
-      const itemBaseValue = (item.price * quantity) / taxMultiplier;
-      
-      // Calculate discount for this item
-      const itemDiscountAmount = itemBaseValue * (discountPercentage / 100);
-      totalDiscountAmount += itemDiscountAmount;
-    });
-    
-    const discountedBase = totalBaseValue - totalDiscountAmount;
-    
-    // Step 4: Recalculate Tax (on discounted base)
-    let totalTaxAfterDiscount = 0;
+    let totalTaxAmount = 0;
     let cgstAmount = 0;
     let sgstAmount = 0;
-    
+    let otherTaxAmount = 0;
+    let has18PercentItems = false;
+    let hasOtherTaxItems = false;
+
+    // Process each item individually
     selectedItems.forEach(item => {
-      const taxRate = item.taxSlab || 18;
       const quantity = item.quantity || 1;
+      const taxRate = item.taxSlab || 18;
       const discountPercentage = item.discount || 0;
+
+      // Calculate original values (without discount)
+      const itemSubtotal = item.price * quantity;
+      subtotal += itemSubtotal;
+
+      // Calculate base value (excluding tax)
       const taxMultiplier = 1 + (taxRate / 100);
-      
-      // Calculate this item's portion of the base value
-      const itemBaseValue = (item.price * quantity) / taxMultiplier;
-      
-      // Apply discount to this item
+      const itemBaseValue = itemSubtotal / taxMultiplier;
+      totalBaseValue += itemBaseValue;
+
+      // Apply discount to base value
       const itemDiscountAmount = itemBaseValue * (discountPercentage / 100);
-      const itemDiscountedBase = itemBaseValue - itemDiscountAmount;
-      
-      // Recalculate tax for this item
-      const itemTaxAfterDiscount = itemDiscountedBase * (taxRate / 100);
-      totalTaxAfterDiscount += itemTaxAfterDiscount;
-      
-      // Split tax into CGST and SGST (assuming equal split for GST)
-      if (taxRate > 0) {
-        cgstAmount += itemTaxAfterDiscount / 2;
-        sgstAmount += itemTaxAfterDiscount / 2;
+      totalDiscountAmount += itemDiscountAmount;
+
+      // Calculate discounted base value
+      const discountedBaseValue = itemBaseValue - itemDiscountAmount;
+
+      // Calculate tax on discounted base value
+      const itemTaxAmount = discountedBaseValue * (taxRate / 100);
+      totalTaxAmount += itemTaxAmount;
+
+      // Allocate tax to appropriate buckets
+      if (taxRate === 18) {
+        has18PercentItems = true;
+        cgstAmount += itemTaxAmount / 2;
+        sgstAmount += itemTaxAmount / 2;
+      } else {
+        hasOtherTaxItems = true;
+        otherTaxAmount += itemTaxAmount;
       }
     });
-    
-    // Step 5: Grand Total
-    const grandTotal = discountedBase + totalTaxAfterDiscount;
-    
+
+    // Calculate grand total
+    const discountedBase = totalBaseValue - totalDiscountAmount;
+    const grandTotal = discountedBase + totalTaxAmount;
+
     return {
       subtotal: subtotal,
       baseValue: totalBaseValue,
       discount: totalDiscountAmount,
-      tax: totalTaxAfterDiscount,
+      tax: totalTaxAmount,
       cgst: cgstAmount,
       sgst: sgstAmount,
+      otherTax: otherTaxAmount,
+      has18PercentItems: has18PercentItems,
+      hasOtherTaxItems: hasOtherTaxItems,
       grandTotal: grandTotal
     };
   };
 
   // Handle item selection
-  const handleItemSelect = (item) => {
-    const existingItemIndex = selectedItems.findIndex(i => i.id === item.id);
-    
+  const handleItemSelect = (product) => {
+    const existingItemIndex = selectedItems.findIndex(i => i.productId === product.productId);
+
     if (existingItemIndex >= 0) {
       // Item already exists, increase quantity
       const updatedItems = [...selectedItems];
@@ -189,19 +219,29 @@ const Sales = () => {
     } else {
       // Add new item with default values
       setSelectedItems([...selectedItems, {
-        ...item,
+        ...product,
+        id: product.productId, // Keep id for backward compatibility
+        name: product.productName, // Map productName to name
+        hsn: product.hsnCode, // Map hsnCode to hsn
         quantity: 1,
-        discount: 0
+        discount: ""
       }]);
     }
-    
+
     setItemSearchTerm("");
   };
 
   // Handle item updates
   const handleItemUpdate = (index, field, value) => {
     const updatedItems = [...selectedItems];
-    updatedItems[index][field] = value;
+
+    // For discount field, keep it as string to allow empty value
+    if (field === 'discount') {
+      updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
+    } else {
+      updatedItems[index][field] = value;
+    }
+
     setSelectedItems(updatedItems);
   };
 
@@ -217,33 +257,25 @@ const Sales = () => {
     setShowCustomerDropdown(false);
   };
 
-  // Handle new customer creation
-  const handleSaveCustomer = () => {
-    if (!newCustomer.mobile || !newCustomer.name) {
-      toast.error("Customer mobile and name are required");
-      return;
-    }
-    
-    // Check if customer already exists
-    const existingCustomer = customers.find(c => c.mobile === newCustomer.mobile);
-    
-    if (!existingCustomer) {
-      // Generate a new customer number
-      const newCustomerNumber = `CUST${String(customers.length + 1).padStart(3, '0')}`;
-      const customerToAdd = {
-        ...newCustomer,
-        id: customers.length + 1,
-        customerNumber: newCustomerNumber
-      };
-      
-      setCustomers([...customers, customerToAdd]);
-      setNewCustomer({
-        ...newCustomer,
-        customerNumber: newCustomerNumber
+  // Create new customer in backend
+  const createCustomer = async (customerData) => {
+    try {
+      const response = await axios.post("http://localhost:5000/customer/create-customer", {
+        customerName: customerData.name,
+        email: customerData.email,
+        contactNumber: customerData.mobile
       });
-      toast.success("New customer added successfully!");
-    } else {
-      toast.info("Customer already exists");
+
+      return {
+        id: response.data.customerId,
+        customerNumber: response.data.customerId,
+        name: response.data.customerName,
+        email: response.data.email,
+        mobile: response.data.contactNumber
+      };
+    } catch (error) {
+      console.error("Error creating customer:", error);
+      throw error;
     }
   };
 
@@ -258,7 +290,7 @@ const Sales = () => {
   });
 
   // Handle form submission
-  const handleSubmit = (values) => {
+  const handleSubmit = async (values) => {
     if (selectedItems.length === 0) {
       toast.error("Please add at least one item");
       return;
@@ -269,39 +301,70 @@ const Sales = () => {
       return;
     }
 
-    // Save customer if not already saved
-    const existingCustomer = customers.find(c => c.mobile === newCustomer.mobile);
-    if (!existingCustomer && newCustomer.name) {
-      handleSaveCustomer();
+    setIsSubmitting(true);
+
+    try {
+      // Check if customer already exists in our database
+      const existingCustomer = customers.find(c => c.mobile === newCustomer.mobile);
+
+      let customerToUse = { ...newCustomer };
+
+      // If customer doesn't exist, create it in the backend
+      if (!existingCustomer) {
+        try {
+          const createdCustomer = await createCustomer(newCustomer);
+          customerToUse = createdCustomer;
+          // Add the new customer to our local state
+          setCustomers([...customers, createdCustomer]);
+          toast.success("New customer created successfully!");
+        } catch (error) {
+          if (error.response && error.response.data && error.response.data.field === "email") {
+            toast.error("Customer with this email already exists. Please use a different email.");
+          } else {
+            toast.error("Failed to create customer. Please try again.");
+          }
+          setIsSubmitting(false);
+          return;
+        }
+      } else {
+        customerToUse = existingCustomer;
+      }
+
+      const invoiceTotals = calculateInvoiceTotals();
+
+      const invoice = {
+        date: new Date().toISOString().split('T')[0],
+        customer: customerToUse,
+        items: selectedItems,
+        paymentType: values.paymentType,
+        subtotal: invoiceTotals.subtotal,
+        baseValue: invoiceTotals.baseValue,
+        discount: invoiceTotals.discount,
+        tax: invoiceTotals.tax,
+        cgst: invoiceTotals.cgst,
+        sgst: invoiceTotals.sgst,
+        total: invoiceTotals.grandTotal
+      };
+
+      // Save to database
+      const savedInvoice = await saveInvoiceToDB(invoice);
+
+      // Update local state with the invoice from database (which includes the invoiceNumber)
+      setInvoices([savedInvoice.data, ...invoices]);
+      setSelectedItems([]);
+      setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "" });
+      setCustomerMobileSearch("");
+
+      // Generate PDF after submission with the actual invoice number from backend
+      generatePDF(savedInvoice.data);
+
+      toast.success("Invoice created successfully!");
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      toast.error("Failed to create invoice");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const invoiceTotals = calculateInvoiceTotals();
-    
-    const invoice = {
-      id: Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      invoiceNumber: `INV-${Date.now()}`,
-      customer: newCustomer,
-      items: selectedItems,
-      paymentType: values.paymentType,
-      subtotal: invoiceTotals.subtotal,
-      baseValue: invoiceTotals.baseValue,
-      discount: invoiceTotals.discount,
-      tax: invoiceTotals.tax,
-      cgst: invoiceTotals.cgst,
-      sgst: invoiceTotals.sgst,
-      total: invoiceTotals.grandTotal
-    };
-
-    setInvoices([invoice, ...invoices]);
-    setSelectedItems([]);
-    setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "" });
-    setCustomerMobileSearch("");
-    
-    // Generate PDF after submission
-    generatePDF(invoice);
-    
-    toast.success("Invoice created successfully!");
   };
 
   // Generate PDF function
@@ -310,10 +373,20 @@ const Sales = () => {
     setIsExporting(true);
 
     try {
-      const element = document.getElementById("sales-pdf");
+      // Create a temporary element for PDF generation
+      const tempElement = document.createElement("div");
+      tempElement.innerHTML = document.getElementById("sales-pdf").innerHTML;
+
+      // Update the invoice number in the temporary element
+      const invoiceNumberElement = tempElement.querySelector(".invoice-number");
+      if (invoiceNumberElement && invoice.invoiceNumber) {
+        invoiceNumberElement.textContent = `Invoice Number: ${invoice.invoiceNumber}`;
+      }
+
+      document.body.appendChild(tempElement);
 
       // Wait for all images to load
-      const images = element.getElementsByTagName("img");
+      const images = tempElement.getElementsByTagName("img");
       const imageLoadPromises = Array.from(images).map((img) => {
         return new Promise((resolve) => {
           if (img.complete) {
@@ -332,7 +405,7 @@ const Sales = () => {
 
       // Generate PDF
       await html2pdf()
-        .from(element)
+        .from(tempElement)
         .set({
           filename: `${invoice.invoiceNumber}_${invoice.customer.name.replace(/\s+/g, "_")}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
@@ -344,6 +417,9 @@ const Sales = () => {
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
         .save();
+
+      // Clean up
+      document.body.removeChild(tempElement);
     } catch (error) {
       toast.error("Failed to export PDF");
       console.error("Export error:", error);
@@ -360,7 +436,7 @@ const Sales = () => {
     }
 
     const data = invoices.map((invoice) => {
-      const itemsString = invoice.items.map(item => 
+      const itemsString = invoice.items.map(item =>
         `${item.name} (Qty: ${item.quantity})`
       ).join('; ');
 
@@ -430,23 +506,28 @@ const Sales = () => {
                   <h3 className="section-heading">Item Details</h3>
                   <div className="form-group-row">
                     <div className="field-wrapper">
-                      <label>Search Items</label>
+                      <label>Search Products</label>
                       <input
                         type="text"
                         placeholder="Search by name, HSN, barcode or price..."
                         value={itemSearchTerm}
                         onChange={(e) => setItemSearchTerm(e.target.value)}
                       />
-                      {itemSearchTerm && filteredItems.length > 0 && (
+                      {isLoadingProducts && (
                         <div className="search-dropdown">
-                          {filteredItems.map(item => (
-                            <div 
-                              key={item.id} 
+                          <div className="dropdown-item">Loading products...</div>
+                        </div>
+                      )}
+                      {itemSearchTerm && !isLoadingProducts && filteredProducts.length > 0 && (
+                        <div className="search-dropdown">
+                          {filteredProducts.map(product => (
+                            <div
+                              key={product.productId}
                               className="dropdown-item"
-                              onClick={() => handleItemSelect(item)}
+                              onClick={() => handleItemSelect(product)}
                             >
-                              <div>{item.name}</div>
-                              <div>HSN: {item.hsn} | Price: ₹{item.price} (incl. tax)</div>
+                              <div>{product.productName}</div>
+                              <div>HSN: {product.hsnCode || "N/A"} | Price: ₹{product.price || 0} (incl. tax)</div>
                             </div>
                           ))}
                         </div>
@@ -472,36 +553,39 @@ const Sales = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedItems.map((item, index) => (
-                              <tr key={index}>
-                                <td>{index + 1}</td>
-                                <td>{item.barcode}</td>
+                            {selectedItems.slice().reverse().map((item, index) => (
+                              <tr key={selectedItems.length - index - 1}>
+                                <td>{selectedItems.length - index}</td>
+                                <td>{item.barcode || "N/A"}</td>
                                 <td>{item.name}</td>
-                                <td>{item.hsn}</td>
+                                <td>{item.hsn || "N/A"}</td>
                                 <td>
                                   <input
                                     type="number"
                                     min="1"
                                     value={item.quantity}
-                                    onChange={(e) => handleItemUpdate(index, 'quantity', parseInt(e.target.value) || 1)}
+                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'quantity', parseInt(e.target.value) || 1)}
                                   />
                                 </td>
-                                <td>₹{item.price}</td>
+                                <td>₹{item.price || 0}</td>
                                 <td>
                                   <input
                                     type="number"
                                     min="0"
                                     max="100"
                                     value={item.discount}
-                                    onChange={(e) => handleItemUpdate(index, 'discount', parseInt(e.target.value) || 0)}
+                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'discount', parseInt(e.target.value) || 0)}
                                   />
                                 </td>
-                                <td>₹{(item.price * item.quantity).toFixed(2)}</td>
+                                <td>₹{((item.price || 0) * item.quantity).toFixed(2)}</td>
                                 <td>
-                                  <button 
-                                    type="button" 
-                                    className="remove-btn"
-                                    onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== index))}
+                                  <button
+                                    type="button"
+                                    className="invoice-remove-btn"
+                                    onClick={() => {
+                                      const actualIndex = selectedItems.length - index - 1;
+                                      setSelectedItems(selectedItems.filter((_, i) => i !== actualIndex));
+                                    }}
                                   >
                                     <FaTrash />
                                   </button>
@@ -511,32 +595,53 @@ const Sales = () => {
                           </tbody>
                         </table>
                       </div>
-                      
+
                       {/* Calculation Summary - Now placed below the items table */}
-                      <div style={{display: 'flex', justifyContent: 'flex-end', marginTop: '20px'}}>
-                        <div style={{width: '300px', background: '#f9f9f9', padding: '15px', borderRadius: '8px'}}>
-                          <h4 style={{marginTop: 0, borderBottom: '1px solid #ddd', paddingBottom: '10px'}}>Invoice Calculation</h4>
-                          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                      {/* Calculation Summary */}
+                      {/* Calculation Summary */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+                        <div style={{ width: '350px', background: '#f9f9f9', padding: '15px', borderRadius: '8px' }}>
+                          <h4 style={{ marginTop: 0, borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>Invoice Calculation</h4>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <span>Subtotal (Incl. Tax):</span>
                             <span>₹{invoiceTotals.subtotal.toFixed(2)}</span>
                           </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                            <span>Base Value:</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span>Base Value (Excl. Tax):</span>
                             <span>₹{invoiceTotals.baseValue.toFixed(2)}</span>
                           </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                            <span>Discount:</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span>Total Discount:</span>
                             <span>₹{invoiceTotals.discount.toFixed(2)}</span>
                           </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                            <span>CGST (9%):</span>
-                            <span>₹{invoiceTotals.cgst.toFixed(2)}</span>
+
+                          {/* Show tax breakdown based on what items are present */}
+                          {invoiceTotals.has18PercentItems && (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span>CGST (9%):</span>
+                                <span>₹{invoiceTotals.cgst.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span>SGST (9%):</span>
+                                <span>₹{invoiceTotals.sgst.toFixed(2)}</span>
+                              </div>
+                            </>
+                          )}
+
+                          {invoiceTotals.hasOtherTaxItems && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <span>Other Tax:</span>
+                              <span>₹{invoiceTotals.otherTax.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontWeight: 'bold' }}>
+                            <span>Total Tax:</span>
+                            <span>₹{invoiceTotals.tax.toFixed(2)}</span>
                           </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
-                            <span>SGST (9%):</span>
-                            <span>₹{invoiceTotals.sgst.toFixed(2)}</span>
-                          </div>
-                          <div style={{display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '10px', fontWeight: 'bold'}}>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '10px', fontWeight: 'bold' }}>
                             <span>Grand Total:</span>
                             <span>₹{invoiceTotals.grandTotal.toFixed(2)}</span>
                           </div>
@@ -556,16 +661,21 @@ const Sales = () => {
                         value={customerMobileSearch}
                         onChange={(e) => {
                           setCustomerMobileSearch(e.target.value);
-                          setNewCustomer({...newCustomer, mobile: e.target.value});
+                          setNewCustomer({ ...newCustomer, mobile: e.target.value });
                           setShowCustomerDropdown(e.target.value.length > 0);
                         }}
                         onFocus={() => setShowCustomerDropdown(customerMobileSearch.length > 0)}
                       />
-                      {showCustomerDropdown && filteredCustomers.length > 0 && (
+                      {isLoadingCustomers && (
+                        <div className="search-dropdown">
+                          <div className="dropdown-item">Loading customers...</div>
+                        </div>
+                      )}
+                      {showCustomerDropdown && !isLoadingCustomers && filteredCustomers.length > 0 && (
                         <div className="search-dropdown">
                           {filteredCustomers.map(customer => (
-                            <div 
-                              key={customer.id} 
+                            <div
+                              key={customer.id}
                               className="dropdown-item"
                               onClick={() => handleCustomerSelect(customer)}
                             >
@@ -585,7 +695,7 @@ const Sales = () => {
                         type="text"
                         placeholder="Enter customer name"
                         value={newCustomer.name}
-                        onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                        onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
                         required
                       />
                     </div>
@@ -595,7 +705,7 @@ const Sales = () => {
                         type="email"
                         placeholder="Enter customer email"
                         value={newCustomer.email}
-                        onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                        onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
                       />
                     </div>
                   </div>
@@ -620,8 +730,16 @@ const Sales = () => {
                   </div>
 
                   <div className="submit-btn-container">
-                    <button type="submit" className="submit-btn" disabled={isExporting}>
-                      {isExporting ? "Generating PDF..." : "Create Invoice"}
+                    <button type="submit" className="submit-btn" disabled={isSubmitting || isExporting}>
+                      {isSubmitting ? (
+                        <>
+                          <FaSpinner className="spinner" /> Creating Invoice...
+                        </>
+                      ) : isExporting ? (
+                        "Generating PDF..."
+                      ) : (
+                        "Create Invoice"
+                      )}
                     </button>
                   </div>
                 </Form>
@@ -645,15 +763,21 @@ const Sales = () => {
               </tr>
             </thead>
             <tbody>
-              {invoices.length === 0 ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan="7" style={{textAlign: 'center', padding: '20px'}}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
+                    Loading invoices...
+                  </td>
+                </tr>
+              ) : invoices.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
                     No invoices found. Create your first invoice.
                   </td>
                 </tr>
               ) : (
                 invoices.map(invoice => (
-                  <tr key={invoice.id}>
+                  <tr key={invoice.invoiceNumber}>
                     <td>{invoice.invoiceNumber}</td>
                     <td>{invoice.date}</td>
                     <td>{invoice.customer.name}</td>
@@ -661,7 +785,7 @@ const Sales = () => {
                     <td>{invoice.paymentType}</td>
                     <td>₹{invoice.total.toFixed(2)}</td>
                     <td>
-                      <button 
+                      <button
                         className="export-pdf-btn"
                         onClick={() => generatePDF(invoice)}
                         disabled={isExporting}

@@ -18,7 +18,8 @@ import {
   FaSave,
   FaTrash,
   FaUpload,
-  FaFileDownload
+  FaFileDownload , 
+  FaRupeeSign 
 } from "react-icons/fa";
 import html2pdf from "html2pdf.js";
 import * as XLSX from "xlsx";
@@ -53,7 +54,7 @@ const Items = () => {
   const initialValues = {
     productName: "",
     barcode: "",
-    quantity: "",
+    hsnCode: "",
     taxSlab: "",
     price: ""
   };
@@ -61,9 +62,7 @@ const Items = () => {
   const validationSchema = Yup.object({
     productName: Yup.string().required("Product Name is required"),
     barcode: Yup.string().required("Barcode is required"),
-    quantity: Yup.number()
-      .required("Quantity is required")
-      .min(1, "Quantity must be greater than 0"),
+    hsnCode: Yup.string().required("HSN Code is required"),
     taxSlab: Yup.string().required("Tax Slab is required"),
     price: Yup.number()
       .required("Price is required")
@@ -72,7 +71,7 @@ const Items = () => {
 
   // Fetch items
   useEffect(() => {
-    axios.get(`${import.meta.env.VITE_API_URL}/items/get-items`)
+    axios.get(`${import.meta.env.VITE_API_URL}/products/get-products`)
       .then((res) => {
         const sortedData = res.data.sort((a, b) => {
           const dateA = a.createdAt ? new Date(a.createdAt)
@@ -127,42 +126,46 @@ const Items = () => {
       };
 
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/items/create-item`,
+        `${import.meta.env.VITE_API_URL}/products/create-product`,
         payload
       );
 
       setItems((prev) => [response.data, ...prev]);
-      toast.success("Item submitted successfully!");
+      toast.success("Product submitted successfully!");
       resetForm();
       setShowForm(false);
     } catch (error) {
       if (error.response && error.response.data.field === "productName") {
-        const errorMessage = "Item with this name already exists";
+        const errorMessage = "Product with this name already exists";
         setFieldError("productName", errorMessage);
         toast.error(errorMessage);
+      } else if (error.response && error.response.data.field === "barcode") {
+        const errorMessage = "Product with this barcode already exists";
+        setFieldError("barcode", errorMessage);
+        toast.error(errorMessage);
       } else {
-        console.error("Error saving item:", error);
-        toast.error(error.response?.data?.message || "Failed to submit item.");
+        console.error("Error saving product:", error);
+        toast.error(error.response?.data?.message || "Failed to submit product.");
       }
     }
   };
 
-  const selectItem = (itemId) => {
-    setSelectedItem(prev => prev === itemId ? null : itemId);
+  const selectItem = (productId) => {
+    setSelectedItem(prev => prev === productId ? null : productId);
   };
 
   const exportSelectedAsPDF = () => {
     if (!selectedItem) {
-      toast.warning("Please select an item to export");
+      toast.warning("Please select a product to export");
       return;
     }
 
-    const item = items.find(i => i.itemId === selectedItem);
+    const item = items.find(i => i.productId === selectedItem);
 
     const content = `
     <div style="font-family: 'Arial', sans-serif; padding: 30px; background: #fff;">
       <h1 style="color: #3f3f91; text-align: center; margin-bottom: 20px; font-size: 24px;">
-        Item Details
+        Product Details
       </h1>
 
       <div style="border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
@@ -175,7 +178,7 @@ const Items = () => {
           <strong>Barcode:</strong> ${item.barcode}
         </p>
         <p style="margin: 10px 0; font-size: 14px;">
-          <strong>Quantity:</strong> ${item.quantity}
+          <strong>HSN Code:</strong> ${item.hsnCode}
         </p>
         <p style="margin: 10px 0; font-size: 14px;">
           <strong>Tax Slab:</strong> ${item.taxSlab}%
@@ -203,63 +206,63 @@ const Items = () => {
     const dataToExport = filteredItems.length > 0 ? filteredItems : items;
 
     if (dataToExport.length === 0) {
-      toast.warning("No items to export");
+      toast.warning("No products to export");
       return;
     }
 
     const data = dataToExport.map(item => ({
       "Product Name": item.productName,
       "Barcode": item.barcode,
-      "Quantity": item.quantity,
+      "HSN Code": item.hsnCode,
       "Tax Slab": `${item.taxSlab}%`,
-      "Price": `$${item.price.toFixed(2)}`
+      "Price": `₹${item.price.toFixed(2)}`
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Items");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
 
     // Use appropriate filename based on whether filtered or all
-    const fileName = debouncedSearch ? "filtered_items.xlsx" : "all_items.xlsx";
+    const fileName = debouncedSearch ? "filtered_products.xlsx" : "all_products.xlsx";
     XLSX.writeFile(workbook, fileName);
   };
 
   const handleUpdateItem = async (updatedItem) => {
     try {
       // Remove problematic fields before sending
-      const { itemId, _id, createdAt, updatedAt, ...itemData } = updatedItem;
+      const { productId, _id, createdAt, updatedAt, ...itemData } = updatedItem;
 
       const response = await axios.put(
-        `${import.meta.env.VITE_API_URL}/items/update-item/${updatedItem.itemId}`,
+        `${import.meta.env.VITE_API_URL}/products/update-product/${updatedItem.productId}`,
         itemData
       );
 
       setItems(prev =>
         prev.map(item =>
-          item.itemId === updatedItem.itemId ? response.data : item
+          item.productId === updatedItem.productId ? response.data : item
         )
       );
-      toast.success("Item updated successfully!");
+      toast.success("Product updated successfully!");
     } catch (error) {
-      console.error("Error updating item:", error);
-      toast.error(error.response?.data?.message || "Error updating item");
+      console.error("Error updating product:", error);
+      toast.error(error.response?.data?.message || "Error updating product");
     }
   };
 
-  const handleDeleteItem = async (itemId) => {
+  const handleDeleteItem = async (productId) => {
     try {
       await axios.delete(
-        `${import.meta.env.VITE_API_URL}/items/delete-item/${itemId}`
+        `${import.meta.env.VITE_API_URL}/products/delete-product/${productId}`
       );
 
       setItems(prev =>
-        prev.filter(item => item.itemId !== itemId)
+        prev.filter(item => item.productId !== productId)
       );
       setSelectedItem(null);
-      toast.success("Item deleted successfully!");
+      toast.success("Product deleted successfully!");
     } catch (error) {
-      console.error("Error deleting item:", error);
-      toast.error(error.response?.data?.message || "Error deleting item");
+      console.error("Error deleting product:", error);
+      toast.error(error.response?.data?.message || "Error deleting product");
     }
   };
 
@@ -268,7 +271,7 @@ const Items = () => {
       {
         "Product Name": "Example Product",
         "Barcode": "1234567890123",
-        "Quantity": "10",
+        "HSN Code": "123456",
         "Tax Slab": "18",
         "Price": "29.99"
       }
@@ -276,8 +279,8 @@ const Items = () => {
 
     const worksheet = XLSX.utils.json_to_sheet(templateData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Items Template");
-    XLSX.writeFile(workbook, "items_template.xlsx");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Products Template");
+    XLSX.writeFile(workbook, "products_template.xlsx");
   };
 
   const handleBulkUpload = (event) => {
@@ -297,52 +300,59 @@ const Items = () => {
         return;
       }
 
-      // Process each item
-      const uploadPromises = jsonData.map(item => {
-        const payload = {
-          productName: item['Product Name'],
-          barcode: item['Barcode'],
-          quantity: Number(item['Quantity']),
-          taxSlab: Number(item['Tax Slab']),
-          price: Number(item['Price'])
-        };
+      // Prepare data for bulk upload with default values
+      const productsData = jsonData.map(item => ({
+        productName: item['Product Name']?.trim() || null,   // ✅ must be present
+        barcode: item['Barcode'] ? item['Barcode'].toString().trim() : '0000000000000', // 13 zeros if empty
+        hsnCode: item['HSN Code']?.trim() || '00', // '00' if empty
+        taxSlab: item['Tax Slab'] ? Number(item['Tax Slab']) : 0,
+        price: item['Price'] ? Number(item['Price']) : 0,
+      }));
 
-        return axios.post(
-          `${import.meta.env.VITE_API_URL}/items/create-item`,
-          payload
-        ).catch(error => {
-          console.error("Error uploading item:", error);
-          return { error: true, message: error.response?.data?.message || "Error uploading item" };
-        });
-      });
+      // Filter out items with no product name
+      const validProducts = productsData.filter(product => product.productName);
 
-      // Execute all uploads
-      Promise.all(uploadPromises).then(results => {
-        const successfulUploads = results.filter(result => !result.error);
-        const failedUploads = results.filter(result => result.error);
+      if (validProducts.length === 0) {
+        toast.error("No valid products found in the file (missing product names)");
+        return;
+      }
 
-        if (successfulUploads.length > 0) {
-          toast.success(`Successfully uploaded ${successfulUploads.length} items`);
-          // Refresh the items list
-          axios.get(`${import.meta.env.VITE_API_URL}/items/get-items`)
-            .then((res) => {
-              const sortedData = res.data.sort((a, b) => {
-                const dateA = a.createdAt ? new Date(a.createdAt)
-                  : (a._id?.getTimestamp ? new Date(a._id.getTimestamp()) : new Date(0));
-                const dateB = b.createdAt ? new Date(b.createdAt)
-                  : (b._id?.getTimestamp ? new Date(b._id.getTimestamp()) : new Date(0));
-                return dateB - dateA;
+      // Send bulk upload request
+      axios.post(
+        `${import.meta.env.VITE_API_URL}/products/bulk-upload-products`,
+        validProducts
+      )
+        .then(response => {
+          const { successful, failed } = response.data;
+
+          if (successful.length > 0) {
+            toast.success(`Successfully uploaded ${successful.length} products`);
+            // Refresh the products list
+            axios.get(`${import.meta.env.VITE_API_URL}/products/get-products`)
+              .then((res) => {
+                const sortedData = res.data.sort((a, b) => {
+                  const dateA = a.createdAt ? new Date(a.createdAt)
+                    : (a._id?.getTimestamp ? new Date(a._id.getTimestamp()) : new Date(0));
+                  const dateB = b.createdAt ? new Date(b.createdAt)
+                    : (b._id?.getTimestamp ? new Date(b._id.getTimestamp()) : new Date(0));
+                  return dateB - dateA;
+                });
+                setItems(sortedData);
               });
-              setItems(sortedData);
-            });
-        }
+          }
 
-        if (failedUploads.length > 0) {
-          toast.error(`Failed to upload ${failedUploads.length} items`);
-        }
+          if (failed.length > 0) {
+            toast.error(`Failed to upload ${failed.length} products`);
+            console.error("Failed uploads:", failed);
+          }
 
-        setShowBulkUpload(false);
-      });
+          setShowBulkUpload(false);
+        })
+        .catch(error => {
+          console.error("Error in bulk upload:", error);
+          toast.error("Failed to process bulk upload");
+          setShowBulkUpload(false);
+        });
     };
     reader.readAsArrayBuffer(file);
   };
@@ -371,12 +381,6 @@ const Items = () => {
     };
 
     const handleSave = async () => {
-      // Validate quantity
-      if (!editedItem.quantity || editedItem.quantity <= 0) {
-        toast.error("Quantity must be greater than 0");
-        return;
-      }
-
       // Validate price
       if (!editedItem.price || editedItem.price < 0) {
         toast.error("Price cannot be negative");
@@ -384,7 +388,7 @@ const Items = () => {
       }
 
       // Validate other required fields
-      if (!editedItem.productName || !editedItem.barcode || !editedItem.taxSlab) {
+      if (!editedItem.productName || !editedItem.barcode || !editedItem.hsnCode || !editedItem.taxSlab) {
         toast.error("All fields are required");
         return;
       }
@@ -393,7 +397,7 @@ const Items = () => {
         await onUpdate(editedItem);
         setIsEditing(false);
       } catch (error) {
-        console.error("Error updating item:", error);
+        console.error("Error updating product:", error);
       }
     };
 
@@ -404,7 +408,7 @@ const Items = () => {
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <div className="modal-title">
-              {isEditing ? "Edit Item" : `Item Details: ${item.productName}`}
+              {isEditing ? "Edit Product" : `Product Details: ${item.productName}`}
             </div>
             <button className="modal-close" onClick={onClose}>
               &times;
@@ -445,20 +449,19 @@ const Items = () => {
                 )}
               </div>
 
-              {/* Quantity */}
+              {/* HSN Code */}
               <div className="detail-row">
-                <span className="detail-label">Quantity:</span>
+                <span className="detail-label">HSN Code:</span>
                 {isEditing ? (
                   <input
-                    type="number"
-                    name="quantity"
-                    value={editedItem.quantity || ''}
+                    type="text"
+                    name="hsnCode"
+                    value={editedItem.hsnCode || ''}
                     onChange={handleInputChange}
                     className="edit-input"
-                    min="1"
                   />
                 ) : (
-                  <span className="detail-value">{item.quantity}</span>
+                  <span className="detail-value">{item.hsnCode}</span>
                 )}
               </div>
 
@@ -498,7 +501,7 @@ const Items = () => {
                     step="0.01"
                   />
                 ) : (
-                  <span className="detail-value">${item.price?.toFixed(2)}</span>
+                  <span className="detail-value">₹{item.price?.toFixed(2)}</span>
                 )}
               </div>
 
@@ -548,7 +551,7 @@ const Items = () => {
                 <button
                   className="confirm-delete"
                   onClick={() => {
-                    onDelete(item.itemId);
+                    onDelete(item.productId);
                     setShowDeleteConfirm(false);
                   }}
                 >
@@ -578,7 +581,7 @@ const Items = () => {
     const handleDrop = (e) => {
       e.preventDefault();
       setIsDragging(false);
-      
+
       const files = e.dataTransfer.files;
       if (files.length > 0) {
         handleFileSelect(files[0]);
@@ -586,8 +589,8 @@ const Items = () => {
     };
 
     const handleFileSelect = (file) => {
-      if (file && (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-                   file.type === 'application/vnd.ms-excel')) {
+      if (file && (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel')) {
         const event = { target: { files: [file] } };
         onUpload(event);
       } else {
@@ -599,7 +602,7 @@ const Items = () => {
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-content bulk-upload-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
-            <div className="modal-title">Bulk Upload Items</div>
+            <div className="modal-title">Bulk Upload Products</div>
             <button className="modal-close" onClick={onClose}>
               &times;
             </button>
@@ -610,10 +613,10 @@ const Items = () => {
               <h4>Instructions:</h4>
               <ul>
                 <li>Download the template file to ensure proper formatting</li>
-                <li>Your Excel file should include these columns: Product Name, Barcode, Quantity, Tax Slab, Price</li>
+                <li>Your Excel file should include these columns: Product Name, Barcode, HSN Code, Tax Slab, Price</li>
                 <li>Ensure all required fields are filled</li>
                 <li>Tax Slab should be a number (e.g., 5, 12, 18)</li>
-                <li>Quantity and Price should be numeric values</li>
+                <li>Price should be numeric values</li>
               </ul>
             </div>
 
@@ -623,7 +626,7 @@ const Items = () => {
               </button>
             </div>
 
-            <div 
+            <div
               className={`file-dropzone ${isDragging ? 'active' : ''}`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -632,9 +635,9 @@ const Items = () => {
             >
               <FaUpload size={40} color="#7366ff" />
               <p>Drag & drop your Excel file here or <span className="browse-link">browse</span></p>
-              <input 
+              <input
                 id="file-input"
-                type="file" 
+                type="file"
                 accept=".xlsx, .xls"
                 onChange={(e) => handleFileSelect(e.target.files[0])}
                 style={{ display: 'none' }}
@@ -651,13 +654,13 @@ const Items = () => {
       <ToastContainer position="top-center" autoClose={3000} />
       <div className="main">
         <div className="page-header">
-          <h2>Item List</h2>
+          <h2>Product List</h2>
           <div className="right-section">
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input
                 type="text"
-                placeholder="Search Items..."
+                placeholder="Search Products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -670,7 +673,7 @@ const Items = () => {
                 <FaUpload /> Bulk Upload
               </button>
               <button className="add-btn" onClick={() => setShowForm(!showForm)}>
-                <FaPlus /> {showForm ? "Close" : "Add Item"}
+                <FaPlus /> {showForm ? "Close" : "Add Product"}
               </button>
             </div>
           </div>
@@ -678,7 +681,7 @@ const Items = () => {
 
         {showForm && (
           <div className="form-container premium">
-            <h2>Add Item</h2>
+            <h2>Add Product</h2>
             <Formik
               initialValues={initialValues}
               validationSchema={validationSchema}
@@ -700,9 +703,9 @@ const Items = () => {
 
                 <div className="form-row">
                   <div className="form-field">
-                    <label><FaHashtag /> Quantity *</label>
-                    <Field name="quantity" type="number" />
-                    <ErrorMessage name="quantity" component="div" className="error" />
+                    <label><FaHashtag /> HSN Code *</label>
+                    <Field name="hsnCode" type="text" />
+                    <ErrorMessage name="hsnCode" component="div" className="error" />
                   </div>
                   <div className="form-field">
                     <label><FaPercent /> Tax Slab *</label>
@@ -720,7 +723,7 @@ const Items = () => {
 
                 <div className="form-row">
                   <div className="form-field">
-                    <label><FaDollarSign /> Price *</label>
+                    <label><FaRupeeSign  /> Price *</label>
                     <Field name="price" type="number" step="0.01" />
                     <ErrorMessage name="price" component="div" className="error" />
                   </div>
@@ -738,7 +741,7 @@ const Items = () => {
               <tr>
                 <th>Product Name</th>
                 <th>Barcode</th>
-                <th>Quantity</th>
+                <th>HSN Code</th>
                 <th>Tax Slab</th>
                 <th>Price</th>
               </tr>
@@ -746,15 +749,15 @@ const Items = () => {
             <tbody>
               {paginatedItems.map((item, index) => (
                 <tr
-                  key={item.itemId || index}
-                  className={selectedItem === item.itemId ? 'selected' : ''}
-                  onClick={() => selectItem(item.itemId)}
+                  key={item.productId || index}
+                  className={selectedItem === item.productId ? 'selected' : ''}
+                  onClick={() => selectItem(item.productId)}
                 >
                   <td>{item.productName}</td>
                   <td>{item.barcode}</td>
-                  <td>{item.quantity}</td>
+                  <td>{item.hsnCode}</td>
                   <td>{item.taxSlab}%</td>
-                  <td>${item.price?.toFixed(2)}</td>
+                  <td>₹{item.price?.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -770,7 +773,7 @@ const Items = () => {
 
         {selectedItem && (
           <ItemModal
-            item={items.find(i => i.itemId === selectedItem)}
+            item={items.find(i => i.productId === selectedItem)}
             onClose={() => setSelectedItem(null)}
             onExport={exportSelectedAsPDF}
             onUpdate={handleUpdateItem}
