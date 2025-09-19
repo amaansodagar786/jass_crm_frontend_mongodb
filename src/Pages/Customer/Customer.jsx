@@ -3,8 +3,9 @@ import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
 import {
-  FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt,
-  FaIdCard, FaPlus, FaFileExport, FaFileExcel, FaSearch, FaEdit, FaSave, FaTrash
+  FaUser, FaEnvelope, FaPhone, FaPlus, 
+  FaFileExport, FaFileExcel, FaSearch, 
+  FaEdit, FaSave, FaTrash
 } from "react-icons/fa";
 import html2pdf from "html2pdf.js";
 import * as XLSX from "xlsx";
@@ -19,24 +20,19 @@ const Customer = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
-
-
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-
-
   // Debounce logic
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm.trim().toLowerCase());
-      setCurrentPage(1); // Reset to first page when search changes
-    }, 300); // 300ms delay
+      setCurrentPage(1);
+    }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
@@ -76,11 +72,8 @@ const Customer = () => {
     return customers.filter((cust) => {
       return (
         cust.customerName?.toLowerCase().includes(debouncedSearch) ||
-        cust.gstNumber?.toLowerCase().includes(debouncedSearch) ||
         cust.email?.toLowerCase().includes(debouncedSearch) ||
-        cust.companyName?.toLowerCase().includes(debouncedSearch) ||
-        cust.contactNumber?.toLowerCase().includes(debouncedSearch) ||
-        cust.address?.toLowerCase().includes(debouncedSearch)
+        cust.contactNumber?.toLowerCase().includes(debouncedSearch)
       );
     });
   }, [debouncedSearch, customers]);
@@ -99,18 +92,15 @@ const Customer = () => {
     return debouncedSearch ? false : currentPage * itemsPerPage < filteredCustomers.length;
   }, [currentPage, itemsPerPage, filteredCustomers.length, debouncedSearch]);
 
-
   const loadMoreCustomers = () => {
     setCurrentPage(prev => prev + 1);
   };
-
 
   // Handle row selection
   const selectCustomer = (customerId) => {
     setSelectedCustomer((prev) => (prev === customerId ? null : customerId));
   };
 
-  // Export single customer as PDF
   // Export single customer as PDF
   const exportAsPdf = () => {
     if (!selectedCustomer) {
@@ -121,7 +111,7 @@ const Customer = () => {
     const customer = customers.find((c) => c.customerId === selectedCustomer);
 
     const content = `
-  <div style="font-family: 'Arial', sans-serif; padding: 30px; background: #fff; max-width: 800px; margin: 0 auto;">
+  <div style="font-family: 'Arial', sans-serif; padding: 30px; background: #fff; max-width: 600px; margin: 0 auto;">
     <div style="text-align: center; margin-bottom: 30px;">
       <h1 style="color: #3f3f91; margin: 0; font-size: 28px; font-weight: bold;">Customer Details</h1>
       <div style="height: 3px; background: linear-gradient(90deg, #3f3f91, #6a6ac5); width: 100px; margin: 10px auto;"></div>
@@ -130,74 +120,21 @@ const Customer = () => {
     <div style="border: 2px solid #3f3f91; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
       <div style="background: #3f3f91; padding: 15px; color: white;">
         <h2 style="margin: 0; font-size: 22px;">${customer.customerName || 'N/A'}</h2>
-        <p style="margin: 5px 0 0 0; opacity: 0.9;">${customer.companyName || 'N/A'}</p>
       </div>
       
       <div style="padding: 25px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px;">
           <div>
             <h3 style="color: #3f3f91; margin: 0 0 15px 0; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 8px;">Contact Information</h3>
             
             <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Primary Email</div>
+              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Email</div>
               <div>${customer.email || 'N/A'}</div>
             </div>
             
-            ${customer.email2 ? `
             <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Secondary Email</div>
-              <div>${customer.email2}</div>
-            </div>
-            ` : ''}
-            
-            ${customer.email3 ? `
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Tertiary Email</div>
-              <div>${customer.email3}</div>
-            </div>
-            ` : ''}
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Primary Contact</div>
+              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Mobile Number</div>
               <div>${customer.contactNumber || 'N/A'}</div>
-            </div>
-            
-            ${customer.contactNumber2 ? `
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Secondary Contact</div>
-              <div>${customer.contactNumber2}</div>
-            </div>
-            ` : ''}
-            
-            ${customer.contactNumber3 ? `
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Tertiary Contact</div>
-              <div>${customer.contactNumber3}</div>
-            </div>
-            ` : ''}
-          </div>
-          
-          <div>
-            <h3 style="color: #3f3f91; margin: 0 0 15px 0; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 8px;">Company Details</h3>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">GST Number</div>
-              <div>${customer.gstNumber || 'N/A'}</div>
-            </div>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Address</div>
-              <div>${customer.address || 'N/A'}</div>
-            </div>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">City</div>
-              <div>${customer.city || 'N/A'}</div>
-            </div>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Pincode</div>
-              <div>${customer.pincode || 'N/A'}</div>
             </div>
             
             <div style="margin-bottom: 12px;">
@@ -238,17 +175,8 @@ const Customer = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       dataToExport.map((customer) => ({
         Name: customer.customerName,
-        "Company Name": customer.companyName,
-        "GST No.": customer.gstNumber,
-        "Primary Email": customer.email,
-        "Secondary Email": customer.email2,
-        "Tertiary Email": customer.email3,
-        "Primary Contact": customer.contactNumber,
-        "Secondary Contact": customer.contactNumber2,
-        "Tertiary Contact": customer.contactNumber3,
-        "Address": customer.address,
-        "City": customer.city,
-        "Pincode": customer.pincode,
+        Email: customer.email,
+        "Mobile Number": customer.contactNumber,
       }))
     );
 
@@ -263,17 +191,8 @@ const Customer = () => {
   // Form initial values
   const initialValues = {
     customerName: "",
-    companyName: "",
-    gstNumber: "",
-    email: "",         // Primary email (validated)
-    email2: "",        // Secondary email (optional)
-    email3: "",        // Tertiary email (optional)
-    contactNumber: "", // Primary contact (validated)
-    contactNumber2: "",// Secondary contact (optional)
-    contactNumber3: "",// Tertiary contact (optional)
-    address: "",
-    city: "",       // New field
-    pincode: "",
+    email: "",
+    contactNumber: "",
   };
 
   // Validation schema
@@ -283,42 +202,15 @@ const Customer = () => {
       .matches(/^[a-zA-Z\s]*$/, "Customer Name cannot contain numbers"),
     email: Yup.string()
       .email("Invalid email")
-      .required("Primary Email is required"),
+      .required("Email is required"),
     contactNumber: Yup.string()
-      .required("Primary Contact is required")
+      .required("Mobile Number is required")
       .matches(/^[0-9]+$/, "Must be only digits")
-      .min(10, "Must be exactly 10 digits")
-      .max(10, "Must be exactly 10 digits"),
-    gstNumber: Yup.string()
-      .required("GST Number is required")
-      .matches(/^[0-9A-Za-z]*$/, "Only alphanumeric characters allowed")
-      .length(15, "GST number must be exactly 15 characters"),
-    address: Yup.string().required("Address is required"),
-    city: Yup.string()
-      .required("City is required")
-      .matches(/^[a-zA-Z\s]*$/, "City cannot contain numbers"),
-    pincode: Yup.string()
-      .required("Pincode is required")
-      .matches(/^[0-9]{6}$/, "Pincode must be exactly 6 digits"),
-
-    // Optional fields
-    companyName: Yup.string()
-      .matches(/^[a-zA-Z\s]*$/, "Company Name cannot contain numbers"),
-
-    email2: Yup.string().email("Invalid email"),
-    email3: Yup.string().email("Invalid email"),
-    contactNumber2: Yup.string()
-      .matches(/^[0-9]*$/, "Must be only digits")
-      .min(10, "Must be exactly 10 digits")
-      .max(10, "Must be exactly 10 digits"),
-    contactNumber3: Yup.string()
-      .matches(/^[0-9]*$/, "Must be only digits")
       .min(10, "Must be exactly 10 digits")
       .max(10, "Must be exactly 10 digits"),
   });
 
   // Handle form submission
-
   const handleSubmit = async (values, { resetForm, setFieldError }) => {
     try {
       const response = await fetch(
@@ -338,7 +230,7 @@ const Customer = () => {
         if (data.field === "email") {
           const errorMessage = "Customer with this email already exists";
           setFieldError("email", errorMessage);
-          toast.error(errorMessage); // Show toast notification
+          toast.error(errorMessage);
         } else {
           throw new Error(data.message || "Failed to add customer");
         }
@@ -356,15 +248,14 @@ const Customer = () => {
     }
   };
 
-  // Add these functions to your Customer component
   const handleUpdateCustomer = async (updatedCustomer) => {
     try {
       const customerId = updatedCustomer.customerId;
 
-      // Remove both timestamp fields that cause issues
+      // Remove timestamp fields that cause issues
       const dataToSend = { ...updatedCustomer };
       delete dataToSend.createdAt;
-      delete dataToSend.updatedAt; // Add this line!
+      delete dataToSend.updatedAt;
 
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/customer/update-customer/${customerId}`,
@@ -418,14 +309,11 @@ const Customer = () => {
     }
   };
 
-
-
-
   const CustomerModal = ({ customer, onClose, onExport, onUpdate, onDelete }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedCustomer, setEditedCustomer] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [errors, setErrors] = useState({}); // Initialize errors state
+    const [errors, setErrors] = useState({});
 
     useEffect(() => {
       document.body.style.overflow = 'hidden';
@@ -437,7 +325,7 @@ const Customer = () => {
     useEffect(() => {
       if (customer) {
         setEditedCustomer({ ...customer });
-        setErrors({}); // Reset errors when customer changes
+        setErrors({});
       }
     }, [customer]);
 
@@ -449,44 +337,13 @@ const Customer = () => {
       if (!values.customerName) newErrors.customerName = "Customer Name is required";
       else if (!/^[a-zA-Z\s]*$/.test(values.customerName)) newErrors.customerName = "Customer Name cannot contain numbers";
 
-      if (values.companyName && !/^[a-zA-Z\s]*$/.test(values.companyName))
-        newErrors.companyName = "Company Name cannot contain numbers";
-
-      if (!values.email) newErrors.email = "Primary Email is required";
+      if (!values.email) newErrors.email = "Email is required";
       else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email))
         newErrors.email = "Invalid email address";
 
-      if (!values.contactNumber) newErrors.contactNumber = "Primary Contact is required";
+      if (!values.contactNumber) newErrors.contactNumber = "Mobile Number is required";
       else if (!/^[0-9]+$/.test(values.contactNumber)) newErrors.contactNumber = "Must be only digits";
       else if (values.contactNumber.length !== 10) newErrors.contactNumber = "Must be exactly 10 digits";
-
-      if (!values.gstNumber) newErrors.gstNumber = "GST Number is required";
-      else if (values.gstNumber.length !== 15) newErrors.gstNumber = "GST number must be exactly 15 characters";
-
-      if (!values.address) newErrors.address = "Address is required";
-
-      if (!values.city) newErrors.city = "City is required";
-      else if (!/^[a-zA-Z\s]*$/.test(values.city)) newErrors.city = "City cannot contain numbers";
-
-      if (!values.pincode) newErrors.pincode = "Pincode is required";
-      else if (!/^[0-9]{6}$/.test(values.pincode)) newErrors.pincode = "Pincode must be exactly 6 digits";
-
-      // Optional fields validation
-      if (values.email2 && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email2))
-        newErrors.email2 = "Invalid email address";
-
-      if (values.email3 && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email3))
-        newErrors.email3 = "Invalid email address";
-
-      if (values.contactNumber2 && !/^[0-9]*$/.test(values.contactNumber2))
-        newErrors.contactNumber2 = "Must be only digits";
-      else if (values.contactNumber2 && values.contactNumber2.length !== 10)
-        newErrors.contactNumber2 = "Must be exactly 10 digits";
-
-      if (values.contactNumber3 && !/^[0-9]*$/.test(values.contactNumber3))
-        newErrors.contactNumber3 = "Must be only digits";
-      else if (values.contactNumber3 && values.contactNumber3.length !== 10)
-        newErrors.contactNumber3 = "Must be exactly 10 digits";
 
       return newErrors;
     };
@@ -552,46 +409,9 @@ const Customer = () => {
                 )}
               </div>
 
-              {/* Company Name */}
+              {/* Email */}
               <div className="detail-row">
-                <span className="detail-label">Company Name</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="text"
-                      name="companyName"
-                      value={editedCustomer.companyName || ''}
-                      onChange={handleInputChange}
-                      className="edit-input"
-                    />
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.companyName || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* GST Number */}
-              <div className="detail-row">
-                <span className="detail-label">GST Number *</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="text"
-                      name="gstNumber"
-                      value={editedCustomer.gstNumber || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.gstNumber ? 'error' : ''}`}
-                    />
-                    {errors.gstNumber && <div className="error-message">{errors.gstNumber}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.gstNumber || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Primary Email */}
-              <div className="detail-row">
-                <span className="detail-label">Primary Email *</span>
+                <span className="detail-label">Email *</span>
                 {isEditing ? (
                   <div className="edit-field-container">
                     <input
@@ -608,47 +428,9 @@ const Customer = () => {
                 )}
               </div>
 
-              {/* Secondary Email */}
+              {/* Mobile Number */}
               <div className="detail-row">
-                <span className="detail-label">Secondary Email</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="email"
-                      name="email2"
-                      value={editedCustomer.email2 || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.email2 ? 'error' : ''}`}
-                    />
-                    {errors.email2 && <div className="error-message">{errors.email2}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.email2 || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Tertiary Email */}
-              <div className="detail-row">
-                <span className="detail-label">Tertiary Email</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="email"
-                      name="email3"
-                      value={editedCustomer.email3 || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.email3 ? 'error' : ''}`}
-                    />
-                    {errors.email3 && <div className="error-message">{errors.email3}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.email3 || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Primary Contact */}
-              <div className="detail-row">
-                <span className="detail-label">Primary Contact *</span>
+                <span className="detail-label">Mobile Number *</span>
                 {isEditing ? (
                   <div className="edit-field-container">
                     <input
@@ -662,101 +444,6 @@ const Customer = () => {
                   </div>
                 ) : (
                   <span className="detail-value">{customer.contactNumber || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Secondary Contact */}
-              <div className="detail-row">
-                <span className="detail-label">Secondary Contact</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="text"
-                      name="contactNumber2"
-                      value={editedCustomer.contactNumber2 || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.contactNumber2 ? 'error' : ''}`}
-                    />
-                    {errors.contactNumber2 && <div className="error-message">{errors.contactNumber2}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.contactNumber2 || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Tertiary Contact */}
-              <div className="detail-row">
-                <span className="detail-label">Tertiary Contact</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="text"
-                      name="contactNumber3"
-                      value={editedCustomer.contactNumber3 || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.contactNumber3 ? 'error' : ''}`}
-                    />
-                    {errors.contactNumber3 && <div className="error-message">{errors.contactNumber3}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.contactNumber3 || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Address */}
-              <div className="detail-row">
-                <span className="detail-label">Address *</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <textarea
-                      name="address"
-                      value={editedCustomer.address || ''}
-                      onChange={handleInputChange}
-                      className={`edit-textarea ${errors.address ? 'error' : ''}`}
-                      rows="3"
-                    />
-                    {errors.address && <div className="error-message">{errors.address}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.address || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* City */}
-              <div className="detail-row">
-                <span className="detail-label">City *</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="text"
-                      name="city"
-                      value={editedCustomer.city || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.city ? 'error' : ''}`}
-                    />
-                    {errors.city && <div className="error-message">{errors.city}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.city || 'N/A'}</span>
-                )}
-              </div>
-
-              {/* Pincode */}
-              <div className="detail-row">
-                <span className="detail-label">Pincode *</span>
-                {isEditing ? (
-                  <div className="edit-field-container">
-                    <input
-                      type="text"
-                      name="pincode"
-                      value={editedCustomer.pincode || ''}
-                      onChange={handleInputChange}
-                      className={`edit-input ${errors.pincode ? 'error' : ''}`}
-                    />
-                    {errors.pincode && <div className="error-message">{errors.pincode}</div>}
-                  </div>
-                ) : (
-                  <span className="detail-value">{customer.pincode || 'N/A'}</span>
                 )}
               </div>
 
@@ -820,19 +507,6 @@ const Customer = () => {
     );
   };
 
-
-  // Update the modal rendering part
-  {
-    selectedCustomer && (
-      <CustomerModal
-        customer={customers.find(c => c.customerId === selectedCustomer)}
-        onClose={() => setSelectedCustomer(null)}
-        onExport={exportAsPdf}
-        onUpdate={handleUpdateCustomer}
-        onDelete={handleDeleteCustomer}
-      />
-    )
-  }
   return (
     <Navbar>
       <ToastContainer position="top-center" autoClose={3000} />
@@ -860,7 +534,6 @@ const Customer = () => {
           </div>
         </div>
 
-
         {showForm && (
           <div className="form-container premium">
             <h2>Add Customer</h2>
@@ -870,128 +543,27 @@ const Customer = () => {
               onSubmit={handleSubmit}
             >
               <Form>
-                {/* Customer Name + Company Name */}
                 <div className="form-row">
                   <div className="form-field">
                     <label><FaUser /> Customer Name *</label>
                     <Field name="customerName" type="text" />
                     <ErrorMessage name="customerName" component="div" className="error" />
                   </div>
-                  <div className="form-field">
-                    <label><FaIdCard /> Company Name</label>
-                    <Field name="companyName" type="text" />
-                  </div>
                 </div>
 
-                {/* Desktop: Original email+contact rows */}
-                <div className="form-row email-contact-row">
-                  <div className="form-field">
-                    <label><FaEnvelope /> Primary Email *</label>
-                    <Field name="email" type="email" />
-                    <ErrorMessage name="email" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-                    <label><FaPhone /> Primary Contact *</label>
-                    <Field name="contactNumber" type="text" />
-                    <ErrorMessage name="contactNumber" component="div" className="error" />
-                  </div>
-                </div>
-
-                <div className="form-row email-contact-row">
-                  <div className="form-field">
-                    <label><FaEnvelope /> Secondary Email</label>
-                    <Field name="email2" type="email" />
-                    <ErrorMessage name="email2" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-                    <label><FaPhone /> Secondary Contact</label>
-                    <Field name="contactNumber2" type="text" />
-                    <ErrorMessage name="contactNumber2" component="div" className="error" />
-
-                  </div>
-                </div>
-
-                <div className="form-row email-contact-row">
-                  <div className="form-field">
-                    <label><FaEnvelope /> Tertiary Email</label>
-                    <Field name="email3" type="email" />
-                    <ErrorMessage name="email3" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-                    <label><FaPhone /> Tertiary Contact</label>
-                    <Field name="contactNumber3" type="text" />
-                    <ErrorMessage name="contactNumber3" component="div" className="error" />
-
-                  </div>
-                </div>
-
-                {/* Mobile: Grouped email fields */}
-                <div className="email-fields-group">
-                  <div className="form-field">
-                    <label><FaEnvelope /> Primary Email *</label>
-                    <Field name="email" type="email" />
-                    <ErrorMessage name="email" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-                    <label><FaEnvelope /> Secondary Email</label>
-                    <Field name="email2" type="email" />
-                    <ErrorMessage name="email2" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-                    <label><FaEnvelope /> Tertiary Email</label>
-                    <Field name="email3" type="email" />
-                    <ErrorMessage name="email3" component="div" className="error" />
-                  </div>
-                </div>
-
-                {/* Mobile: Grouped contact fields */}
-                <div className="contact-fields-group">
-                  <div className="form-field">
-                    <label><FaPhone /> Primary Contact *</label>
-                    <Field name="contactNumber" type="text" />
-                    <ErrorMessage name="contactNumber" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-                    <label><FaPhone /> Secondary Contact</label>
-                    <Field name="contactNumber2" type="text" />
-                    <ErrorMessage name="contactNumber2" component="div" className="error" />
-
-                  </div>
-                  <div className="form-field">
-                    <label><FaPhone /> Tertiary Contact</label>
-                    <Field name="contactNumber3" type="text" />
-                    <ErrorMessage name="contactNumber3" component="div" className="error" />
-
-                  </div>
-                </div>
-
-                {/* GST + Address */}
                 <div className="form-row">
                   <div className="form-field">
-                    <label><FaIdCard /> GST Number *</label>
-                    <Field name="gstNumber" type="text" />
-                    <ErrorMessage name="gstNumber" component="div" className="error" />
-                  </div>
-
-
-                  <div className="form-field">
-                    <label><FaMapMarkerAlt /> Address *</label>
-                    <Field name="address" as="textarea" rows="3" />
-                    <ErrorMessage name="address" component="div" className="error" />
+                    <label><FaEnvelope /> Email *</label>
+                    <Field name="email" type="email" />
+                    <ErrorMessage name="email" component="div" className="error" />
                   </div>
                 </div>
 
                 <div className="form-row">
                   <div className="form-field">
-                    <label><FaMapMarkerAlt /> City *</label>
-                    <Field name="city" type="text" />
-                    <ErrorMessage name="city" component="div" className="error" />
-                  </div>
-
-                  <div className="form-field">
-                    <label><FaMapMarkerAlt /> Pincode *</label>
-                    <Field name="pincode" type="text" />
-                    <ErrorMessage name="pincode" component="div" className="error" />
+                    <label><FaPhone /> Mobile Number *</label>
+                    <Field name="contactNumber" type="text" />
+                    <ErrorMessage name="contactNumber" component="div" className="error" />
                   </div>
                 </div>
 
@@ -1006,11 +578,8 @@ const Customer = () => {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Company</th>
-                <th>GST No.</th>
                 <th>Email</th>
-                <th>Contact</th>
-                <th>Address</th>
+                <th>Mobile Number</th>
               </tr>
             </thead>
             <tbody>
@@ -1023,11 +592,8 @@ const Customer = () => {
                   onClick={() => selectCustomer(cust.customerId)}
                 >
                   <td>{cust.customerName}</td>
-                  <td>{cust.companyName}</td>
-                  <td>{cust.gstNumber}</td>
                   <td>{cust.email}</td>
                   <td>{cust.contactNumber}</td>
-                  <td>{cust.address}</td>
                 </tr>
               ))}
             </tbody>
@@ -1051,7 +617,6 @@ const Customer = () => {
             onDelete={handleDeleteCustomer}
           />
         )}
-
       </div>
     </Navbar>
   );

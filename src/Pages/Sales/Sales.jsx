@@ -500,7 +500,7 @@ const Sales = () => {
                                 <td>
                                   <button 
                                     type="button" 
-                                    className="invoice-remove-btn"
+                                    className="remove-btn"
                                     onClick={() => setSelectedItems(selectedItems.filter((_, i) => i !== index))}
                                   >
                                     <FaTrash />
