@@ -7,7 +7,9 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "./Login.scss";
 // import logo from "../../../Assets/logo/bg_logo.png"; 
-import logo from "../../../Assets/logo/th_logo.png";
+// import logo from "../../../Assets/logo/th_logo.png"; 
+import logo from "../../../Assets/logo/jass_logo.png"
+
 // import logo from "../../../Assets/logo/th.png";  
 import "react-toastify/dist/ReactToastify.css";
 
@@ -54,7 +56,7 @@ const Login = () => {
             <h1 className="welcome-title">Welcome Back!</h1>
             <div className="divider" />
             <p className="welcome-desc">
-              Access powerful tools for inventory control, from GRNs and BOMs to work orders and sales. Log in to keep your business operations organized and efficient.
+              From essence to invoice — streamline every step of your perfume and attar business. Log in to keep your fragrances flowing and your operations effortless.
             </p>
             {localStorage.getItem("token") && (
               <div className="left-footer-home">

@@ -8,7 +8,9 @@ import axios from 'axios';
 import './Register.scss';
 import 'react-toastify/dist/ReactToastify.css';
 // import logo from "../../../Assets/logo/bg_logo.png";
-import logo from "../../../Assets/logo/th_logo.png";
+// import logo from "../../../Assets/logo/th_logo.png"; 
+import logo from "../../../Assets/logo/jass_logo.png"
+
 // import logo from "../../../Assets/logo/th.png";  
 
 
