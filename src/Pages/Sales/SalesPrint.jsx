@@ -1,5 +1,5 @@
 import React from "react";
-import "./SalesPrint.scss";
+import "./Salesprint.scss";
 import logo from "../../Assets/logo/jass_logo.png";
 
 const SalesPrint = ({ invoice }) => {
