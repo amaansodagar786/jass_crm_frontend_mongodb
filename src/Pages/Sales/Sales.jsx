@@ -516,7 +516,7 @@ const Sales = () => {
         'Invoice ID': invoice.id,
         'Invoice Number': invoice.invoiceNumber,
         'Date': invoice.date,
-        'Customer Number': invoice.customer.customerNumber,
+        // 'Customer Number': invoice.customer.customerNumber, 
         'Customer Name': invoice.customer.name,
         'Customer Email': invoice.customer.email,
         'Customer Mobile': invoice.customer.mobile,
@@ -671,7 +671,7 @@ const Sales = () => {
               </div>
 
               {/* Customer Number */}
-              <div className="detail-row">
+              {/* <div className="detail-row">
                 <span className="detail-label">Customer Number:</span>
                 {isEditing ? (
                   <input
@@ -684,7 +684,7 @@ const Sales = () => {
                 ) : (
                   <span className="detail-value">{invoice.customer?.customerNumber || 'N/A'}</span>
                 )}
-              </div>
+              </div> */}
 
               {/* Customer Name */}
               <div className="detail-row">
@@ -1117,9 +1117,16 @@ const Sales = () => {
                 </tr>
               ) : (
                 invoices.map(invoice => (
+                  // In the table row, modify the onClick handler
                   <tr
                     key={invoice.invoiceNumber}
-                    onClick={() => setSelectedInvoice(invoice)}
+                    onClick={(e) => {
+                      // Check if the click came from the export button
+                      if (e.target.closest('.export-pdf-btn')) {
+                        return; // Don't open modal if export button was clicked
+                      }
+                      setSelectedInvoice(invoice);
+                    }}
                     style={{ cursor: 'pointer' }}
                   >
                     <td>{invoice.invoiceNumber}</td>
@@ -1131,7 +1138,10 @@ const Sales = () => {
                     <td>
                       <button
                         className="export-pdf-btn"
-                        onClick={() => setInvoiceForPrint({ invoice, openWhatsapp: false })}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent the row click from firing
+                          setInvoiceForPrint({ invoice, openWhatsapp: false });
+                        }}
                         disabled={isExporting}
                       >
                         <FaFilePdf /> PDF

@@ -3,8 +3,8 @@ import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
 import {
-  FaUser, FaEnvelope, FaPhone, FaPlus, 
-  FaFileExport, FaFileExcel, FaSearch, 
+  FaUser, FaEnvelope, FaPhone, FaPlus,
+  FaFileExport, FaFileExcel, FaSearch,
   FaEdit, FaSave, FaTrash
 } from "react-icons/fa";
 import html2pdf from "html2pdf.js";
@@ -23,6 +23,8 @@ const Customer = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -37,9 +39,11 @@ const Customer = () => {
   }, [searchTerm]);
 
   // Fetch customers
+  // Fetch customers
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
+        setIsLoading(true);
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/customer/get-customers`
         );
@@ -57,9 +61,11 @@ const Customer = () => {
         });
 
         setCustomers(sortedData);
+        setIsLoading(false);
       } catch (err) {
         console.error("Error fetching customers:", err);
         toast.error("Failed to fetch customers");
+        setIsLoading(false);
       }
     };
     fetchCustomers();
@@ -574,37 +580,46 @@ const Customer = () => {
         )}
 
         <div className="data-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Mobile Number</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedCustomers.map((cust, index) => (
-                <tr
-                  key={cust.customerId || index}
-                  className={
-                    selectedCustomer === cust.customerId ? "selected" : ""
-                  }
-                  onClick={() => selectCustomer(cust.customerId)}
-                >
-                  <td>{cust.customerName}</td>
-                  <td>{cust.email}</td>
-                  <td>{cust.contactNumber}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {hasMoreCustomers && (
-            <div className="load-more-container">
-              <button className="load-more-btn" onClick={loadMoreCustomers}>
-                Load More
-              </button>
+          {isLoading ? (
+            <div className="loading-container">
+              <div className="loading-spinner large"></div>
+              <p>Loading customers...</p>
             </div>
+          ) : (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Mobile Number</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedCustomers.map((cust, index) => (
+                    <tr
+                      key={cust.customerId || index}
+                      className={
+                        selectedCustomer === cust.customerId ? "selected" : ""
+                      }
+                      onClick={() => selectCustomer(cust.customerId)}
+                    >
+                      <td>{cust.customerName}</td>
+                      <td>{cust.email}</td>
+                      <td>{cust.contactNumber}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {hasMoreCustomers && (
+                <div className="load-more-container">
+                  <button className="load-more-btn" onClick={loadMoreCustomers}>
+                    Load More
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 

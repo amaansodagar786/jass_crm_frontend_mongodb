@@ -41,6 +41,8 @@ const Items = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -73,7 +75,9 @@ const Items = () => {
   });
 
   // Fetch items
+  // Fetch items
   useEffect(() => {
+    setIsLoading(true);
     axios.get(`${import.meta.env.VITE_API_URL}/products/get-products`)
       .then((res) => {
         const sortedData = res.data.sort((a, b) => {
@@ -84,10 +88,12 @@ const Items = () => {
           return dateB - dateA;
         });
         setItems(sortedData);
+        setIsLoading(false);
       })
       .catch((err) => {
         console.error("Error fetching items:", err);
         toast.error("Failed to load items.");
+        setIsLoading(false);
       });
   }, []);
 
@@ -770,38 +776,47 @@ const Items = () => {
         )}
 
         <div className="data-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Product Name</th>
-                <th>Barcode</th>
-                <th>HSN Code</th>
-                <th>Tax Slab</th>
-                <th>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedItems.map((item, index) => (
-                <tr
-                  key={item.productId || index}
-                  className={selectedItem === item.productId ? 'selected' : ''}
-                  onClick={() => selectItem(item.productId)}
-                >
-                  <td>{item.productName}</td>
-                  <td>{item.barcode}</td>
-                  <td>{item.hsnCode}</td>
-                  <td>{item.taxSlab}%</td>
-                  <td>₹{item.price?.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {hasMoreItems && (
-            <div className="load-more-container">
-              <button className="load-more-btn" onClick={loadMoreItems}>
-                Load More
-              </button>
+          {isLoading ? (
+            <div className="loading-container">
+              <div className="loading-spinner large"></div>
+              <p>Loading products...</p>
             </div>
+          ) : (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product Name</th>
+                    <th>Barcode</th>
+                    <th>HSN Code</th>
+                    <th>Tax Slab</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedItems.map((item, index) => (
+                    <tr
+                      key={item.productId || index}
+                      className={selectedItem === item.productId ? 'selected' : ''}
+                      onClick={() => selectItem(item.productId)}
+                    >
+                      <td>{item.productName}</td>
+                      <td>{item.barcode}</td>
+                      <td>{item.hsnCode}</td>
+                      <td>{item.taxSlab}%</td>
+                      <td>₹{item.price?.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {hasMoreItems && (
+                <div className="load-more-container">
+                  <button className="load-more-btn" onClick={loadMoreItems}>
+                    Load More
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
