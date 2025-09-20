@@ -78,7 +78,7 @@ const SalesPrint = ({ invoice }) => {
             <img src={logo} alt="Company Logo" />
           </div>
           <div className="company-info">
-            <p>SFP Sons India Pvt Ltd</p>
+            <p>Patel Enterprise </p>
             <p>24AAAFP0763BAZV</p>
           </div>
         </div>
