@@ -13,7 +13,7 @@ import axios from "axios";
 
 const Sales = () => {
   const [invoices, setInvoices] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -302,6 +302,8 @@ const Sales = () => {
         id: product.productId, // Keep id for backward compatibility
         name: product.productName, // Map productName to name
         hsn: product.hsnCode, // Map hsnCode to hsn
+        originalPrice: product.price, // Store original price
+        price: product.price, // Editable price field
         quantity: 1,
         discount: 0 // Changed from "" to 0
       }]);
@@ -317,6 +319,8 @@ const Sales = () => {
     // For discount field, keep it as string to allow empty value
     if (field === 'discount') {
       updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
+    } else if (field === 'price') {
+      updatedItems[index][field] = value;
     } else {
       updatedItems[index][field] = value;
     }
@@ -414,7 +418,12 @@ const Sales = () => {
       const invoice = {
         date: new Date().toISOString().split('T')[0],
         customer: customerToUse,
-        items: invoiceTotals.items, // Use items with calculations
+        items: invoiceTotals.items.map(item => ({
+          ...item,
+          // Include both the original price and the potentially modified price
+          originalPrice: item.originalPrice || item.price,
+          price: item.price
+        })),
         paymentType: values.paymentType,
         subtotal: invoiceTotals.subtotal,
         baseValue: invoiceTotals.baseValue,
@@ -499,6 +508,20 @@ const Sales = () => {
     }
   };
 
+  // Add this near your other useMemo hooks
+  const filteredInvoices = useMemo(() => {
+    if (!searchTerm) return invoices;
+
+    const term = searchTerm.toLowerCase();
+    return invoices.filter(invoice =>
+      (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
+      (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
+      (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
+      (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
+      (invoice.total && invoice.total.toString().includes(term))
+    );
+  }, [searchTerm, invoices]);
+
 
   // Export to Excel
   const handleExportExcel = () => {
@@ -570,6 +593,7 @@ const Sales = () => {
 
   // Update invoice in backend
   // Update invoice in backend
+  // Update invoice in backend
   const updateInvoice = async (invoiceData) => {
     try {
       // Prepare only the fields that can be updated
@@ -578,7 +602,7 @@ const Sales = () => {
           customerNumber: invoiceData.customer?.customerNumber,
           name: invoiceData.customer?.name,
           email: invoiceData.customer?.email,
-          mobile: invoiceData.customer?.mobile // Keep original mobile as it's read-only
+          mobile: invoiceData.customer?.mobile // Now includes mobile
         },
         paymentType: invoiceData.paymentType
       };
@@ -593,6 +617,9 @@ const Sales = () => {
       throw error;
     }
   };
+
+
+
   // Delete invoice from backend
   const deleteInvoice = async (invoiceNumber) => {
     try {
@@ -671,7 +698,7 @@ const Sales = () => {
               </div>
 
               {/* Customer Number */}
-              {/* <div className="detail-row">
+              <div className="detail-row">
                 <span className="detail-label">Customer Number:</span>
                 {isEditing ? (
                   <input
@@ -684,7 +711,7 @@ const Sales = () => {
                 ) : (
                   <span className="detail-value">{invoice.customer?.customerNumber || 'N/A'}</span>
                 )}
-              </div> */}
+              </div>
 
               {/* Customer Name */}
               <div className="detail-row">
@@ -718,10 +745,20 @@ const Sales = () => {
                 )}
               </div>
 
-              {/* Customer Mobile (Read-only) */}
+              {/* Customer Mobile - NOW EDITABLE */}
               <div className="detail-row">
                 <span className="detail-label">Customer Mobile:</span>
-                <span className="detail-value">{invoice.customer?.mobile}</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    name="mobile"
+                    value={editedInvoice.customer?.mobile || ''}
+                    onChange={handleInputChange}
+                    className="edit-input"
+                  />
+                ) : (
+                  <span className="detail-value">{invoice.customer?.mobile}</span>
+                )}
               </div>
 
               {/* Payment Type */}
@@ -907,7 +944,16 @@ const Sales = () => {
                                     onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'quantity', parseInt(e.target.value) || 1)}
                                   />
                                 </td>
-                                <td>₹{item.price || 0}</td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.price || 0}
+                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'price', parseFloat(e.target.value) || 0)}
+                                    style={{ width: "80px" }} // Optional: to control the input width
+                                  />
+                                </td>
                                 <td>
                                   <input
                                     type="number"
@@ -1109,14 +1155,14 @@ const Sales = () => {
                     Loading invoices...
                   </td>
                 </tr>
-              ) : invoices.length === 0 ? (
+              ) : filteredInvoices.length === 0 ? (
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
-                    No invoices found. Create your first invoice.
+                    {searchTerm ? 'No invoices match your search' : 'No invoices found. Create your first invoice.'}
                   </td>
                 </tr>
               ) : (
-                invoices.map(invoice => (
+                filteredInvoices.map(invoice => (
                   // In the table row, modify the onClick handler
                   <tr
                     key={invoice.invoiceNumber}

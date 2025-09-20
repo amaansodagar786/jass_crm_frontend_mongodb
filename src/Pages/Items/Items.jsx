@@ -103,8 +103,9 @@ const Items = () => {
     return items.filter((item) =>
       item.productName?.toLowerCase().includes(debouncedSearch) ||
       item.hsnCode?.toLowerCase().includes(debouncedSearch) ||
-      item.price?.toLowerCase().includes(debouncedSearch) ||
-      item.barcode?.toLowerCase().includes(debouncedSearch)
+      item.barcode?.toLowerCase().includes(debouncedSearch) ||
+      // Convert price to string for searching
+      item.price?.toString().includes(debouncedSearch)
     );
   }, [debouncedSearch, items]);
 
@@ -401,7 +402,13 @@ const Items = () => {
 
     const handleInputChange = (e) => {
       const { name, value } = e.target;
-      setEditedItem(prev => ({ ...prev, [name]: value }));
+
+      // For numeric fields, convert to number
+      if (name === 'taxSlab' || name === 'price') {
+        setEditedItem(prev => ({ ...prev, [name]: Number(value) }));
+      } else {
+        setEditedItem(prev => ({ ...prev, [name]: value }));
+      }
     };
 
     const handleSave = async () => {
@@ -641,7 +648,7 @@ const Items = () => {
                 <li>Download the template file to ensure proper formatting</li>
                 <li>Your Excel file should include these columns: Product Name, Barcode, HSN Code, Tax Slab, Price</li>
                 <li>Ensure all required fields are filled</li>
-                <li>Tax Slab should be a number (e.g., 5, 12, 18)</li>
+                <li>Tax Slab should be a number (e.g., 5 18)</li>
                 <li>Price should be numeric values</li>
               </ul>
             </div>
