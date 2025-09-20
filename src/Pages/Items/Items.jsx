@@ -18,8 +18,8 @@ import {
   FaSave,
   FaTrash,
   FaUpload,
-  FaFileDownload , 
-  FaRupeeSign 
+  FaFileDownload,
+  FaRupeeSign
 } from "react-icons/fa";
 import html2pdf from "html2pdf.js";
 import * as XLSX from "xlsx";
@@ -37,6 +37,9 @@ const Items = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -118,6 +121,7 @@ const Items = () => {
   };
 
   const handleSubmit = async (values, { resetForm, setFieldError }) => {
+    setIsSubmitting(true);
     try {
       const payload = {
         ...values,
@@ -147,6 +151,9 @@ const Items = () => {
         console.error("Error saving product:", error);
         toast.error(error.response?.data?.message || "Failed to submit product.");
       }
+    }
+    finally {
+      setIsSubmitting(false); // End loading
     }
   };
 
@@ -284,8 +291,12 @@ const Items = () => {
   };
 
   const handleBulkUpload = (event) => {
+    setIsBulkUploading(true); // Start loading
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) {
+      setIsBulkUploading(false);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -297,14 +308,15 @@ const Items = () => {
       // Validate and process the data
       if (jsonData.length === 0) {
         toast.error("No data found in the file");
+        setIsBulkUploading(false);
         return;
       }
 
       // Prepare data for bulk upload with default values
       const productsData = jsonData.map(item => ({
-        productName: item['Product Name']?.trim() || null,   // ✅ must be present
-        barcode: item['Barcode'] ? item['Barcode'].toString().trim() : '0000000000000', // 13 zeros if empty
-        hsnCode: item['HSN Code']?.trim() || '00', // '00' if empty
+        productName: item['Product Name']?.trim() || null,
+        barcode: item['Barcode'] ? item['Barcode'].toString().trim() : '0000000000000',
+        hsnCode: item['HSN Code']?.trim() || '00',
         taxSlab: item['Tax Slab'] ? Number(item['Tax Slab']) : 0,
         price: item['Price'] ? Number(item['Price']) : 0,
       }));
@@ -314,6 +326,7 @@ const Items = () => {
 
       if (validProducts.length === 0) {
         toast.error("No valid products found in the file (missing product names)");
+        setIsBulkUploading(false);
         return;
       }
 
@@ -352,6 +365,9 @@ const Items = () => {
           console.error("Error in bulk upload:", error);
           toast.error("Failed to process bulk upload");
           setShowBulkUpload(false);
+        })
+        .finally(() => {
+          setIsBulkUploading(false); // End loading
         });
     };
     reader.readAsArrayBuffer(file);
@@ -565,7 +581,7 @@ const Items = () => {
     );
   };
 
-  const BulkUploadModal = ({ onClose, onUpload, onDownloadTemplate }) => {
+  const BulkUploadModal = ({ onClose, onUpload, onDownloadTemplate , isUploading  }) => {
     const [isDragging, setIsDragging] = useState(false);
 
     const handleDragOver = (e) => {
@@ -599,13 +615,15 @@ const Items = () => {
     };
 
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay" onClick={isUploading ? undefined : onClose}>
         <div className="modal-content bulk-upload-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <div className="modal-title">Bulk Upload Products</div>
-            <button className="modal-close" onClick={onClose}>
-              &times;
-            </button>
+            {!isUploading && (
+              <button className="modal-close" onClick={onClose}>
+                &times;
+              </button>
+            )}
           </div>
 
           <div className="modal-body">
@@ -620,28 +638,39 @@ const Items = () => {
               </ul>
             </div>
 
-            <div className="template-download">
-              <button onClick={onDownloadTemplate}>
-                <FaFileDownload /> Download Template
-              </button>
-            </div>
+            {!isUploading && (
+              <div className="template-download">
+                <button onClick={onDownloadTemplate}>
+                  <FaFileDownload /> Download Template
+                </button>
+              </div>
+            )}
 
             <div
-              className={`file-dropzone ${isDragging ? 'active' : ''}`}
+              className={`file-dropzone ${isDragging ? 'active' : ''} ${isUploading ? 'uploading' : ''}`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => document.getElementById('file-input').click()}
+              onDrop={isUploading ? undefined : handleDrop}
+              onClick={isUploading ? undefined : () => document.getElementById('file-input').click()}
             >
-              <FaUpload size={40} color="#7366ff" />
-              <p>Drag & drop your Excel file here or <span className="browse-link">browse</span></p>
-              <input
-                id="file-input"
-                type="file"
-                accept=".xlsx, .xls"
-                onChange={(e) => handleFileSelect(e.target.files[0])}
-                style={{ display: 'none' }}
-              />
+              {isUploading ? (
+                <>
+                  <div className="loading-spinner large"></div>
+                  <p>Processing your file, please wait...</p>
+                </>
+              ) : (
+                <>
+                  <FaUpload size={40} color="#7366ff" />
+                  <p>Drag & drop your Excel file here or <span className="browse-link">browse</span></p>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={(e) => onUpload(e)}
+                    style={{ display: 'none' }}
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -723,13 +752,16 @@ const Items = () => {
 
                 <div className="form-row">
                   <div className="form-field">
-                    <label><FaRupeeSign  /> Price *</label>
+                    <label><FaRupeeSign /> Price *</label>
                     <Field name="price" type="number" step="0.01" />
                     <ErrorMessage name="price" component="div" className="error" />
                   </div>
                 </div>
 
-                <button type="submit">Submit</button>
+                <button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Submitting..." : "Submit"}
+                  {isSubmitting && <span className="loading-spinner"></span>}
+                </button>
               </Form>
             </Formik>
           </div>
@@ -786,6 +818,7 @@ const Items = () => {
             onClose={() => setShowBulkUpload(false)}
             onUpload={handleBulkUpload}
             onDownloadTemplate={downloadTemplate}
+            isUploading={isBulkUploading}
           />
         )}
       </div>
