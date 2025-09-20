@@ -968,7 +968,12 @@ const Sales = () => {
                                 <td>
                                   {item.discount || 0}% {/* Display discount as read-only */}
                                 </td>
-                                <td>₹{((item.price || 0) * item.quantity).toFixed(2)}</td>
+                                <td>
+                                  ₹{(
+                                    (item.price || 0) * item.quantity -
+                                    ((item.price || 0) * item.quantity * (item.discount || 0) / 100)
+                                  ).toFixed(2)}
+                                </td>
                                 <td>
                                   <button
                                     type="button"

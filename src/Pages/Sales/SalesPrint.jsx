@@ -29,31 +29,15 @@ const SalesPrint = ({ invoice }) => {
   1. All goods sold are subject to our terms and conditions.
   `;
 
-  // Safe calculation function for item total
-  const calculateItemTotal = (item) => {
-    // If totalAmount exists, use it
-    if (item.totalAmount !== undefined) {
-      return item.totalAmount;
-    }
-    
-    // Fallback calculation for backward compatibility
+  // Calculate discounted total for each item
+  const calculateItemDiscountedTotal = (item) => {
     const quantity = item.quantity || 1;
-    const taxRate = item.taxSlab || 18;
+    const price = item.price || 0;
     const discountPercentage = item.discount || 0;
-
-    // Calculate base value for this item
-    const taxMultiplier = 1 + (taxRate / 100);
-    const itemBaseValue = (item.price * quantity) / taxMultiplier;
-
-    // Apply discount to this item
-    const itemDiscountAmount = itemBaseValue * (discountPercentage / 100);
-    const itemDiscountedBase = itemBaseValue - itemDiscountAmount;
-
-    // Recalculate tax for this item
-    const itemTaxAfterDiscount = itemDiscountedBase * (taxRate / 100);
-
-    // Total amount for this item
-    return itemDiscountedBase + itemTaxAfterDiscount;
+    
+    const itemTotal = price * quantity;
+    const discountAmount = itemTotal * (discountPercentage / 100);
+    return itemTotal - discountAmount;
   };
 
   // Safe number formatting
@@ -143,8 +127,7 @@ const SalesPrint = ({ invoice }) => {
                 <th>Qty</th>
                 <th>Price (Incl. Tax)</th>
                 <th>Discount %</th>
-                {/* <th>Tax Rate</th>  */}
-                {/* <th>Amount</th>  */}
+                <th>Total</th> {/* Added Total column */}
               </tr>
             </thead>
             <tbody>
@@ -157,8 +140,7 @@ const SalesPrint = ({ invoice }) => {
                   <td>{item.quantity || 1}</td>
                   <td>{formatCurrency(item.price)}</td>
                   <td>{formatNumber(item.discount)}%</td>
-                  {/* <td>{formatNumber(item.taxSlab)}%</td>  */}
-                  {/* <td>{formatCurrency(calculateItemTotal(item))}</td>  */}
+                  <td>{formatCurrency(calculateItemDiscountedTotal(item))}</td> {/* Added Total value */}
                 </tr>
               ))}
             </tbody>
