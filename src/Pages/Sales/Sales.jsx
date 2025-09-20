@@ -296,16 +296,16 @@ const Sales = () => {
       updatedItems[existingItemIndex].quantity = (updatedItems[existingItemIndex].quantity || 1) + 1;
       setSelectedItems(updatedItems);
     } else {
-      // Add new item with default values
+      // Add new item with default quantity of 1 and product discount
       setSelectedItems([...selectedItems, {
         ...product,
-        id: product.productId, // Keep id for backward compatibility
-        name: product.productName, // Map productName to name
-        hsn: product.hsnCode, // Map hsnCode to hsn
-        originalPrice: product.price, // Store original price
-        price: product.price, // Editable price field
-        quantity: 1,
-        discount: 0 // Changed from "" to 0
+        id: product.productId,
+        name: product.productName,
+        hsn: product.hsnCode,
+        originalPrice: product.price,
+        price: product.price,
+        quantity: 1, // Default to 1
+        discount: product.discount || 0 // Use product discount instead of 0
       }]);
     }
 
@@ -316,8 +316,10 @@ const Sales = () => {
   const handleItemUpdate = (index, field, value) => {
     const updatedItems = [...selectedItems];
 
-    // For discount field, keep it as string to allow empty value
-    if (field === 'discount') {
+    if (field === 'quantity') {
+      // Allow empty string (for backspace/editing) but validate on submit
+      updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
+    } else if (field === 'discount') {
       updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
     } else if (field === 'price') {
       updatedItems[index][field] = value;
@@ -374,8 +376,12 @@ const Sales = () => {
 
   // Handle form submission
   const handleSubmit = async (values) => {
-    if (selectedItems.length === 0) {
-      toast.error("Please add at least one item");
+    const hasInvalidQuantity = selectedItems.some(item =>
+      !item.quantity || item.quantity === "" || item.quantity < 1
+    );
+
+    if (selectedItems.length === 0 || hasInvalidQuantity) {
+      toast.error("Please add at least one item and ensure all quantities are valid (minimum 1)");
       return;
     }
 
@@ -904,7 +910,11 @@ const Sales = () => {
                               onClick={() => handleItemSelect(product)}
                             >
                               <div>{product.productName}</div>
-                              <div>HSN: {product.hsnCode || "N/A"} | Price: ₹{product.price || 0} (incl. tax)</div>
+                              <div>
+                                HSN: {product.hsnCode || "N/A"} |
+                                Price: ₹{product.price || 0} |
+                                Discount: {product.discount || 0}%
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -940,8 +950,9 @@ const Sales = () => {
                                   <input
                                     type="number"
                                     min="1"
+                                    required
                                     value={item.quantity}
-                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'quantity', parseInt(e.target.value) || 1)}
+                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'quantity', e.target.value)}
                                   />
                                 </td>
                                 <td>
@@ -955,13 +966,7 @@ const Sales = () => {
                                   />
                                 </td>
                                 <td>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={item.discount || 0}
-                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'discount', parseInt(e.target.value) || 0)}
-                                  />
+                                  {item.discount || 0}% {/* Display discount as read-only */}
                                 </td>
                                 <td>₹{((item.price || 0) * item.quantity).toFixed(2)}</td>
                                 <td>
