@@ -35,6 +35,10 @@ const Sales = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const customerSearchRef = useRef(null);
 
+  // Add new state near the top with other useState declarations:
+  const [invoiceForPrint, setInvoiceForPrint] = useState(null); // { invoice, openWhatsapp }
+
+
   // Fetch customers, products and invoices from backend
   useEffect(() => {
     fetchCustomers();
@@ -45,11 +49,20 @@ const Sales = () => {
   const fetchInvoices = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/invoices/get-invoices`);
+      const response = await axios.get("http://localhost:5000/invoices/get-invoices");
+      const invoicesData = (response.data && response.data.data) ? response.data.data : [];
 
-      // Sort invoices by date in descending order (newest first)
-      const sortedInvoices = response.data.data.sort((a, b) => {
-        return new Date(b.date) - new Date(a.date);
+      const sortedInvoices = invoicesData.sort((a, b) => {
+        // Prefer createdAt if available, else use date
+        const dateA = new Date(a.createdAt || a.date || 0);
+        const dateB = new Date(b.createdAt || b.date || 0);
+
+        if (dateB - dateA !== 0) return dateB - dateA;
+
+        // fallback: compare numeric suffix of invoiceNumber (INVYYYYNNNN -> numeric part)
+        const numA = parseInt((a.invoiceNumber || "").replace(/\D/g, "")) || 0;
+        const numB = parseInt((b.invoiceNumber || "").replace(/\D/g, "")) || 0;
+        return numB - numA;
       });
 
       setInvoices(sortedInvoices);
@@ -60,6 +73,38 @@ const Sales = () => {
       setIsLoading(false);
     }
   };
+
+
+  useEffect(() => {
+    if (!invoiceForPrint) return;
+
+    let mounted = true;
+
+    const runPrint = async () => {
+      try {
+        // small delay to ensure the hidden component finished rendering
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await generatePDF(invoiceForPrint.invoice);
+
+        if (invoiceForPrint.openWhatsapp) {
+          const customerMobile = (invoiceForPrint.invoice.customer?.mobile || "").replace(/\D/g, "");
+          if (customerMobile) {
+            const message = `Hello ${invoiceForPrint.invoice.customer?.name || ""}, your invoice (No: ${invoiceForPrint.invoice.invoiceNumber}) has been generated.`;
+            window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
+          }
+        }
+      } catch (err) {
+        console.error("Error printing/opening whatsapp:", err);
+      } finally {
+        if (mounted) setInvoiceForPrint(null);
+      }
+    };
+
+    runPrint();
+
+    return () => { mounted = false; };
+  }, [invoiceForPrint]); // runs when invoiceForPrint is set
+
 
   const fetchCustomers = async () => {
     try {
@@ -382,16 +427,31 @@ const Sales = () => {
       };
 
       // Save to database
+      // Save to database
       const savedInvoice = await saveInvoiceToDB(invoice);
 
-      // Update local state with the invoice from database (which includes the invoiceNumber)
-      setInvoices([savedInvoice.data, ...invoices]);
+      // Update local state safely (functional update)
+      setInvoices(prev => {
+        const updated = [savedInvoice.data, ...prev];
+        // Re-sort to keep consistent ordering
+        updated.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.date || 0);
+          const dateB = new Date(b.createdAt || b.date || 0);
+          if (dateB - dateA !== 0) return dateB - dateA;
+          const numA = parseInt((a.invoiceNumber || "").replace(/\D/g, "")) || 0;
+          const numB = parseInt((b.invoiceNumber || "").replace(/\D/g, "")) || 0;
+          return numB - numA;
+        });
+        return updated;
+      });
       setSelectedItems([]);
       setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "" });
       setCustomerMobileSearch("");
 
       // Generate and download PDF
-      generatePDF(savedInvoice.data);
+      setInvoiceForPrint({ invoice: savedInvoice.data, openWhatsapp: true });
+
+      toast.success("Invoice created successfully!");
 
       // ✅ Open WhatsApp with customer mobile
       const customerMobile = customerToUse.mobile.replace(/\D/g, ""); // remove non-numeric characters
@@ -410,74 +470,34 @@ const Sales = () => {
 
   // Generate PDF function
   const generatePDF = async (invoice) => {
+    if (!invoice) return;
     if (isExporting) return;
     setIsExporting(true);
 
     try {
-      // Create a temporary element for PDF generation
       const element = document.getElementById("sales-pdf");
+      if (!element) {
+        throw new Error("print element not found");
+      }
 
       await html2pdf()
         .from(element)
         .set({
-          filename: `${invoice.invoiceNumber}_${invoice.customer.name.replace(/\s+/g, "_")}.pdf`,
+          filename: `${invoice.invoiceNumber}_${(invoice.customer?.name || "customer").replace(/\s+/g, "_")}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
         .save();
-
-
-      // Update the invoice number in the temporary element
-      const invoiceNumberElement = tempElement.querySelector(".invoice-number");
-      if (invoiceNumberElement && invoice.invoiceNumber) {
-        invoiceNumberElement.textContent = `Invoice Number: ${invoice.invoiceNumber}`;
-      }
-
-      document.body.appendChild(tempElement);
-
-      // Wait for all images to load
-      const images = tempElement.getElementsByTagName("img");
-      const imageLoadPromises = Array.from(images).map((img) => {
-        return new Promise((resolve) => {
-          if (img.complete) {
-            resolve();
-          } else {
-            img.onload = resolve;
-            img.onerror = resolve;
-          }
-        });
-      });
-
-      await Promise.race([
-        Promise.all(imageLoadPromises),
-        new Promise((resolve) => setTimeout(resolve, 3000)),
-      ]);
-
-      // Generate PDF
-      await html2pdf()
-        .from(tempElement)
-        .set({
-          filename: `${invoice.invoiceNumber}_${invoice.customer.name.replace(/\s+/g, "_")}.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-          },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        })
-        .save();
-
-      // Clean up
-      document.body.removeChild(tempElement);
     } catch (error) {
-      toast.error("Failed to export PDF");
       console.error("Export error:", error);
+      toast.error("Failed to export PDF");
+      throw error;
     } finally {
       setIsExporting(false);
     }
   };
+
 
   // Export to Excel
   const handleExportExcel = () => {
@@ -838,7 +858,7 @@ const Sales = () => {
                     <td>
                       <button
                         className="export-pdf-btn"
-                        onClick={() => generatePDF(invoice)}
+                        onClick={() => setInvoiceForPrint({ invoice, openWhatsapp: false })}
                         disabled={isExporting}
                       >
                         <FaFilePdf /> PDF
@@ -853,7 +873,7 @@ const Sales = () => {
 
         {/* Hidden PDF element */}
         <div style={{ position: "absolute", left: "-9999px", top: 0, visibility: "hidden" }}>
-          {invoices.length > 0 && <SalesPrint invoice={invoices[0]} />}
+          {invoiceForPrint && <SalesPrint invoice={invoiceForPrint.invoice} />}
         </div>
       </div>
     </Navbar>
