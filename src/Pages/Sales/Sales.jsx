@@ -137,8 +137,6 @@ const Sales = () => {
     );
   }, [customerMobileSearch, customers]);
 
-  // Calculate invoice totals based on new requirements
-  // Updated calculateInvoiceTotals function
   // Updated calculateInvoiceTotals function
   const calculateInvoiceTotals = () => {
     // Initialize all totals
@@ -148,15 +146,18 @@ const Sales = () => {
     let totalTaxAmount = 0;
     let cgstAmount = 0;
     let sgstAmount = 0;
-    let otherTaxAmount = 0;
-    let has18PercentItems = false;
-    let hasOtherTaxItems = false;
+
+    // Track tax percentages used
+    const taxPercentages = new Set();
 
     // Process each item individually
     selectedItems.forEach(item => {
       const quantity = item.quantity || 1;
       const taxRate = item.taxSlab || 18;
       const discountPercentage = item.discount || 0;
+
+      // Track this tax percentage
+      taxPercentages.add(taxRate);
 
       // Calculate original values (without discount)
       const itemSubtotal = item.price * quantity;
@@ -178,20 +179,20 @@ const Sales = () => {
       const itemTaxAmount = discountedBaseValue * (taxRate / 100);
       totalTaxAmount += itemTaxAmount;
 
-      // Allocate tax to appropriate buckets
-      if (taxRate === 18) {
-        has18PercentItems = true;
+      // For same tax percentage items, calculate CGST/SGST
+      if (taxPercentages.size === 1) {
+        // Only calculate CGST/SGST if all items have the same tax rate
         cgstAmount += itemTaxAmount / 2;
         sgstAmount += itemTaxAmount / 2;
-      } else {
-        hasOtherTaxItems = true;
-        otherTaxAmount += itemTaxAmount;
       }
     });
 
     // Calculate grand total
     const discountedBase = totalBaseValue - totalDiscountAmount;
     const grandTotal = discountedBase + totalTaxAmount;
+
+    // Check if we have mixed tax percentages
+    const hasMixedTaxRates = taxPercentages.size > 1;
 
     return {
       subtotal: subtotal,
@@ -200,9 +201,8 @@ const Sales = () => {
       tax: totalTaxAmount,
       cgst: cgstAmount,
       sgst: sgstAmount,
-      otherTax: otherTaxAmount,
-      has18PercentItems: has18PercentItems,
-      hasOtherTaxItems: hasOtherTaxItems,
+      hasMixedTaxRates: hasMixedTaxRates,
+      taxPercentages: Array.from(taxPercentages),
       grandTotal: grandTotal
     };
   };
@@ -355,8 +355,13 @@ const Sales = () => {
       setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "" });
       setCustomerMobileSearch("");
 
-      // Generate PDF after submission with the actual invoice number from backend
+      // Generate and download PDF
       generatePDF(savedInvoice.data);
+
+      // ✅ Open WhatsApp with customer mobile
+      const customerMobile = customerToUse.mobile.replace(/\D/g, ""); // remove non-numeric characters
+      const message = `Hello ${customerToUse.name}, your invoice (No: ${savedInvoice.data.invoiceNumber}) has been generated.`;
+      window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
 
       toast.success("Invoice created successfully!");
     } catch (error) {
@@ -367,6 +372,7 @@ const Sales = () => {
     }
   };
 
+
   // Generate PDF function
   const generatePDF = async (invoice) => {
     if (isExporting) return;
@@ -374,8 +380,18 @@ const Sales = () => {
 
     try {
       // Create a temporary element for PDF generation
-      const tempElement = document.createElement("div");
-      tempElement.innerHTML = document.getElementById("sales-pdf").innerHTML;
+      const element = document.getElementById("sales-pdf");
+
+      await html2pdf()
+        .from(element)
+        .set({
+          filename: `${invoice.invoiceNumber}_${invoice.customer.name.replace(/\s+/g, "_")}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .save();
+
 
       // Update the invoice number in the temporary element
       const invoiceNumberElement = tempElement.querySelector(".invoice-number");
@@ -596,7 +612,7 @@ const Sales = () => {
                         </table>
                       </div>
 
-                      {/* Calculation Summary - Now placed below the items table */}
+
                       {/* Calculation Summary */}
                       {/* Calculation Summary */}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
@@ -615,24 +631,24 @@ const Sales = () => {
                             <span>₹{invoiceTotals.discount.toFixed(2)}</span>
                           </div>
 
-                          {/* Show tax breakdown based on what items are present */}
-                          {invoiceTotals.has18PercentItems && (
+                          {/* Show tax breakdown based on tax percentages */}
+                          {!invoiceTotals.hasMixedTaxRates && invoiceTotals.taxPercentages.length > 0 && (
                             <>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <span>CGST (9%):</span>
+                                <span>CGST ({invoiceTotals.taxPercentages[0] / 2}%):</span>
                                 <span>₹{invoiceTotals.cgst.toFixed(2)}</span>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <span>SGST (9%):</span>
+                                <span>SGST ({invoiceTotals.taxPercentages[0] / 2}%):</span>
                                 <span>₹{invoiceTotals.sgst.toFixed(2)}</span>
                               </div>
                             </>
                           )}
 
-                          {invoiceTotals.hasOtherTaxItems && (
+                          {invoiceTotals.hasMixedTaxRates && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <span>Other Tax:</span>
-                              <span>₹{invoiceTotals.otherTax.toFixed(2)}</span>
+                              <span>GST:</span>
+                              <span>₹{invoiceTotals.tax.toFixed(2)}</span>
                             </div>
                           )}
 
@@ -801,7 +817,7 @@ const Sales = () => {
         </div>
 
         {/* Hidden PDF element */}
-        <div style={{ display: "none" }}>
+        <div style={{ position: "absolute", left: "-9999px", top: 0, visibility: "hidden" }}>
           {invoices.length > 0 && <SalesPrint invoice={invoices[0]} />}
         </div>
       </div>
