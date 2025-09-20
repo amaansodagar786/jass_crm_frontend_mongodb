@@ -45,7 +45,7 @@ const Sales = () => {
   const fetchInvoices = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get("http://localhost:5000/invoices/get-invoices");
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/invoices/get-invoices`);
 
       // Sort invoices by date in descending order (newest first)
       const sortedInvoices = response.data.data.sort((a, b) => {
@@ -64,7 +64,7 @@ const Sales = () => {
   const fetchCustomers = async () => {
     try {
       setIsLoadingCustomers(true);
-      const response = await axios.get("http://localhost:5000/customer/get-customers");
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/customer/get-customers`);
       const customersData = response.data.map(customer => ({
         id: customer.customerId,
         customerNumber: customer.customerId,
@@ -84,7 +84,7 @@ const Sales = () => {
   const fetchProducts = async () => {
     try {
       setIsLoadingProducts(true);
-      const response = await axios.get("http://localhost:5000/products/get-products");
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/products/get-products`);
       setProducts(response.data);
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -97,7 +97,7 @@ const Sales = () => {
   // Save invoice to database
   const saveInvoiceToDB = async (invoice) => {
     try {
-      const response = await axios.post("http://localhost:5000/invoices/create-invoice", invoice);
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/invoices/create-invoice`, invoice);
       return response.data;
     } catch (error) {
       console.error("Error saving invoice to database:", error);
@@ -293,7 +293,7 @@ const Sales = () => {
   // Create new customer in backend
   const createCustomer = async (customerData) => {
     try {
-      const response = await axios.post("http://localhost:5000/customer/create-customer", {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/customer/create-customer`, {
         customerName: customerData.name,
         email: customerData.email,
         contactNumber: customerData.mobile
