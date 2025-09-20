@@ -14,7 +14,7 @@ import { RxCross1 } from "react-icons/rx";
 import { FiUser } from "react-icons/fi"; // profile icon
 
 // import logo from "../../Assets/logo/jass_logo.jpg"
-import logo from "../../Assets/logo/jass_logo.png"
+import logo from "../../Assets/logo/jass_logo_new.png"
 // CSS
 import "./Navbar.css";
 

@@ -46,7 +46,13 @@ const Sales = () => {
     try {
       setIsLoading(true);
       const response = await axios.get("http://localhost:5000/invoices/get-invoices");
-      setInvoices(response.data.data);
+
+      // Sort invoices by date in descending order (newest first)
+      const sortedInvoices = response.data.data.sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+      });
+
+      setInvoices(sortedInvoices);
     } catch (error) {
       console.error("Error fetching invoices:", error);
       toast.error("Failed to load invoices");
@@ -150,8 +156,8 @@ const Sales = () => {
     // Track tax percentages used
     const taxPercentages = new Set();
 
-    // Process each item individually
-    selectedItems.forEach(item => {
+    // Process each item individually and calculate item-level values
+    const itemsWithCalculations = selectedItems.map(item => {
       const quantity = item.quantity || 1;
       const taxRate = item.taxSlab || 18;
       const discountPercentage = item.discount || 0;
@@ -161,40 +167,66 @@ const Sales = () => {
 
       // Calculate original values (without discount)
       const itemSubtotal = item.price * quantity;
-      subtotal += itemSubtotal;
 
       // Calculate base value (excluding tax)
       const taxMultiplier = 1 + (taxRate / 100);
       const itemBaseValue = itemSubtotal / taxMultiplier;
-      totalBaseValue += itemBaseValue;
 
       // Apply discount to base value
       const itemDiscountAmount = itemBaseValue * (discountPercentage / 100);
-      totalDiscountAmount += itemDiscountAmount;
 
       // Calculate discounted base value
       const discountedBaseValue = itemBaseValue - itemDiscountAmount;
 
       // Calculate tax on discounted base value
       const itemTaxAmount = discountedBaseValue * (taxRate / 100);
+
+      // Calculate CGST/SGST for this item
+      const itemCgstAmount = itemTaxAmount / 2;
+      const itemSgstAmount = itemTaxAmount / 2;
+
+      // Calculate total amount for this item
+      const itemTotalAmount = discountedBaseValue + itemTaxAmount;
+
+      // Add to overall totals
+      subtotal += itemSubtotal;
+      totalBaseValue += itemBaseValue;
+      totalDiscountAmount += itemDiscountAmount;
       totalTaxAmount += itemTaxAmount;
 
       // For same tax percentage items, calculate CGST/SGST
       if (taxPercentages.size === 1) {
-        // Only calculate CGST/SGST if all items have the same tax rate
-        cgstAmount += itemTaxAmount / 2;
-        sgstAmount += itemTaxAmount / 2;
+        cgstAmount += itemCgstAmount;
+        sgstAmount += itemSgstAmount;
       }
+
+      // Return item with all calculated values
+      return {
+        ...item,
+        baseValue: itemBaseValue,
+        discountAmount: itemDiscountAmount,
+        taxAmount: itemTaxAmount,
+        cgstAmount: itemCgstAmount,
+        sgstAmount: itemSgstAmount,
+        totalAmount: itemTotalAmount
+      };
     });
+
+    // Check if we have mixed tax percentages
+    const hasMixedTaxRates = taxPercentages.size > 1;
+
+    // If mixed tax rates, don't split into CGST/SGST
+    if (hasMixedTaxRates) {
+      cgstAmount = 0;
+      sgstAmount = 0;
+    }
 
     // Calculate grand total
     const discountedBase = totalBaseValue - totalDiscountAmount;
     const grandTotal = discountedBase + totalTaxAmount;
 
-    // Check if we have mixed tax percentages
-    const hasMixedTaxRates = taxPercentages.size > 1;
-
     return {
+      items: itemsWithCalculations,
       subtotal: subtotal,
       baseValue: totalBaseValue,
       discount: totalDiscountAmount,
@@ -207,6 +239,7 @@ const Sales = () => {
     };
   };
 
+  // Handle item selection
   // Handle item selection
   const handleItemSelect = (product) => {
     const existingItemIndex = selectedItems.findIndex(i => i.productId === product.productId);
@@ -224,7 +257,7 @@ const Sales = () => {
         name: product.productName, // Map productName to name
         hsn: product.hsnCode, // Map hsnCode to hsn
         quantity: 1,
-        discount: ""
+        discount: 0 // Changed from "" to 0
       }]);
     }
 
@@ -335,7 +368,7 @@ const Sales = () => {
       const invoice = {
         date: new Date().toISOString().split('T')[0],
         customer: customerToUse,
-        items: selectedItems,
+        items: invoiceTotals.items, // Use items with calculations
         paymentType: values.paymentType,
         subtotal: invoiceTotals.subtotal,
         baseValue: invoiceTotals.baseValue,
@@ -343,6 +376,8 @@ const Sales = () => {
         tax: invoiceTotals.tax,
         cgst: invoiceTotals.cgst,
         sgst: invoiceTotals.sgst,
+        hasMixedTaxRates: invoiceTotals.hasMixedTaxRates,
+        taxPercentages: invoiceTotals.taxPercentages,
         total: invoiceTotals.grandTotal
       };
 
@@ -589,7 +624,7 @@ const Sales = () => {
                                     type="number"
                                     min="0"
                                     max="100"
-                                    value={item.discount}
+                                    value={item.discount || 0}
                                     onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'discount', parseInt(e.target.value) || 0)}
                                   />
                                 </td>
