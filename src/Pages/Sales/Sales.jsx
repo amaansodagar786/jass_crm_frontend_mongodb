@@ -698,7 +698,7 @@ const Sales = () => {
               </div>
 
               {/* Customer Number */}
-              <div className="detail-row">
+              {/* <div className="detail-row">
                 <span className="detail-label">Customer Number:</span>
                 {isEditing ? (
                   <input
@@ -711,7 +711,7 @@ const Sales = () => {
                 ) : (
                   <span className="detail-value">{invoice.customer?.customerNumber || 'N/A'}</span>
                 )}
-              </div>
+              </div> */}
 
               {/* Customer Name */}
               <div className="detail-row">

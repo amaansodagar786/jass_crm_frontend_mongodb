@@ -207,8 +207,7 @@ const Customer = () => {
       .required("Customer Name is required")
       .matches(/^[a-zA-Z\s]*$/, "Customer Name cannot contain numbers"),
     email: Yup.string()
-      .email("Invalid email")
-      .required("Email is required"),
+      .email("Invalid email"), // Removed .required()
     contactNumber: Yup.string()
       .required("Mobile Number is required")
       .matches(/^[0-9]+$/, "Must be only digits")
@@ -336,6 +335,7 @@ const Customer = () => {
     }, [customer]);
 
     // Validation function for the modal form
+    // Validation function for the modal form
     const validateForm = (values) => {
       const newErrors = {};
 
@@ -343,8 +343,8 @@ const Customer = () => {
       if (!values.customerName) newErrors.customerName = "Customer Name is required";
       else if (!/^[a-zA-Z\s]*$/.test(values.customerName)) newErrors.customerName = "Customer Name cannot contain numbers";
 
-      if (!values.email) newErrors.email = "Email is required";
-      else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email))
+      // Email is now optional but must be valid if provided
+      if (values.email && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email))
         newErrors.email = "Invalid email address";
 
       if (!values.contactNumber) newErrors.contactNumber = "Mobile Number is required";
@@ -417,7 +417,7 @@ const Customer = () => {
 
               {/* Email */}
               <div className="detail-row">
-                <span className="detail-label">Email *</span>
+                <span className="detail-label">Email </span>
                 {isEditing ? (
                   <div className="edit-field-container">
                     <input
