@@ -40,10 +40,10 @@ const Navbar = ({ children }) => {
 
   const menuData = [
     { icon: <PiBasket />, title: "Invoice", path: "/" },
-    { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard" },
+    // { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard" }, 
     { icon: <TbUsers />, title: "Customer", path: "/customer" },
     // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor" }, 
-    { icon: <LuFile />, title: "Items", path: "/items" },
+    { icon: <LuFile />, title: "Products", path: "/items" },
     // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order" }, 
     // { icon: <BsBell />, title: "GRN", path: "/grn" }, 
     // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom" }, 
