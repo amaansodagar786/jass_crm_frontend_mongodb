@@ -936,7 +936,7 @@ const Sales = () => {
                               <th width="12%">Price (Incl. Tax)</th>
                               <th width="10%">Discount %</th>
                               <th width="15%">Total</th>
-                              <th width="5%">Action</th>
+                              <th width="5%"></th>
                             </tr>
                           </thead>
                           <tbody>
