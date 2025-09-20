@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
-import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf, FaSpinner } from "react-icons/fa";
+import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf, FaSpinner, FaEdit } from "react-icons/fa";
 import Navbar from "../../Components/Sidebar/Navbar";
 import "react-toastify/dist/ReactToastify.css";
 import "./Sales.scss";
@@ -37,6 +37,7 @@ const Sales = () => {
 
   // Add new state near the top with other useState declarations:
   const [invoiceForPrint, setInvoiceForPrint] = useState(null); // { invoice, openWhatsapp }
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
 
   // Fetch customers, products and invoices from backend
@@ -49,7 +50,7 @@ const Sales = () => {
   const fetchInvoices = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get("http://localhost:5000/invoices/get-invoices");
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/invoices/get-invoices`);
       const invoicesData = (response.data && response.data.data) ? response.data.data : [];
 
       const sortedInvoices = invoicesData.sort((a, b) => {
@@ -451,7 +452,7 @@ const Sales = () => {
       // Generate and download PDF
       setInvoiceForPrint({ invoice: savedInvoice.data, openWhatsapp: true });
 
-      toast.success("Invoice created successfully!");
+      // toast.success("Invoice created successfully!"); 
 
       // ✅ Open WhatsApp with customer mobile
       const customerMobile = customerToUse.mobile.replace(/\D/g, ""); // remove non-numeric characters
@@ -532,6 +533,274 @@ const Sales = () => {
     XLSX.writeFile(workbook, "invoices.xlsx");
 
     toast.success(`Exported ${invoices.length} invoices`);
+  };
+
+  const handleUpdateInvoice = async (updatedInvoice) => {
+    try {
+      const result = await updateInvoice(updatedInvoice);
+
+      // Update local state with the returned data from server
+      setInvoices(prev =>
+        prev.map(inv =>
+          inv.invoiceNumber === updatedInvoice.invoiceNumber ? result.data : inv
+        )
+      );
+
+      toast.success("Invoice updated successfully!");
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      toast.error(error.response?.data?.message || "Error updating invoice");
+    }
+  };
+
+  const handleDeleteInvoice = async (invoiceNumber) => {
+    try {
+      await deleteInvoice(invoiceNumber);
+
+      // Update local state
+      setInvoices(prev => prev.filter(inv => inv.invoiceNumber !== invoiceNumber));
+      setSelectedInvoice(null);
+
+      toast.success("Invoice deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+      toast.error(error.response?.data?.message || "Error deleting invoice");
+    }
+  };
+
+  // Update invoice in backend
+  // Update invoice in backend
+  const updateInvoice = async (invoiceData) => {
+    try {
+      // Prepare only the fields that can be updated
+      const updatePayload = {
+        customer: {
+          customerNumber: invoiceData.customer?.customerNumber,
+          name: invoiceData.customer?.name,
+          email: invoiceData.customer?.email,
+          mobile: invoiceData.customer?.mobile // Keep original mobile as it's read-only
+        },
+        paymentType: invoiceData.paymentType
+      };
+
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/invoices/update-invoice/${invoiceData.invoiceNumber}`,
+        updatePayload
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      throw error;
+    }
+  };
+  // Delete invoice from backend
+  const deleteInvoice = async (invoiceNumber) => {
+    try {
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/invoices/delete-invoice/${invoiceNumber}`
+      );
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+      throw error;
+    }
+  };
+
+  const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedInvoice, setEditedInvoice] = useState({});
+
+    useEffect(() => {
+      if (invoice) {
+        setEditedInvoice({ ...invoice });
+      }
+    }, [invoice]);
+
+    const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      setEditedInvoice(prev => ({
+        ...prev,
+        customer: {
+          ...prev.customer,
+          [name]: value
+        }
+      }));
+    };
+
+    const handlePaymentTypeChange = (e) => {
+      setEditedInvoice(prev => ({
+        ...prev,
+        paymentType: e.target.value
+      }));
+    };
+
+    const handleSave = async () => {
+      try {
+        await onUpdate(editedInvoice);
+        setIsEditing(false);
+      } catch (error) {
+        console.error("Error updating invoice:", error);
+      }
+    };
+
+    if (!invoice) return null;
+
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title">
+              {isEditing ? "Edit Invoice" : `Invoice Details: ${invoice.invoiceNumber}`}
+            </div>
+            <button className="modal-close" onClick={onClose}>
+              &times;
+            </button>
+          </div>
+
+          <div className="modal-body">
+            <div className="wo-details-grid">
+              {/* Invoice Number (Read-only) */}
+              <div className="detail-row">
+                <span className="detail-label">Invoice Number:</span>
+                <span className="detail-value">{invoice.invoiceNumber}</span>
+              </div>
+
+              {/* Date (Read-only) */}
+              <div className="detail-row">
+                <span className="detail-label">Date:</span>
+                <span className="detail-value">{invoice.date}</span>
+              </div>
+
+              {/* Customer Number */}
+              <div className="detail-row">
+                <span className="detail-label">Customer Number:</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    name="customerNumber"
+                    value={editedInvoice.customer?.customerNumber || ''}
+                    onChange={handleInputChange}
+                    className="edit-input"
+                  />
+                ) : (
+                  <span className="detail-value">{invoice.customer?.customerNumber || 'N/A'}</span>
+                )}
+              </div>
+
+              {/* Customer Name */}
+              <div className="detail-row">
+                <span className="detail-label">Customer Name:</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    name="name"
+                    value={editedInvoice.customer?.name || ''}
+                    onChange={handleInputChange}
+                    className="edit-input"
+                  />
+                ) : (
+                  <span className="detail-value">{invoice.customer?.name}</span>
+                )}
+              </div>
+
+              {/* Customer Email */}
+              <div className="detail-row">
+                <span className="detail-label">Customer Email:</span>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    name="email"
+                    value={editedInvoice.customer?.email || ''}
+                    onChange={handleInputChange}
+                    className="edit-input"
+                  />
+                ) : (
+                  <span className="detail-value">{invoice.customer?.email || 'N/A'}</span>
+                )}
+              </div>
+
+              {/* Customer Mobile (Read-only) */}
+              <div className="detail-row">
+                <span className="detail-label">Customer Mobile:</span>
+                <span className="detail-value">{invoice.customer?.mobile}</span>
+              </div>
+
+              {/* Payment Type */}
+              <div className="detail-row">
+                <span className="detail-label">Payment Type:</span>
+                {isEditing ? (
+                  <select
+                    value={editedInvoice.paymentType || ''}
+                    onChange={handlePaymentTypeChange}
+                    className="edit-input"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="upi">UPI</option>
+                  </select>
+                ) : (
+                  <span className="detail-value">{invoice.paymentType}</span>
+                )}
+              </div>
+
+              {/* Total Amount (Read-only) */}
+              <div className="detail-row">
+                <span className="detail-label">Total Amount:</span>
+                <span className="detail-value">₹{invoice.total?.toFixed(2)}</span>
+              </div>
+
+              {/* Items Count (Read-only) */}
+              <div className="detail-row">
+                <span className="detail-label">Items Count:</span>
+                <span className="detail-value">{invoice.items?.length || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button
+              className={`update-btn ${isEditing ? 'save-btn' : ''}`}
+              onClick={isEditing ? handleSave : () => setIsEditing(true)}
+            >
+              {isEditing ? <FaSave /> : <FaEdit />}
+              {isEditing ? "Save Changes" : "Update"}
+            </button>
+            <button
+              className="delete-btn"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <FaTrash /> Delete
+            </button>
+          </div>
+        </div>
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <div className="confirm-dialog-overlay">
+            <div className="confirm-dialog">
+              <h3>Confirm Deletion</h3>
+              <p>Are you sure you want to delete invoice {invoice.invoiceNumber}? This action cannot be undone.</p>
+              <div className="confirm-buttons">
+                <button
+                  className="confirm-cancel"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="confirm-delete"
+                  onClick={() => {
+                    onDelete(invoice.invoiceNumber);
+                    setShowDeleteConfirm(false);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const invoiceTotals = calculateInvoiceTotals();
@@ -848,7 +1117,11 @@ const Sales = () => {
                 </tr>
               ) : (
                 invoices.map(invoice => (
-                  <tr key={invoice.invoiceNumber}>
+                  <tr
+                    key={invoice.invoiceNumber}
+                    onClick={() => setSelectedInvoice(invoice)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td>{invoice.invoiceNumber}</td>
                     <td>{invoice.date}</td>
                     <td>{invoice.customer.name}</td>
@@ -870,6 +1143,15 @@ const Sales = () => {
             </tbody>
           </table>
         </div>
+
+        {selectedInvoice && (
+          <InvoiceModal
+            invoice={selectedInvoice}
+            onClose={() => setSelectedInvoice(null)}
+            onUpdate={handleUpdateInvoice}
+            onDelete={handleDeleteInvoice}
+          />
+        )}
 
         {/* Hidden PDF element */}
         <div style={{ position: "absolute", left: "-9999px", top: 0, visibility: "hidden" }}>

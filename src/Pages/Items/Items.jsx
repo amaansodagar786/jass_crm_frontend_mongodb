@@ -96,6 +96,8 @@ const Items = () => {
     if (!debouncedSearch) return items;
     return items.filter((item) =>
       item.productName?.toLowerCase().includes(debouncedSearch) ||
+      item.hsnCode?.toLowerCase().includes(debouncedSearch) ||
+      item.price?.toLowerCase().includes(debouncedSearch) ||
       item.barcode?.toLowerCase().includes(debouncedSearch)
     );
   }, [debouncedSearch, items]);
@@ -581,7 +583,7 @@ const Items = () => {
     );
   };
 
-  const BulkUploadModal = ({ onClose, onUpload, onDownloadTemplate , isUploading  }) => {
+  const BulkUploadModal = ({ onClose, onUpload, onDownloadTemplate, isUploading }) => {
     const [isDragging, setIsDragging] = useState(false);
 
     const handleDragOver = (e) => {
