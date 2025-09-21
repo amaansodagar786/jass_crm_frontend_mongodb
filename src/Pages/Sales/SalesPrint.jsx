@@ -156,10 +156,10 @@ const SalesPrint = ({ invoice }) => {
                   <td>Subtotal (Incl. Tax):</td>
                   <td>{formatCurrency(subtotal)}</td>
                 </tr>
-                <tr>
+                {/* <tr>
                   <td>Base Value:</td>
                   <td>{formatCurrency(baseValue)}</td>
-                </tr>
+                </tr> */}
                 <tr>
                   <td>Discount:</td>
                   <td>{formatCurrency(discount)}</td>
