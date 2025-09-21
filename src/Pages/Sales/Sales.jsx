@@ -190,93 +190,107 @@ const Sales = () => {
   }, [customerMobileSearch, customers]);
 
   // Updated calculateInvoiceTotals function
+  // Replace the calculateInvoiceTotals function with this corrected version:
   const calculateInvoiceTotals = () => {
-    // Initialize all totals
-    let subtotal = 0;
-    let totalBaseValue = 0;
-    let totalDiscountAmount = 0;
-    let totalTaxAmount = 0;
+    let subtotal = 0; // total including tax before discount
+    let totalDiscountAmount = 0; // total discount given to customer
+    let totalBaseValue = 0; // <-- will represent TOTAL BASE BEFORE DISCOUNT (for summary)
+    let totalTaxAmount = 0; // <-- will represent TOTAL TAX BEFORE DISCOUNT (for summary)
     let cgstAmount = 0;
     let sgstAmount = 0;
 
-    // Track tax percentages used
+    // extras to return the exact discount breakup
+    let totalDiscountBasePart = 0;
+    let totalDiscountTaxPart = 0;
+
     const taxPercentages = new Set();
 
-    // Process each item individually and calculate item-level values
     const itemsWithCalculations = selectedItems.map(item => {
       const quantity = item.quantity || 1;
       const taxRate = item.taxSlab || 18;
       const discountPercentage = item.discount || 0;
 
-      // Track this tax percentage
+      // Track tax percentage
       taxPercentages.add(taxRate);
 
-      // Calculate original values (without discount)
-      const itemSubtotal = item.price * quantity;
+      // --- Item totals (before discount)
+      const itemTotalInclTax = item.price * quantity; // e.g. 1000
+      const itemDiscountAmount = itemTotalInclTax * (discountPercentage / 100); // e.g. 200
+      const itemTotalAfterDiscount = itemTotalInclTax - itemDiscountAmount; // e.g. 800
 
-      // Calculate base value (excluding tax)
-      const taxMultiplier = 1 + (taxRate / 100);
-      const itemBaseValue = itemSubtotal / taxMultiplier;
+      // --- Base & tax BEFORE discount (used in summary)
+      const itemBaseBeforeDiscount = itemTotalInclTax / (1 + taxRate / 100); // e.g. 847.457627...
+      const itemTaxBeforeDiscount = itemTotalInclTax - itemBaseBeforeDiscount; // e.g. 152.542372...
 
-      // Apply discount to base value
-      const itemDiscountAmount = itemBaseValue * (discountPercentage / 100);
+      // --- Split discount into base + tax parts (proportionally)
+      const discountBasePart = itemDiscountAmount / (1 + taxRate / 100); // e.g. 169.491525...
+      const discountTaxPart = itemDiscountAmount - discountBasePart; // e.g. 30.508475...
 
-      // Calculate discounted base value
-      const discountedBaseValue = itemBaseValue - itemDiscountAmount;
+      // --- Base & tax AFTER discount (kept for per-item values so existing UI/logic that expects that won't break)
+      const itemBaseAfterDiscount = itemBaseBeforeDiscount - discountBasePart; // e.g. 677.9661...
+      const itemTaxAfterDiscount = itemTaxBeforeDiscount - discountTaxPart; // e.g. 122.0339...
 
-      // Calculate tax on discounted base value
-      const itemTaxAmount = discountedBaseValue * (taxRate / 100);
+      // --- Per-item CGST/SGST (we accumulate using BEFORE-discount tax; will zero out later if mixed rates)
+      const itemCgstAmount = itemTaxBeforeDiscount / 2;
+      const itemSgstAmount = itemTaxBeforeDiscount / 2;
 
-      // Calculate CGST/SGST for this item
-      const itemCgstAmount = itemTaxAmount / 2;
-      const itemSgstAmount = itemTaxAmount / 2;
-
-      // Calculate total amount for this item
-      const itemTotalAmount = discountedBaseValue + itemTaxAmount;
-
-      // Add to overall totals
-      subtotal += itemSubtotal;
-      totalBaseValue += itemBaseValue;
+      // --- Accumulate totals
+      subtotal += itemTotalInclTax;
       totalDiscountAmount += itemDiscountAmount;
-      totalTaxAmount += itemTaxAmount;
+      totalBaseValue += itemBaseBeforeDiscount; // summary base = sum of bases BEFORE discount
+      totalTaxAmount += itemTaxBeforeDiscount; // summary tax = sum of taxes BEFORE discount
+      totalDiscountBasePart += discountBasePart;
+      totalDiscountTaxPart += discountTaxPart;
+      cgstAmount += itemCgstAmount;
+      sgstAmount += itemSgstAmount;
 
-      // For same tax percentage items, calculate CGST/SGST
-      if (taxPercentages.size === 1) {
-        cgstAmount += itemCgstAmount;
-        sgstAmount += itemSgstAmount;
-      }
-
-      // Return item with all calculated values
+      // return per-item fields (rounded)
       return {
         ...item,
-        baseValue: itemBaseValue,
-        discountAmount: itemDiscountAmount,
-        taxAmount: itemTaxAmount,
-        cgstAmount: itemCgstAmount,
-        sgstAmount: itemSgstAmount,
-        totalAmount: itemTotalAmount
+        baseValue: Number(itemBaseAfterDiscount.toFixed(2)), // keep per-item base AFTER discount
+        discountAmount: Number(itemDiscountAmount.toFixed(2)),
+        taxAmount: Number(itemTaxAfterDiscount.toFixed(2)),
+        cgstAmount: Number(itemCgstAmount.toFixed(2)),
+        sgstAmount: Number(itemSgstAmount.toFixed(2)),
+        totalAmount: Number(itemTotalAfterDiscount.toFixed(2)),
+        // provide before-discount numbers too for debugging if needed:
+        _baseBeforeDiscount: Number(itemBaseBeforeDiscount.toFixed(2)),
+        _taxBeforeDiscount: Number(itemTaxBeforeDiscount.toFixed(2)),
+        _discountBasePart: Number(discountBasePart.toFixed(2)),
+        _discountTaxPart: Number(discountTaxPart.toFixed(2))
       };
     });
 
-    // Check if we have mixed tax percentages
+    // If mixed tax rates, do not split CGST/SGST in summary
     const hasMixedTaxRates = taxPercentages.size > 1;
-
-    // If mixed tax rates, don't split into CGST/SGST
     if (hasMixedTaxRates) {
       cgstAmount = 0;
       sgstAmount = 0;
+    } else {
+      // round CGST/SGST
+      cgstAmount = Number(cgstAmount.toFixed(2));
+      sgstAmount = Number(sgstAmount.toFixed(2));
     }
 
-    // Calculate grand total
-    const discountedBase = totalBaseValue - totalDiscountAmount;
-    const grandTotal = discountedBase + totalTaxAmount;
+    // Grand total = subtotal after discount (already includes tax)
+    const grandTotal = Number((subtotal - totalDiscountAmount).toFixed(2));
+
+    // Round summary numbers
+    subtotal = Number(subtotal.toFixed(2));
+    totalDiscountAmount = Number(totalDiscountAmount.toFixed(2));
+    totalBaseValue = Number(totalBaseValue.toFixed(2)); // pre-discount base shown in summary
+    totalTaxAmount = Number(totalTaxAmount.toFixed(2)); // pre-discount tax shown in summary
+    totalDiscountBasePart = Number(totalDiscountBasePart.toFixed(2));
+    totalDiscountTaxPart = Number(totalDiscountTaxPart.toFixed(2));
 
     return {
       items: itemsWithCalculations,
-      subtotal: subtotal,
-      baseValue: totalBaseValue,
-      discount: totalDiscountAmount,
-      tax: totalTaxAmount,
+      subtotal: subtotal, // total including tax before discount (e.g. 1000.00)
+      baseValue: totalBaseValue, // total excluding tax BEFORE discount (e.g. 847.46)
+      discount: totalDiscountAmount, // total discount customer gets (e.g. 200.00)
+      discountBreakupBase: totalDiscountBasePart, // discount base part (e.g. 169.49)
+      discountBreakupTax: totalDiscountTaxPart,   // discount tax part (e.g. 30.51)
+      tax: totalTaxAmount, // total tax BEFORE discount (e.g. 152.54)
       cgst: cgstAmount,
       sgst: sgstAmount,
       hasMixedTaxRates: hasMixedTaxRates,
@@ -284,7 +298,6 @@ const Sales = () => {
       grandTotal: grandTotal
     };
   };
-
   // Handle item selection
   // Handle item selection
   const handleItemSelect = (product) => {
