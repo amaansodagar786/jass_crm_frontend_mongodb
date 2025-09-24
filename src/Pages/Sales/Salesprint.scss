@@ -7,49 +7,100 @@
   color: #333;
   background: #fff;
   box-sizing: border-box;
+  position: relative;
+  // min-height: 297mm; 
+  page-break-after: avoid; // Prevent unnecessary page breaks
+  page-break-inside: avoid; // Prevent breaking inside the invoice
+  // padding-bottom: 25mm !important; 
 
   .invoice-container {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    // margin-bottom: 15mm; 
+    // min-height: 267mm; 
   }
 
-
-
-  /* Centered Logo */
+  /* Header with Logo and Address - Centered */
   .invoice-header {
     display: flex;
-    justify-content: center;
-    /* center logo+info container */
-    align-items: center;
-    margin-bottom: 20px;
-    position: relative;
+    justify-content: flex-end; // keep company-info on right
+    align-items: flex-start;
+    position: relative; // required for absolute centering
+    margin-bottom: 5px;
+    border-bottom: 2px solid #333;
+    /* Increase top & bottom padding so header is taller and border sits below the centered block */
+    padding: 20px 0 28px; // top 20px, right 0, bottom 28px - adjust bottom to fit your logo+address
 
-    .invoice-logo {
-      flex: 0 0 auto;
+    .company-address {
+      position: absolute; // keep it centered horizontally (removed from normal flow)
+      left: 50%;
+      transform: translateX(-50%);
+      top: 10px; // vertical offset from top - tune this if needed
+      text-align: center;
+      z-index: 2; // ensure it sits above other stuff if needed
 
-      img {
-        max-width: 160px;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-        /* keep logo centered */
+      .invoice-logo {
+        margin-bottom: 6px;
+
+        img {
+          max-width: 130px;
+          height: auto;
+          display: block;
+          margin: 0 auto;
+        }
+      }
+
+      .address-details {
+        margin: 0;
+
+        p {
+          margin: 2px 0;
+          font-size: 11px;
+          line-height: 1.3;
+        }
       }
     }
 
     .company-info {
-      position: absolute;
-      right: 0;
-      /* stick to the right side */
       text-align: right;
-      font-size: 12px;
-      line-height: 1.4;
+      align-self: flex-start; // keep company info aligned to the top of the header
+      margin-right: 8px; // little spacing from the right edge
+      z-index: 1;
 
       p {
-        margin: 0;
+        margin: 2px 0;
         font-weight: bold;
-        color: #333;
+        font-size: 12px;
       }
+    }
+  }
+
+
+
+  /* Company Info - Centered below logo */
+  .company-info-centered {
+    text-align: center;
+    margin-bottom: 10px;
+
+    p {
+      margin: 2px 0;
+      font-weight: bold;
+      font-size: 12px;
+    }
+  }
+
+  /* Tax Invoice Heading */
+  .tax-invoice-heading {
+    text-align: center;
+    margin: 0 0 10px 0;
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      text-decoration: none;
     }
   }
 
@@ -58,7 +109,8 @@
     display: flex;
     justify-content: space-between;
     gap: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
+    page-break-inside: avoid; // Prevent breaking this section
 
     .customer-info,
     .invoice-info {
@@ -66,7 +118,7 @@
 
       h3 {
         margin: 0 0 10px 0;
-        font-size: 14px;
+        font-size: 13px;
         color: #333;
         border-bottom: 1px solid #ddd;
         padding-bottom: 5px;
@@ -79,6 +131,7 @@
         td {
           padding: 4px 0;
           border: none;
+          vertical-align: top;
 
           &:first-child {
             font-weight: bold;
@@ -90,9 +143,10 @@
     }
   }
 
-  /* Items Table */
+  /* Items Table - Keep as current but add page break control */
   .items-section {
-    margin-bottom: 20px;
+    margin-bottom: 5px;
+    page-break-inside: auto; // Allow breaking inside items section
 
     h3 {
       margin: 0 0 10px 0;
@@ -100,6 +154,7 @@
       color: #333;
       border-bottom: 1px solid #ddd;
       padding-bottom: 5px;
+      page-break-after: avoid; // Keep heading with table
     }
 
     .items-table {
@@ -113,6 +168,7 @@
         padding: 6px;
         font-size: 11px;
         word-wrap: break-word;
+        page-break-inside: avoid; // Don't break inside cells
       }
 
       th {
@@ -130,14 +186,22 @@
           text-align: left;
         }
       }
+
+      // Allow rows to break across pages
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
     }
   }
 
-  /* Totals Section */
+  /* Totals Section - Keep together */
   .totals-section {
     display: flex;
     justify-content: flex-end;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
+    page-break-inside: avoid; // Keep totals together
+    page-break-before: auto;
 
     .amount-details {
       width: 280px;
@@ -165,34 +229,72 @@
     }
   }
 
-  /* Terms Section */
-  .terms-section {
-    margin-bottom: 20px;
+  /* Amount in Words */
+  .amount-in-words {
+    margin-bottom: 5px;
+    padding: 8px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    page-break-inside: avoid; // Keep this section together
+    page-break-before: auto;
 
-    h3 {
-      margin: 0 0 10px 0;
-      font-size: 14px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 5px;
-    }
-
-    pre {
+    p {
       margin: 0;
-      font-family: inherit;
-      font-size: 10px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+      font-size: 11px;
+      font-style: italic;
     }
   }
 
-  /* Footer */
+  /* Declaration and Terms Section */
+  .declaration-terms-section {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 5px;
+    page-break-inside: avoid; // Keep this section together
+    page-break-before: auto;
+
+    .declaration-section,
+    .terms-section {
+      flex: 1;
+
+      h3 {
+        margin: 0 0 8px 0;
+        font-size: 12px;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 3px;
+      }
+
+      pre {
+        margin: 0;
+        font-family: inherit;
+        font-size: 10px;
+        white-space: pre-wrap; 
+        word-wrap: break-word;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0;
+        font-family: inherit;
+        font-size: 10px;
+        // white-space: pre-wrap; 
+        word-wrap: break-word;
+        line-height: 1.3;
+      }
+    }
+  }
+
+  /* Footer - Normal footer section */
   .invoice-footer {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    margin-top: auto;
-    padding-top: 20px;
+    margin-top: 5px;
+    padding-top: 15px;
     border-top: 1px solid #ddd;
+    page-break-inside: avoid; // Keep footer together
+    page-break-before: auto;
 
     .thank-you {
       flex: 1;
@@ -201,6 +303,7 @@
       p {
         font-weight: bold;
         font-style: italic;
+        font-size: 11px;
       }
     }
 
@@ -208,19 +311,43 @@
       flex: 1;
       text-align: center;
 
+      p {
+        margin: 0 0 5px 0;
+        font-size: 11px;
+      }
+
       .signature-line {
         width: 150px;
         height: 1px;
         background: #333;
-        margin: 5px auto;
+        margin: 0 auto;
       }
     }
 
     .developer-note {
       flex: 1;
       text-align: right;
-      font-size: 10px;
+      font-size: 9px;
       color: #666;
+    }
+  }
+
+  /* Page Footer - Fixed at bottom for computer generated text only */
+  .page-footer {
+    position: absolute;
+    bottom: 10mm;
+    left: 15mm;
+    right: 15mm;
+    text-align: center;
+    border-top: 1px solid #ddd;
+    padding-top: 5px;
+
+    p {
+      margin: 0;
+      font-size: 10px;
+      font-weight: bold;
+      color: #666;
+      font-style: italic;
     }
   }
 }
@@ -231,13 +358,50 @@
     height: 100%;
     margin: 0;
     padding: 15mm;
+    // padding-bottom: 25mm !important; 
     box-shadow: none;
 
-    .invoice-footer {
+    .page-footer {
       position: fixed;
-      bottom: 15mm;
+      bottom: 10mm;
       left: 15mm;
       right: 15mm;
+    }
+
+    // Better control over page breaks
+    .invoice-container {
+      min-height: auto;
+      // margin-bottom: 20mm; 
+    }
+
+    // Ensure items table breaks properly
+    .items-table {
+      page-break-inside: auto;
+
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+    }
+
+    // Prevent breaking important sections
+    .totals-section,
+    .amount-in-words,
+    .declaration-terms-section,
+    .invoice-footer {
+      page-break-before: avoid;
+      page-break-inside: avoid;
+      // page-break-after: avoid; 
+    }
+
+
+    .items-table {
+      page-break-inside: auto;
+
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
     }
   }
 }

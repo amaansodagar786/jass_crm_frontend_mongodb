@@ -112,6 +112,7 @@ const Sales = () => {
       setIsLoadingCustomers(true);
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/customer/get-customers`);
       const customersData = response.data.map(customer => ({
+        customerId: customer.customerId,
         id: customer.customerId,
         customerNumber: customer.customerId,
         name: customer.customerName || "",
@@ -425,7 +426,8 @@ const Sales = () => {
         sgst: invoiceTotals.sgst,
         hasMixedTaxRates: invoiceTotals.hasMixedTaxRates,
         taxPercentages: invoiceTotals.taxPercentages,
-        total: invoiceTotals.grandTotal
+        total: invoiceTotals.grandTotal,
+        remarks: newCustomer.remarks || ''
       };
 
       // Save to database
@@ -482,15 +484,77 @@ const Sales = () => {
         throw new Error("print element not found");
       }
 
+      // Remove the cloning and spacer - let CSS handle the breaks
+      // const clonedElement = element.cloneNode(true);
+      // const footerSpacer = document.createElement('div');
+      // footerSpacer.style.height = '20mm';
+      // footerSpacer.style.visibility = 'hidden';
+      // clonedElement.querySelector('.invoice-container').appendChild(footerSpacer);
+
+      const addFooterToEachPage = (pdf) => {
+        const totalPages = pdf.internal.getNumberOfPages();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+
+          // Set footer text
+          pdf.setFontSize(8);
+          pdf.setFont("helvetica", "italic");
+          pdf.setTextColor(100, 100, 100);
+
+          // Add footer text at safe distance from bottom
+          const pageWidth = pdf.internal.pageSize.getWidth();
+          const text = "THIS IS A COMPUTER GENERATED BILL";
+          const textWidth = pdf.getTextWidth(text);
+          const xPosition = (pageWidth - textWidth) / 2;
+          const yPosition = pageHeight - 10; // 10mm from bottom for safety
+
+          // Add footer text ONLY - remove the white rectangle that's hiding content
+          pdf.text(text, xPosition, yPosition);
+
+          // Optional: Add a subtle line above footer
+          pdf.setDrawColor(200, 200, 200);
+          pdf.line(15, yPosition - 3, pageWidth - 15, yPosition - 3);
+        }
+
+        return pdf;
+      };
+
+      const opt = {
+        filename: `${invoice.invoiceNumber}_${(invoice.customer?.name || "customer").replace(/\s+/g, "_")}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          letterRendering: true
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait"
+        },
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['tr', '.invoice-footer']
+        },
+        margin: [0, 0, 20, 0] // <-- top, right, bottom, left
+        // ↑ Add more bottom space so footer text never clashes
+      };
+
+
+      // Generate PDF with proper page breaks
       await html2pdf()
-        .from(element)
-        .set({
-          filename: `${invoice.invoiceNumber}_${(invoice.customer?.name || "customer").replace(/\s+/g, "_")}.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        .set(opt)
+        .from(element) // Use original element, not cloned
+        .toPdf()
+        .get('pdf')
+        .then((pdf) => {
+          return addFooterToEachPage(pdf);
         })
         .save();
+
     } catch (error) {
       console.error("Export error:", error);
       toast.error("Failed to export PDF");
@@ -516,30 +580,51 @@ const Sales = () => {
 
 
   // Export to Excel
+  // Export to Excel
+  // Export to Excel
   const handleExportExcel = () => {
     if (invoices.length === 0) {
       toast.warn("No invoices to export");
       return;
     }
 
-    const data = invoices.map((invoice) => {
-      const itemsString = invoice.items.map(item =>
-        `${item.name} (Qty: ${item.quantity})`
-      ).join('; ');
+    // Create a flat array where each item gets its own row
+    const data = invoices.flatMap((invoice) => {
+      // If invoice has no items, create one row with basic info
+      if (!invoice.items || invoice.items.length === 0) {
+        return [{
+          'Invoice Number': invoice.invoiceNumber,
+          'Date': invoice.date,
+          'Customer Name': invoice.customer?.name || '',
+          'Customer Email': invoice.customer?.email || '',
+          'Customer Mobile': invoice.customer?.mobile || '',
+          'Payment Type': invoice.paymentType,
+          'Remarks': invoice.remarks || '', // Add Remarks field
+          'Items Count': 0,
+          'Item Name': 'No items',
+          'HSN Code': 'N/A',
+          'Quantity': 0,
+          'Price': 0,
+          'Total Amount': `₹${invoice.total?.toFixed(2) || '0.00'}`
+        }];
+      }
 
-      return {
-        'Invoice ID': invoice.id,
+      // Create one row for each item in the invoice
+      return invoice.items.map((item, index) => ({
         'Invoice Number': invoice.invoiceNumber,
         'Date': invoice.date,
-        // 'Customer Number': invoice.customer.customerNumber, 
-        'Customer Name': invoice.customer.name,
-        'Customer Email': invoice.customer.email,
-        'Customer Mobile': invoice.customer.mobile,
+        'Customer Name': invoice.customer?.name || '',
+        'Customer Email': invoice.customer?.email || '',
+        'Customer Mobile': invoice.customer?.mobile || '',
         'Payment Type': invoice.paymentType,
+        'Remarks': invoice.remarks || '', // Add Remarks field
         'Items Count': invoice.items.length,
-        'Items Details': itemsString,
-        'Total Amount': `₹${invoice.total.toFixed(2)}`
-      };
+        'Item Name': item.name || item.productName || 'Unknown',
+        'HSN Code': item.hsn || item.hsnCode || 'N/A',
+        'Quantity': item.quantity || 0,
+        'Price': `₹${(item.price || 0).toFixed(2)}`,
+        'Total Amount': `₹${invoice.total?.toFixed(2) || '0.00'}`
+      }));
     });
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -547,19 +632,27 @@ const Sales = () => {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Invoices");
     XLSX.writeFile(workbook, "invoices.xlsx");
 
-    toast.success(`Exported ${invoices.length} invoices`);
+    toast.success(`Exported ${invoices.length} invoices with ${data.length} item rows`);
   };
 
   const handleUpdateInvoice = async (updatedInvoice) => {
     try {
+      console.log("Updating invoice with data:", updatedInvoice);
+      console.log("Remarks being sent:", updatedInvoice.remarks);
+
       const result = await updateInvoice(updatedInvoice);
 
-      // Update local state with the returned data from server
+      console.log("Update response:", result);
+
+      // Update local state with the returned data from server - FIXED
       setInvoices(prev =>
         prev.map(inv =>
-          inv.invoiceNumber === updatedInvoice.invoiceNumber ? result.data : inv
+          inv.invoiceNumber === updatedInvoice.invoiceNumber ? { ...inv, ...result.data } : inv
         )
       );
+
+      // Also update the selectedInvoice to reflect changes immediately in modal
+      setSelectedInvoice(prev => prev ? { ...prev, ...result.data } : null);
 
       toast.success("Invoice updated successfully!");
     } catch (error) {
@@ -583,21 +676,23 @@ const Sales = () => {
     }
   };
 
-  // Update invoice in backend
-  // Update invoice in backend
-  // Update invoice in backend
+  // Update invoice in backend - Only send editable fields
   const updateInvoice = async (invoiceData) => {
     try {
-      // Prepare only the fields that can be updated
+      // Send ONLY the editable fields to backend
       const updatePayload = {
         customer: {
+          customerId: invoiceData.customer?.customerId,
           customerNumber: invoiceData.customer?.customerNumber,
           name: invoiceData.customer?.name,
           email: invoiceData.customer?.email,
-          mobile: invoiceData.customer?.mobile // Now includes mobile
+          mobile: invoiceData.customer?.mobile
         },
-        paymentType: invoiceData.paymentType
+        paymentType: invoiceData.paymentType,
+        remarks: invoiceData.remarks || ''
       };
+
+      console.log("Sending to backend:", updatePayload);
 
       const response = await axios.put(
         `${import.meta.env.VITE_API_URL}/invoices/update-invoice/${invoiceData.invoiceNumber}`,
@@ -636,13 +731,23 @@ const Sales = () => {
 
     const handleInputChange = (e) => {
       const { name, value } = e.target;
-      setEditedInvoice(prev => ({
-        ...prev,
-        customer: {
-          ...prev.customer,
-          [name]: value
-        }
-      }));
+
+      if (name === "remarks") {
+        // Handle remarks field separately
+        setEditedInvoice(prev => ({
+          ...prev,
+          remarks: value
+        }));
+      } else {
+        // Handle customer fields
+        setEditedInvoice(prev => ({
+          ...prev,
+          customer: {
+            ...prev.customer,
+            [name]: value
+          }
+        }));
+      }
     };
 
     const handlePaymentTypeChange = (e) => {
@@ -768,6 +873,27 @@ const Sales = () => {
                   </select>
                 ) : (
                   <span className="detail-value">{invoice.paymentType}</span>
+                )}
+              </div>
+
+              {/* Remarks */}
+              <div className="detail-row">
+                <span className="detail-label">Remarks:</span>
+                {isEditing ? (
+                  <textarea
+                    name="remarks"
+                    value={editedInvoice.remarks || ''}
+                    onChange={(e) => setEditedInvoice(prev => ({
+                      ...prev,
+                      remarks: e.target.value
+                    }))}
+                    className="edit-input"
+                    rows={3}
+                    style={{ width: '100%', resize: 'vertical' }}
+                    placeholder="Optional remarks..."
+                  />
+                ) : (
+                  <span className="detail-value">{invoice.remarks || 'No remarks'}</span>
                 )}
               </div>
 
@@ -1092,6 +1218,8 @@ const Sales = () => {
                     </div>
                   </div>
 
+
+
                   {/* Payment Type Section */}
                   <h3 className="section-heading">Payment Type</h3>
                   <div className="payment-options-container">
@@ -1108,6 +1236,20 @@ const Sales = () => {
                         <Field type="radio" name="paymentType" value="upi" />
                         <span className="payment-label">UPI</span>
                       </label>
+                    </div>
+                  </div>
+
+
+                  <h3 className="section-heading">Remarks (Optional)</h3>
+                  <div className="form-group-row">
+                    <div className="field-wrapper" style={{ width: '100%' }}>
+                      <textarea
+                        placeholder="Enter any additional remarks or notes..."
+                        value={newCustomer.remarks || ''}
+                        onChange={(e) => setNewCustomer({ ...newCustomer, remarks: e.target.value })}
+                        rows={3}
+                        style={{ width: '100%', resize: 'vertical' }}
+                      />
                     </div>
                   </div>
 

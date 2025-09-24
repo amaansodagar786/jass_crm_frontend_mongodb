@@ -21,20 +21,84 @@ const SalesPrint = ({ invoice }) => {
     total
   } = invoice;
 
-  const companyInfo = {
-    sfpNumber: "SFP-2023-001",
-  };
-
   const termsAndConditions = `
-  1. All goods sold are subject to our terms and conditions.
+Items once sold will not be taken back.<br />
+Only manufacturing defects are eligible for replacement<br /> within 1 day of purchase.
+`;
+
+  const declaration = `
+  We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
   `;
+
+  // Corrected function to convert numbers to words
+  const numberToWords = (num) => {
+    if (num === 0) return 'Zero Only';
+
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen',
+      'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    // Handle integer part (rupees)
+    let integerPart = Math.floor(num);
+    let words = '';
+
+    if (integerPart >= 10000000) {
+      words += numberToWords(Math.floor(integerPart / 10000000)) + ' Crore ';
+      integerPart %= 10000000;
+    }
+
+    if (integerPart >= 100000) {
+      words += numberToWords(Math.floor(integerPart / 100000)) + ' Lakh ';
+      integerPart %= 100000;
+    }
+
+    if (integerPart >= 1000) {
+      words += numberToWords(Math.floor(integerPart / 1000)) + ' Thousand ';
+      integerPart %= 1000;
+    }
+
+    if (integerPart >= 100) {
+      words += numberToWords(Math.floor(integerPart / 100)) + ' Hundred ';
+      integerPart %= 100;
+    }
+
+    if (integerPart > 0) {
+      if (words !== '') words += ' ';
+
+      if (integerPart < 20) {
+        words += ones[integerPart];
+      } else {
+        words += tens[Math.floor(integerPart / 10)];
+        if (integerPart % 10 > 0) {
+          words += ' ' + ones[integerPart % 10];
+        }
+      }
+    }
+
+    // Handle decimal part (paise)
+    const decimalPart = Math.round((num - Math.floor(num)) * 100);
+    if (decimalPart > 0) {
+      if (words !== '') words += ' and ';
+      if (decimalPart < 20) {
+        words += ones[decimalPart] + ' Paise';
+      } else {
+        words += tens[Math.floor(decimalPart / 10)];
+        if (decimalPart % 10 > 0) {
+          words += ' ' + ones[decimalPart % 10] + ' Paise';
+        }
+      }
+    }
+
+    return words;
+  };
 
   // Calculate discounted total for each item
   const calculateItemDiscountedTotal = (item) => {
     const quantity = item.quantity || 1;
     const price = item.price || 0;
     const discountPercentage = item.discount || 0;
-    
+
     const itemTotal = price * quantity;
     const discountAmount = itemTotal * (discountPercentage / 100);
     return itemTotal - discountAmount;
@@ -56,15 +120,26 @@ const SalesPrint = ({ invoice }) => {
     <div id="sales-pdf">
       <div className="invoice-container">
 
-        {/* Top Logo */}
+        {/* Top Logo and Address - Centered layout */}
         <div className="invoice-header">
-          <div className="invoice-logo">
-            <img src={logo} alt="Company Logo" />
+          <div className="company-address">
+            <div className="invoice-logo">
+              <img src={logo} alt="Company Logo" />
+            </div>
+            <div className="address-details">
+              <p>C/9, Laxmi Kunj Society, Part-2, Beside Shree Ayyappa</p>
+              <p>Temple, New Sama Road, Vadodara - 390024, Gujarat</p>
+            </div>
           </div>
           <div className="company-info">
-            <p>Patel Enterprise </p>
+            <p><strong>Patel Enterprise</strong></p>
             <p>24AAAFP0763BAZV</p>
           </div>
+        </div>
+
+        {/* Tax Invoice Heading */}
+        <div className="tax-invoice-heading">
+          <h1>TAX INVOICE</h1>
         </div>
 
         {/* Invoice + Billing Section */}
@@ -103,7 +178,7 @@ const SalesPrint = ({ invoice }) => {
                 </tr>
                 <tr>
                   <td>Date:</td>
-                  <td>{date || "N/A"} {new Date().toLocaleTimeString()}</td>
+                  <td>{date || "N/A"}</td>
                 </tr>
                 <tr>
                   <td>Payment Type:</td>
@@ -126,8 +201,8 @@ const SalesPrint = ({ invoice }) => {
                 <th>HSN</th>
                 <th>Qty</th>
                 <th>Price (Incl. Tax)</th>
-                <th>Discount %</th>
-                <th>Total</th> {/* Added Total column */}
+                <th>Disc %</th>
+                <th>Total Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -139,8 +214,8 @@ const SalesPrint = ({ invoice }) => {
                   <td>{item.hsn || "N/A"}</td>
                   <td>{item.quantity || 1}</td>
                   <td>{formatCurrency(item.price)}</td>
-                  <td>{formatNumber(item.discount)}%</td>
-                  <td>{formatCurrency(calculateItemDiscountedTotal(item))}</td> {/* Added Total value */}
+                  <td>{formatNumber(item.discount)}</td>
+                  <td>{formatCurrency(calculateItemDiscountedTotal(item))}</td>
                 </tr>
               ))}
             </tbody>
@@ -156,15 +231,11 @@ const SalesPrint = ({ invoice }) => {
                   <td>Subtotal (Incl. Tax):</td>
                   <td>{formatCurrency(subtotal)}</td>
                 </tr>
-                {/* <tr>
-                  <td>Base Value:</td>
-                  <td>{formatCurrency(baseValue)}</td>
-                </tr> */}
                 <tr>
                   <td>Discount:</td>
                   <td>{formatCurrency(discount)}</td>
                 </tr>
-                
+
                 {/* Show CGST/SGST only if no mixed tax rates */}
                 {!hasMixedTaxRates && cgst > 0 && sgst > 0 && (
                   <>
@@ -178,7 +249,7 @@ const SalesPrint = ({ invoice }) => {
                     </tr>
                   </>
                 )}
-                
+
                 {/* Show GST only if mixed tax rates */}
                 {hasMixedTaxRates && tax > 0 && (
                   <tr>
@@ -186,7 +257,7 @@ const SalesPrint = ({ invoice }) => {
                     <td>{formatCurrency(tax)}</td>
                   </tr>
                 )}
-                
+
                 <tr className="grand-total">
                   <td>Grand Total:</td>
                   <td>{formatCurrency(total)}</td>
@@ -196,13 +267,24 @@ const SalesPrint = ({ invoice }) => {
           </div>
         </div>
 
-        {/* Terms */}
-        <div className="terms-section">
-          <h3>Terms & Conditions</h3>
-          <pre>{termsAndConditions}</pre>
+        {/* Amount in Words - Corrected format */}
+        <div className="amount-in-words">
+          <p><strong>Amount in Words:</strong> {numberToWords(total)} Only</p>
         </div>
 
-        {/* Footer */}
+        {/* Declaration and Terms Section */}
+        <div className="declaration-terms-section">
+          <div className="declaration-section">
+            <h3>Declaration</h3>
+            <p>{declaration}</p>
+          </div>
+          <div className="terms-section">
+            <h3>Terms & Conditions</h3>
+            <p dangerouslySetInnerHTML={{ __html: termsAndConditions }}></p>
+          </div>
+        </div>
+
+        {/* Normal Footer Section */}
         <div className="invoice-footer">
           <div className="thank-you">
             <p>Thank you for your business!</p>
@@ -212,9 +294,13 @@ const SalesPrint = ({ invoice }) => {
             <div className="signature-line"></div>
           </div>
           <div className="developer-note">
-            <p>Developed by Techorses</p>
+            <p>
+              Developed by <a href="https://techorses.com" target="_blank" rel="noopener noreferrer">Techorses</a>
+            </p>
           </div>
         </div>
+
+
       </div>
     </div>
   );

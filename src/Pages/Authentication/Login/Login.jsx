@@ -30,6 +30,11 @@ const Login = () => {
         const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/login`, values);
         localStorage.setItem("token", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
+
+        if (response.data.user.permissions) {
+          localStorage.setItem("permissions", JSON.stringify(response.data.user.permissions));
+        }
+
         toast.success("Login successful! Redirecting...", { position: "top-center", autoClose: 2000 });
         setTimeout(() => navigate("/"), 2000);
       } catch (error) {

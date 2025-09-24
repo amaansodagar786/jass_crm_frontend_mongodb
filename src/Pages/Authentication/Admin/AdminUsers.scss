@@ -1,5 +1,4 @@
-.main
-{
+.main {
   background: #dfeafb !important;
 }
 
@@ -8,8 +7,6 @@
   margin: 0 auto 25px;
   padding: 20px 25px;
   background: #ffffff;
-  
-
   border-radius: 12px;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
   display: flex;
@@ -241,6 +238,55 @@
     font-size: 13px;
     margin-top: 5px;
   }
+
+  .password-input-container {
+    position: relative;
+    
+    input {
+      padding-right: 40px;
+    }
+    
+    .password-toggle {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #666;
+      
+      &:hover {
+        color: #333;
+      }
+    }
+  }
+
+  .permissions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+    
+    .permission-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: #f5f5f5;
+      }
+      
+      input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+    }
+  }
 }
 
 @media screen and (max-width: 768px) {
@@ -290,6 +336,10 @@
     .form-group {
       flex-direction: column;
       gap: 15px;
+    }
+
+    .permissions-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 }
@@ -541,6 +591,32 @@
   }
 }
 
+.permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  
+  .permission-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    
+    &:hover {
+      background-color: #f5f5f5;
+    }
+    
+    input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+  }
+}
+
 /* Responsive Styles */
 @media (max-width: 768px) {
   .modal-content {
@@ -563,6 +639,10 @@
       font-size: 14px;
     }
   }
+
+  .permissions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 480px) {
@@ -572,6 +652,10 @@
 
   .modal-body {
     padding: 15px;
+  }
+
+  .permissions-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -599,8 +683,6 @@
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
-
-
 
 .loading-container {
   display: flex;

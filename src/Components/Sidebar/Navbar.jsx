@@ -21,11 +21,14 @@ import "./Navbar.css";
 const Navbar = ({ children }) => {
   const [toggle, setToggle] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userPermissions, setUserPermissions] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
+    const permissions = JSON.parse(localStorage.getItem("permissions") || "[]");
     setIsLoggedIn(!!token);
+    setUserPermissions(permissions);
   }, []);
 
   const handleLogin = () => {
@@ -34,25 +37,44 @@ const Navbar = ({ children }) => {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("permissions");
+    localStorage.removeItem("user");
     setIsLoggedIn(false);
+    setUserPermissions([]);
     navigate("/login");
   };
 
-  const menuData = [
-    { icon: <PiBasket />, title: "Invoice", path: "/" },
-    // { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard" }, 
-    { icon: <TbUsers />, title: "Customer", path: "/customer" },
-    // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor" }, 
-    { icon: <LuFile />, title: "Products", path: "/items" },
-    // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order" }, 
-    // { icon: <BsBell />, title: "GRN", path: "/grn" }, 
-    // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom" }, 
-    // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order" }, 
-
-    // { icon: <BiLayout />, title: "Inventory", path: "/inventory" }, 
-    // { icon: <TbMessages />, title: "Defective", path: "/defective" }, 
-    // { icon: <TbMessages />, title: "Report", path: "/report" }, 
+  // Define all possible menu items with their required permissions
+  const allMenuData = [
+    { icon: <PiBasket />, title: "Invoice", path: "/", permission: "invoice" },
+    // { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard", permission: "dashboard" },
+    { icon: <TbUsers />, title: "Customer", path: "/customer", permission: "customer" },
+    // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor", permission: "vendor" },
+    { icon: <LuFile />, title: "Products", path: "/items", permission: "products" },
+    { icon: <TbUsers />, title: "Admin", path: "/admin", permission: "admin" },
+    // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order", permission: "purchase" },
+    // { icon: <BsBell />, title: "GRN", path: "/grn", permission: "grn" },
+    // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom", permission: "bom" },
+    // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order", permission: "workorder" },
+    // { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },
+    // { icon: <TbMessages />, title: "Defective", path: "/defective", permission: "defective" },
+    // { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
   ];
+
+  // Filter menu items based on user permissions
+  const getFilteredMenu = () => {
+    // If user has admin permission, show all menu items
+    if (userPermissions.includes("admin")) {
+      return allMenuData;
+    }
+    
+    // Otherwise, filter menu items based on user's permissions
+    return allMenuData.filter(item => 
+      userPermissions.includes(item.permission)
+    );
+  };
+
+  const filteredMenuData = getFilteredMenu();
 
   return (
     <>
@@ -78,7 +100,7 @@ const Navbar = ({ children }) => {
         </div>
 
         <ul className="side-menu top">
-          {menuData.map(({ icon, title, path }, i) => (
+          {filteredMenuData.map(({ icon, title, path }, i) => (
             <li key={i}>
               <NavLink
                 to={path}
