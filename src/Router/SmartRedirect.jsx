@@ -7,15 +7,23 @@ const SmartRedirect = () => {
   useEffect(() => {
     const userPermissions = JSON.parse(localStorage.getItem("permissions") || "[]");
 
-    // If user has admin permission, redirect to default sales page (/)
-    if (userPermissions.includes("admin")) {
-      navigate("/", { replace: true }); // This goes to Sales page
+    // If user has no permissions at all
+    if (userPermissions.length === 0) {
+      // Redirect to login after 3 seconds (optional)
+      setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 5000);
       return;
     }
 
-    // Define route priority based on your app structure
+    // If user has admin permission, redirect to default sales page (/)
+    if (userPermissions.includes("admin")) {
+      navigate("/", { replace: true });
+      return;
+    }
+
     const routePriority = [
-      { path: "/", permission: "invoice" }, // Sales page requires "invoice" permission
+      { path: "/", permission: "invoice" },
       { path: "/dashboard", permission: "dashboard" },
       { path: "/customer", permission: "customer" },
       { path: "/items", permission: "products" },
@@ -29,16 +37,15 @@ const SmartRedirect = () => {
       { path: "/admin", permission: "admin" }
     ];
 
-    // Find the first route that user has permission for
     const allowedRoute = routePriority.find(route =>
       userPermissions.includes(route.permission)
     );
 
-    // Redirect to the first allowed route
     if (allowedRoute) {
       navigate(allowedRoute.path, { replace: true });
     } else {
-      navigate("/", { replace: true }); // Fallback to sales page
+      // If somehow they have permissions but no allowed route, fallback
+      navigate("/login", { replace: true });
     }
   }, [navigate]);
 
@@ -47,9 +54,13 @@ const SmartRedirect = () => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      height: '100vh'
+      height: '100vh',
+      flexDirection: 'column'
     }}>
-      <div>Redirecting to your authorized page...</div>
+      <div>You don't have proper permission to access this site.</div>
+      <div>Please conatct to Admin.</div>
+      <div></div>
+      <div>Redirecting to login...</div>
     </div>
   );
 };

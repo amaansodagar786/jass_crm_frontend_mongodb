@@ -62,7 +62,8 @@ const Items = () => {
     hsnCode: "",
     taxSlab: "",
     price: "",
-    discount: "0"
+    discount: "0",
+    category: ""
   };
 
   const validationSchema = Yup.object({
@@ -76,7 +77,8 @@ const Items = () => {
     // ADD DISCOUNT VALIDATION
     discount: Yup.number()
       .min(0, "Discount cannot be negative")
-      .max(100, "Discount cannot exceed 100%")
+      .max(100, "Discount cannot exceed 100%"),
+    category: Yup.string().required("Category is required")
   });
 
   // Fetch items
@@ -109,6 +111,7 @@ const Items = () => {
       item.productName?.toLowerCase().includes(debouncedSearch) ||
       item.hsnCode?.toLowerCase().includes(debouncedSearch) ||
       item.barcode?.toLowerCase().includes(debouncedSearch) ||
+      item.category?.toLowerCase().includes(debouncedSearch) ||
       // Convert price to string for searching
       item.price?.toString().includes(debouncedSearch)
     );
@@ -195,6 +198,9 @@ const Items = () => {
          <strong>Product Name:</strong> ${item.productName}
         </h2>
         <hr style="border: none; border-top: 1px solid #eee; margin-bottom: 15px;" />
+        <p style="margin: 10px 0; font-size: 14px;">
+          <strong>Category:</strong> ${item.category} 
+        </p>
 
         <p style="margin: 10px 0; font-size: 14px;">
           <strong>Barcode:</strong> ${item.barcode}
@@ -237,6 +243,7 @@ const Items = () => {
 
     const data = dataToExport.map(item => ({
       "Product Name": item.productName,
+      "Category": item.category,
       "Barcode": item.barcode,
       "HSN Code": item.hsnCode,
       "Tax Slab": `${item.taxSlab}%`,
@@ -300,7 +307,8 @@ const Items = () => {
         "HSN Code": "123456",
         "Tax Slab": "18",
         "Price": "29.99",
-        "Discount": "10"
+        "Discount": "10",
+        "Category": "Electronics"
       }
     ];
 
@@ -311,7 +319,7 @@ const Items = () => {
   };
 
   const handleBulkUpload = (event) => {
-    setIsBulkUploading(true); // Start loading
+    setIsBulkUploading(true);
     const file = event.target.files[0];
     if (!file) {
       setIsBulkUploading(false);
@@ -325,28 +333,30 @@ const Items = () => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      // Validate and process the data
       if (jsonData.length === 0) {
         toast.error("No data found in the file");
         setIsBulkUploading(false);
         return;
       }
 
-      // Prepare data for bulk upload with default values
+      // Prepare data for bulk upload with category
       const productsData = jsonData.map(item => ({
         productName: item['Product Name']?.trim() || null,
+        category: item['Category']?.trim() || null, // ADD CATEGORY FIELD
         barcode: item['Barcode'] ? item['Barcode'].toString().trim() : '0000000000000',
         hsnCode: item['HSN Code']?.trim() || '00',
         taxSlab: item['Tax Slab'] ? Number(item['Tax Slab']) : 0,
         price: item['Price'] ? Number(item['Price']) : 0,
-        discount: item['Discount'] ? Number(item['Discount']) : 0, // ADD DISCOUNT FIELD
+        discount: item['Discount'] ? Number(item['Discount']) : 0,
       }));
 
-      // Filter out items with no product name
-      const validProducts = productsData.filter(product => product.productName);
+      // Filter out items with no product name OR no category
+      const validProducts = productsData.filter(product =>
+        product.productName && product.category // BOTH ARE REQUIRED
+      );
 
       if (validProducts.length === 0) {
-        toast.error("No valid products found in the file (missing product names)");
+        toast.error("No valid products found in the file (missing product names or categories)");
         setIsBulkUploading(false);
         return;
       }
@@ -388,7 +398,7 @@ const Items = () => {
           setShowBulkUpload(false);
         })
         .finally(() => {
-          setIsBulkUploading(false); // End loading
+          setIsBulkUploading(false);
         });
     };
     reader.readAsArrayBuffer(file);
@@ -473,6 +483,21 @@ const Items = () => {
                   />
                 ) : (
                   <span className="detail-value">{item.productName}</span>
+                )}
+              </div>
+
+              <div className="detail-row">
+                <span className="detail-label">Category:</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    name="category"
+                    value={editedItem.category || ''}
+                    onChange={handleInputChange}
+                    className="edit-input"
+                  />
+                ) : (
+                  <span className="detail-value">{item.category}</span>
                 )}
               </div>
 
@@ -676,10 +701,11 @@ const Items = () => {
               <h4>Instructions:</h4>
               <ul>
                 <li>Download the template file to ensure proper formatting</li>
-                <li>Your Excel file should include these columns: Product Name, Barcode, HSN Code, Tax Slab, Price</li>
-                <li>Ensure all required fields are filled</li>
-                <li>Tax Slab should be a number (e.g., 5 18)</li>
+                <li>Your Excel file should include these columns: Product Name, Category, Barcode, HSN Code, Tax Slab, Price, Discount</li>
+                <li>Ensure all required fields are filled (Product Name and Category are required)</li>
+                <li>Tax Slab should be a number (e.g., 5, 18)</li>
                 <li>Price should be numeric values</li>
+                <li>Category should be text (e.g., Electronics, Clothing)</li>
               </ul>
             </div>
 
@@ -769,30 +795,27 @@ const Items = () => {
                     <ErrorMessage name="productName" component="div" className="error" />
                   </div>
                   <div className="form-field">
+                    <label>Category *</label>
+                    <Field name="category" type="text" />
+                    {/* ADD THIS ERROR MESSAGE COMPONENT */}
+                    <ErrorMessage name="category" component="div" className="error" />
+                  </div>
+                </div>
+
+
+
+                <div className="form-row">
+                  <div className="form-field">
                     <label><FaBarcode /> Barcode *</label>
                     <Field name="barcode" type="text" />
                     <ErrorMessage name="barcode" component="div" className="error" />
                   </div>
-                </div>
-
-                <div className="form-row">
                   <div className="form-field">
                     <label><FaHashtag /> HSN Code *</label>
                     <Field name="hsnCode" type="text" />
                     <ErrorMessage name="hsnCode" component="div" className="error" />
                   </div>
-                  <div className="form-field">
-                    <label><FaPercent /> Tax Slab *</label>
-                    <Field as="select" name="taxSlab" className="select-field">
-                      <option value="">Select Tax Slab</option>
-                      {TAX_SLABS.map((slab, index) => (
-                        <option key={index} value={slab.value}>
-                          {slab.label}
-                        </option>
-                      ))}
-                    </Field>
-                    <ErrorMessage name="taxSlab" component="div" className="error" />
-                  </div>
+
                 </div>
 
                 <div className="form-row">
@@ -805,6 +828,24 @@ const Items = () => {
                     <label><FaPercent /> Discount (%)</label>
                     <Field name="discount" type="number" min="0" max="100" step="0.01" />
                     <ErrorMessage name="discount" component="div" className="error" />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-field">
+                    <label><FaPercent /> Tax Slab *</label>
+                    <Field as="select" name="taxSlab" className="select-field">
+                      <option value="">Select Tax Slab</option>
+                      {TAX_SLABS.map((slab, index) => (
+                        <option key={index} value={slab.value}>
+                          {slab.label}
+                        </option>
+                      ))}
+                    </Field>
+                    <ErrorMessage name="taxSlab" component="div" className="error" />
+                  </div>
+                  <div className="form-field">
+
                   </div>
                 </div>
 
@@ -829,11 +870,13 @@ const Items = () => {
                 <thead>
                   <tr>
                     <th>Product Name</th>
+                    <th>Category</th>
                     <th>Barcode</th>
                     <th>HSN Code</th>
                     <th>Tax Slab</th>
-                    <th>Price</th>
                     <th>Discount</th>
+                    <th>Price</th>
+                    
                   </tr>
                 </thead>
                 <tbody>
@@ -844,11 +887,13 @@ const Items = () => {
                       onClick={() => selectItem(item.productId)}
                     >
                       <td>{item.productName}</td>
+                      <td>{item.category}</td>
                       <td>{item.barcode}</td>
                       <td>{item.hsnCode}</td>
                       <td>{item.taxSlab}%</td>
+                       <td>{item.discount}%</td>
                       <td>₹{item.price?.toFixed(2)}</td>
-                      <td>{item.discount}%</td>
+                     
                     </tr>
                   ))}
                 </tbody>
@@ -883,7 +928,7 @@ const Items = () => {
           />
         )}
       </div>
-    </Navbar>
+    </Navbar >
   );
 };
 

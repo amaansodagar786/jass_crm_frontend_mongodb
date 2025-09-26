@@ -12,6 +12,7 @@ import { BsBell } from "react-icons/bs";
 import { GiHamburgerMenu } from "react-icons/gi";
 import { RxCross1 } from "react-icons/rx";
 import { FiUser } from "react-icons/fi"; // profile icon
+import { MdDiscount } from "react-icons/md";
 
 // import logo from "../../Assets/logo/jass_logo.jpg"
 import logo from "../../Assets/logo/jass_logo_new.png"
@@ -52,11 +53,12 @@ const Navbar = ({ children }) => {
     // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor", permission: "vendor" },
     { icon: <LuFile />, title: "Products", path: "/items", permission: "products" },
     { icon: <TbUsers />, title: "Admin", path: "/admin", permission: "admin" },
+    // { icon: <MdDiscount  />, title: "Discount", path: "/productdiscount", permission: "admin" }, 
     // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order", permission: "purchase" },
     // { icon: <BsBell />, title: "GRN", path: "/grn", permission: "grn" },
     // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom", permission: "bom" },
     // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order", permission: "workorder" },
-    // { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },
+    // { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "admin" },  
     // { icon: <TbMessages />, title: "Defective", path: "/defective", permission: "defective" },
     // { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
   ];

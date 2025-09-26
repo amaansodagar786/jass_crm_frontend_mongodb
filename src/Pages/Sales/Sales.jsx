@@ -25,7 +25,8 @@ const Sales = () => {
     customerNumber: "",
     name: "",
     email: "",
-    mobile: ""
+    mobile: "",
+    date: new Date().toISOString().split('T')[0]
   });
   const [isExporting, setIsExporting] = useState(false);
   const [customers, setCustomers] = useState([]);
@@ -409,7 +410,7 @@ const Sales = () => {
       const invoiceTotals = calculateInvoiceTotals();
 
       const invoice = {
-        date: new Date().toISOString().split('T')[0],
+        date: newCustomer.date || new Date().toISOString().split('T')[0],
         customer: customerToUse,
         items: invoiceTotals.items.map(item => ({
           ...item,
@@ -449,7 +450,7 @@ const Sales = () => {
         return updated;
       });
       setSelectedItems([]);
-      setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "" });
+      setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "", date: new Date().toISOString().split('T')[0] });
       setCustomerMobileSearch("");
 
       // Generate and download PDF
@@ -997,6 +998,20 @@ const Sales = () => {
             >
               {({ values, setFieldValue }) => (
                 <Form>
+
+                  {/* Date Selection Section */}
+                  <h3 className="section-heading">Invoice Date</h3>
+                  <div className="form-group-row">
+                    <div className="field-wrapper" style={{ flex: '0 0 33%', maxWidth: '300px' }}>
+                      <label>Date *</label>
+                      <input
+                        type="date"
+                        value={newCustomer.date || new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setNewCustomer({ ...newCustomer, date: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
                   {/* Item Selection Section */}
                   <h3 className="section-heading">Item Details</h3>
                   <div className="form-group-row">

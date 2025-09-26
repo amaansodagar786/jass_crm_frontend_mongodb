@@ -15,6 +15,7 @@ import ProtectedRoute from "../Components/Protected/ProtectedRoute";
 import WorkOrder from "../Pages/WorkOrder/WorkOrder";
 import Defective from "../Pages/Defective/Defective";
 import AdminUsers from "../Pages/Authentication/Admin/AdminUsers";
+import DiscountProduct from "../Pages/DiscountProduct/DiscountProduct";
 import SmartRedirect from "./SmartRedirect"; // ADD THIS
 import Footer from "../Components/Footer/Footer";
 
@@ -29,7 +30,7 @@ const Router = () => {
         <div style={{ flex: 1 }}>
           <Routes>
             {/* Public Routes */}
-            <Route path="/register" element={<Register />} />
+             <Route path="/register" element={<Register />} />  
             <Route path="/login" element={<Login />} />
 
             {/* Smart Root Route - Redirects based on permissions */}
@@ -108,7 +109,7 @@ const Router = () => {
 
             <Route path="/inventory" element={
               <ProtectedRoute>
-                <PermissionRoute requiredPermission="inventory">
+                <PermissionRoute requiredPermission="admin">
                   <Inventory />
                 </PermissionRoute>
               </ProtectedRoute>
@@ -138,6 +139,14 @@ const Router = () => {
               </ProtectedRoute>
             } />
 
+            <Route path="/productdiscount" element={
+              <ProtectedRoute>
+                <PermissionRoute requiredPermission="admin">
+                  <DiscountProduct />
+                </PermissionRoute>
+              </ProtectedRoute>
+            } />
+
           </Routes>
         </div>
         <Footer />
@@ -158,5 +167,18 @@ const PermissionRoute = ({ children, requiredPermission }) => {
   // If user doesn't have permission, redirect to smart redirect
   return <SmartRedirect />;
 };
+
+// TEMPORARY FIX - REMOVE AFTER CREATING ADMIN USER
+// const PermissionRoute = ({ children, requiredPermission }) => {
+//   // TEMPORARILY ALLOW ALL ACCESS - COMMENT THIS OUT AFTER CREATING ADMIN
+//   return children;
+  
+//   // ORIGINAL CODE - UNCOMMENT AFTER CREATING ADMIN
+//   // const userPermissions = JSON.parse(localStorage.getItem("permissions") || "[]");
+//   // if (userPermissions.includes("admin") || userPermissions.includes(requiredPermission)) {
+//   //   return children;
+//   // }
+//   // return <SmartRedirect />;
+// };
 
 export default Router;
