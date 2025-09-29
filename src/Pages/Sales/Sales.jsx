@@ -679,6 +679,7 @@ const Sales = () => {
     }
   };
   // Excel export
+  // Excel export - UPDATED VERSION with complete calculations
   const handleExportExcel = () => {
     if (invoices.length === 0) {
       toast.warn("No invoices to export");
@@ -709,6 +710,12 @@ const Sales = () => {
           'Customer Mobile': invoice.customer?.mobile || '',
           'Payment Type': invoice.paymentType,
           'Remarks': invoice.remarks || '',
+          'Subtotal': `₹${invoice.subtotal?.toFixed(2) || '0.00'}`,
+          'Total Discount': `₹${invoice.discount?.toFixed(2) || '0.00'}`,
+          'CGST Amount': `₹${invoice.cgst?.toFixed(2) || '0.00'}`,
+          'SGST Amount': `₹${invoice.sgst?.toFixed(2) || '0.00'}`,
+          'Total Tax': `₹${invoice.tax?.toFixed(2) || '0.00'}`,
+          'Grand Total': `₹${invoice.total?.toFixed(2) || '0.00'}`,
           'Items Count': 0,
           'Item Name': 'No items',
           'HSN Code': 'N/A',
@@ -716,27 +723,41 @@ const Sales = () => {
           'Category': 'N/A',
           'Quantity': 0,
           'Price': 0,
-          'Total Amount': `₹${invoice.total?.toFixed(2) || '0.00'}`
+          'Item Total': '0.00'
         }];
       }
 
-      return filteredItems.map((item, index) => ({
-        'Invoice Number': invoice.invoiceNumber,
-        'Date': invoice.date,
-        'Customer Name': invoice.customer?.name || '',
-        'Customer Email': invoice.customer?.email || '',
-        'Customer Mobile': invoice.customer?.mobile || '',
-        'Payment Type': invoice.paymentType,
-        'Remarks': invoice.remarks || '',
-        'Items Count': filteredItems.length,
-        'Item Name': item.name || item.productName || 'Unknown',
-        'HSN Code': item.hsn || item.hsnCode || 'N/A',
-        'Batch Number': item.batchNumber || 'N/A',
-        'Category': item.category || 'N/A',
-        'Quantity': item.quantity || 0,
-        'Price': `₹${(item.price || 0).toFixed(2)}`,
-        'Total Amount': `₹${invoice.total?.toFixed(2) || '0.00'}`
-      }));
+      return filteredItems.map((item, index) => {
+        // Calculate item total for export
+        const itemTotal = (item.price || 0) * (item.quantity || 0);
+        const itemDiscountAmount = itemTotal * ((item.discount || 0) / 100);
+        const itemTotalAfterDiscount = itemTotal - itemDiscountAmount;
+
+        return {
+          'Invoice Number': invoice.invoiceNumber,
+          'Date': invoice.date,
+          'Customer Name': invoice.customer?.name || '',
+          'Customer Email': invoice.customer?.email || '',
+          'Customer Mobile': invoice.customer?.mobile || '',
+          'Payment Type': invoice.paymentType,
+          'Remarks': invoice.remarks || '',
+          'Subtotal': `₹${invoice.subtotal?.toFixed(2) || '0.00'}`,
+          'Total Discount': `₹${invoice.discount?.toFixed(2) || '0.00'}`,
+          'CGST Amount': `₹${invoice.cgst?.toFixed(2) || '0.00'}`,
+          'SGST Amount': `₹${invoice.sgst?.toFixed(2) || '0.00'}`,
+          'Total Tax': `₹${invoice.tax?.toFixed(2) || '0.00'}`,
+          'Grand Total': `₹${invoice.total?.toFixed(2) || '0.00'}`,
+          'Items Count': filteredItems.length,
+          'Item Name': item.name || item.productName || 'Unknown',
+          'HSN Code': item.hsn || item.hsnCode || 'N/A',
+          'Batch Number': item.batchNumber || 'N/A',
+          'Category': item.category || 'N/A',
+          'Quantity': item.quantity || 0,
+          'Price': `₹${(item.price || 0).toFixed(2)}`,
+          'Discount %': `${item.discount || 0}%`,
+          'Item Total': `₹${itemTotalAfterDiscount.toFixed(2)}`
+        };
+      });
     });
 
     if (data.length === 0) {
@@ -807,17 +828,34 @@ const Sales = () => {
     );
   }, [customerMobileSearch, customers]);
 
+  // Filter functions - UPDATED VERSION
   const filteredInvoices = useMemo(() => {
-    if (!searchTerm) return invoices;
-    const term = searchTerm.toLowerCase();
-    return invoices.filter(invoice =>
-      (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
-      (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
-      (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
-      (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
-      (invoice.total && invoice.total.toString().includes(term))
-    );
-  }, [searchTerm, invoices]);
+    if (!searchTerm && !categoryFilter) return invoices;
+
+    let filtered = invoices;
+
+    // Apply category filter first
+    if (categoryFilter) {
+      filtered = filtered.filter(invoice => {
+        // Check if any item in the invoice matches the selected category
+        return invoice.items?.some(item => item.category === categoryFilter);
+      });
+    }
+
+    // Apply search term filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(invoice =>
+        (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
+        (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
+        (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
+        (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
+        (invoice.total && invoice.total.toString().includes(term))
+      );
+    }
+
+    return filtered;
+  }, [searchTerm, invoices, categoryFilter]);
 
   // Modal component
   const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete }) => {
@@ -865,11 +903,22 @@ const Sales = () => {
       }
     };
 
+    // Calculate item totals for display
+    const calculateItemTotal = (item) => {
+      const quantity = item.quantity || 1;
+      const price = item.price || 0;
+      const discount = item.discount || 0;
+
+      const totalBeforeDiscount = price * quantity;
+      const discountAmount = totalBeforeDiscount * (discount / 100);
+      return totalBeforeDiscount - discountAmount;
+    };
+
     if (!invoice) return null;
 
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-content invoice-modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <div className="modal-title">
               {isEditing ? "Edit Invoice" : `Invoice Details: ${invoice.invoiceNumber}`}
@@ -880,107 +929,201 @@ const Sales = () => {
           </div>
 
           <div className="modal-body">
-            <div className="wo-details-grid">
-              <div className="detail-row">
-                <span className="detail-label">Invoice Number:</span>
-                <span className="detail-value">{invoice.invoiceNumber}</span>
-              </div>
+            {/* Basic Invoice Information */}
+            <div className="invoice-section">
+              <h3 className="section-title">Basic Information</h3>
+              <div className="wo-details-grid">
+                <div className="detail-row">
+                  <span className="detail-label">Invoice Number:</span>
+                  <span className="detail-value">{invoice.invoiceNumber}</span>
+                </div>
 
-              <div className="detail-row">
-                <span className="detail-label">Date:</span>
-                <span className="detail-value">{invoice.date}</span>
-              </div>
+                <div className="detail-row">
+                  <span className="detail-label">Date:</span>
+                  <span className="detail-value">{invoice.date}</span>
+                </div>
 
-              <div className="detail-row">
-                <span className="detail-label">Customer Name:</span>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="name"
-                    value={editedInvoice.customer?.name || ''}
-                    onChange={handleInputChange}
-                    className="edit-input"
-                  />
-                ) : (
-                  <span className="detail-value">{invoice.customer?.name}</span>
+                <div className="detail-row">
+                  <span className="detail-label">Customer Name:</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="name"
+                      value={editedInvoice.customer?.name || ''}
+                      onChange={handleInputChange}
+                      className="edit-input"
+                    />
+                  ) : (
+                    <span className="detail-value">{invoice.customer?.name}</span>
+                  )}
+                </div>
+
+                <div className="detail-row">
+                  <span className="detail-label">Customer Email:</span>
+                  {isEditing ? (
+                    <input
+                      type="email"
+                      name="email"
+                      value={editedInvoice.customer?.email || ''}
+                      onChange={handleInputChange}
+                      className="edit-input"
+                    />
+                  ) : (
+                    <span className="detail-value">{invoice.customer?.email || 'N/A'}</span>
+                  )}
+                </div>
+
+                <div className="detail-row">
+                  <span className="detail-label">Customer Mobile:</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="mobile"
+                      value={editedInvoice.customer?.mobile || ''}
+                      onChange={handleInputChange}
+                      className="edit-input"
+                    />
+                  ) : (
+                    <span className="detail-value">{invoice.customer?.mobile}</span>
+                  )}
+                </div>
+
+                <div className="detail-row">
+                  <span className="detail-label">Payment Type:</span>
+                  {isEditing ? (
+                    <select
+                      value={editedInvoice.paymentType || ''}
+                      onChange={handlePaymentTypeChange}
+                      className="edit-input"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="upi">UPI</option>
+                    </select>
+                  ) : (
+                    <span className="detail-value">{invoice.paymentType}</span>
+                  )}
+                </div>
+
+                <div className="detail-row">
+                  <span className="detail-label">Remarks:</span>
+                  {isEditing ? (
+                    <textarea
+                      name="remarks"
+                      value={editedInvoice.remarks || ''}
+                      onChange={(e) => setEditedInvoice(prev => ({
+                        ...prev,
+                        remarks: e.target.value
+                      }))}
+                      className="edit-input"
+                      rows={3}
+                      style={{ width: '100%', resize: 'vertical' }}
+                      placeholder="Optional remarks..."
+                    />
+                  ) : (
+                    <span className="detail-value">{invoice.remarks || 'No remarks'}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Items Details Section */}
+            <div className="invoice-section">
+              <h3 className="section-title">Items Details ({invoice.items?.length || 0} items)</h3>
+              {invoice.items && invoice.items.length > 0 ? (
+                <div className="items-table-container">
+                  <table className="items-details-table">
+                    <thead>
+                      <tr>
+                        <th width="5%">Sr No</th>
+                        <th width="20%">Product Name</th>
+                        <th width="10%">HSN</th>
+                        <th width="10%">Category</th>
+                        <th width="10%">Batch No</th>
+                        <th width="8%">Qty</th>
+                        <th width="12%">Price</th>
+                        <th width="10%">Discount %</th>
+                        <th width="15%">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.items.map((item, index) => (
+                        <tr key={`${item.productId}-${item.batchNumber}-${index}`}>
+                          <td>{index + 1}</td>
+                          <td>
+                            <div className="product-name">{item.name}</div>
+                            {item.barcode && (
+                              <div className="product-barcode">Barcode: {item.barcode}</div>
+                            )}
+                          </td>
+                          <td>{item.hsn || "N/A"}</td>
+                          <td>
+                            <span className="category-tag">{item.category || "N/A"}</span>
+                          </td>
+                          <td>
+                            <div className="batch-info">
+                              <span className="batch-tag">{item.batchNumber || "N/A"}</span>
+                              {item.expiryDate && (
+                                <div className="expiry-date">
+                                  Exp: {new Date(item.expiryDate).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>{item.quantity || 0}</td>
+                          <td>₹{(item.price || 0).toFixed(2)}</td>
+                          <td>{item.discount || 0}%</td>
+                          <td className="amount-cell">₹{calculateItemTotal(item).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="no-items-message">No items found in this invoice</div>
+              )}
+            </div>
+
+            {/* Invoice Summary Section */}
+            <div className="invoice-section">
+              <h3 className="section-title">Invoice Summary</h3>
+              <div className="invoice-summary-grid">
+                <div className="summary-row">
+                  <span className="summary-label">Subtotal:</span>
+                  <span className="summary-value">₹{invoice.subtotal?.toFixed(2) || '0.00'}</span>
+                </div>
+
+                <div className="summary-row">
+                  <span className="summary-label">Total Discount:</span>
+                  <span className="summary-value">₹{invoice.discount?.toFixed(2) || '0.00'}</span>
+                </div>
+
+                {!invoice.hasMixedTaxRates && invoice.taxPercentages && invoice.taxPercentages.length > 0 && (
+                  <>
+                    <div className="summary-row">
+                      <span className="summary-label">CGST ({invoice.taxPercentages[0] / 2}%):</span>
+                      <span className="summary-value">₹{invoice.cgst?.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="summary-row">
+                      <span className="summary-label">SGST ({invoice.taxPercentages[0] / 2}%):</span>
+                      <span className="summary-value">₹{invoice.sgst?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </>
                 )}
-              </div>
 
-              <div className="detail-row">
-                <span className="detail-label">Customer Email:</span>
-                {isEditing ? (
-                  <input
-                    type="email"
-                    name="email"
-                    value={editedInvoice.customer?.email || ''}
-                    onChange={handleInputChange}
-                    className="edit-input"
-                  />
-                ) : (
-                  <span className="detail-value">{invoice.customer?.email || 'N/A'}</span>
+                {invoice.hasMixedTaxRates && (
+                  <div className="summary-row">
+                    <span className="summary-label">Total GST:</span>
+                    <span className="summary-value">₹{invoice.tax?.toFixed(2) || '0.00'}</span>
+                  </div>
                 )}
-              </div>
 
-              <div className="detail-row">
-                <span className="detail-label">Customer Mobile:</span>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="mobile"
-                    value={editedInvoice.customer?.mobile || ''}
-                    onChange={handleInputChange}
-                    className="edit-input"
-                  />
-                ) : (
-                  <span className="detail-value">{invoice.customer?.mobile}</span>
-                )}
-              </div>
-
-              <div className="detail-row">
-                <span className="detail-label">Payment Type:</span>
-                {isEditing ? (
-                  <select
-                    value={editedInvoice.paymentType || ''}
-                    onChange={handlePaymentTypeChange}
-                    className="edit-input"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="upi">UPI</option>
-                  </select>
-                ) : (
-                  <span className="detail-value">{invoice.paymentType}</span>
-                )}
-              </div>
-
-              <div className="detail-row">
-                <span className="detail-label">Remarks:</span>
-                {isEditing ? (
-                  <textarea
-                    name="remarks"
-                    value={editedInvoice.remarks || ''}
-                    onChange={(e) => setEditedInvoice(prev => ({
-                      ...prev,
-                      remarks: e.target.value
-                    }))}
-                    className="edit-input"
-                    rows={3}
-                    style={{ width: '100%', resize: 'vertical' }}
-                    placeholder="Optional remarks..."
-                  />
-                ) : (
-                  <span className="detail-value">{invoice.remarks || 'No remarks'}</span>
-                )}
-              </div>
-
-              <div className="detail-row">
-                <span className="detail-label">Total Amount:</span>
-                <span className="detail-value">₹{invoice.total?.toFixed(2)}</span>
-              </div>
-
-              <div className="detail-row">
-                <span className="detail-label">Items Count:</span>
-                <span className="detail-value">{invoice.items?.length || 0}</span>
+                <div className="summary-row total-row">
+                  <span className="summary-label">Grand Total:</span>
+                  <span className="summary-value total-amount">
+                    ₹{invoice.total?.toFixed(2) || '0.00'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

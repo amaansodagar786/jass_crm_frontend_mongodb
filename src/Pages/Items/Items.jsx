@@ -28,6 +28,17 @@ import "./Items.scss";
 import "react-toastify/dist/ReactToastify.css";
 import { TAX_SLABS } from "../../Components/TaxSlab/Taxslab";
 
+
+const CATEGORY_OPTIONS = [
+  "Air Freshener",
+  "Deodorant & Body Spray",
+  "Eau de Perfume",
+  "Perfume Oil",
+  "Sanitizer",
+  "Shampoo",
+  "Talc"
+];
+
 const Items = () => {
   const [showForm, setShowForm] = useState(false);
   const [items, setItems] = useState([]);
@@ -342,7 +353,7 @@ const Items = () => {
       // Prepare data for bulk upload with category
       const productsData = jsonData.map(item => ({
         productName: item['Product Name']?.trim() || null,
-        category: item['Category']?.trim() || null, // ADD CATEGORY FIELD
+        category: item['Category']?.trim()?.toLowerCase() || null,
         barcode: item['Barcode'] ? item['Barcode'].toString().trim() : '0000000000000',
         hsnCode: item['HSN Code']?.trim() || '00',
         taxSlab: item['Tax Slab'] ? Number(item['Tax Slab']) : 0,
@@ -486,18 +497,27 @@ const Items = () => {
                 )}
               </div>
 
+              {/* In the ItemModal component, replace the category input with dropdown */}
               <div className="detail-row">
                 <span className="detail-label">Category:</span>
                 {isEditing ? (
-                  <input
-                    type="text"
+                  <select
                     name="category"
                     value={editedItem.category || ''}
                     onChange={handleInputChange}
                     className="edit-input"
-                  />
+                  >
+                    <option value="">Select Category</option>
+                    {CATEGORY_OPTIONS.map((category, index) => (
+                      <option key={index} value={category.toLowerCase()}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
-                  <span className="detail-value">{item.category}</span>
+                  <span className="detail-value">
+                    {CATEGORY_OPTIONS.find(cat => cat.toLowerCase() === item.category) || item.category}
+                  </span>
                 )}
               </div>
 
@@ -796,8 +816,14 @@ const Items = () => {
                   </div>
                   <div className="form-field">
                     <label>Category *</label>
-                    <Field name="category" type="text" />
-                    {/* ADD THIS ERROR MESSAGE COMPONENT */}
+                    <Field as="select" name="category" className="select-field">
+                      <option value="">Select Category</option>
+                      {CATEGORY_OPTIONS.map((category, index) => (
+                        <option key={index} value={category.toLowerCase()}>
+                          {category}
+                        </option>
+                      ))}
+                    </Field>
                     <ErrorMessage name="category" component="div" className="error" />
                   </div>
                 </div>
@@ -876,7 +902,7 @@ const Items = () => {
                     <th>Tax Slab</th>
                     <th>Discount</th>
                     <th>Price</th>
-                    
+
                   </tr>
                 </thead>
                 <tbody>
@@ -891,9 +917,9 @@ const Items = () => {
                       <td>{item.barcode}</td>
                       <td>{item.hsnCode}</td>
                       <td>{item.taxSlab}%</td>
-                       <td>{item.discount}%</td>
+                      <td>{item.discount}%</td>
                       <td>₹{item.price?.toFixed(2)}</td>
-                     
+
                     </tr>
                   ))}
                 </tbody>

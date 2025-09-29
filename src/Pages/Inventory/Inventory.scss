@@ -87,26 +87,26 @@
       color: #3f3f91;
     }
 
-    .action-buttons-group {
-      .export-all-btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: linear-gradient(to right, #4caf50, #66bb6a);
-        color: white;
-        padding: 10px 16px;
-        font-size: 14px;
-        font-weight: 500;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: 0.3s;
+    // .action-buttons-group {
+    //   .export-all-btn {
+    //     display: flex;
+    //     align-items: center;
+    //     gap: 8px;
+    //     background: linear-gradient(to right, #4caf50, #66bb6a);
+    //     color: white;
+    //     padding: 10px 16px;
+    //     font-size: 14px;
+    //     font-weight: 500;
+    //     border: none;
+    //     border-radius: 6px;
+    //     cursor: pointer;
+    //     transition: 0.3s;
 
-        &:hover {
-          background: linear-gradient(to right, #388e3c, #4caf50);
-        }
-      }
-    }
+    //     &:hover {
+    //       background: linear-gradient(to right, #388e3c, #4caf50);
+    //     }
+    //   }
+    // }
   }
 
   .data-table {
@@ -336,11 +336,11 @@
   }
 
   .add-qty-btn {
-    background: linear-gradient(to right, #2196F3, #21CBF3);
+    background: linear-gradient(135deg, #e67e22, #f39c12);
     color: white;
 
     &:hover {
-      background: linear-gradient(to right, #1976D2, #2196F3);
+      background: linear-gradient(135deg, #e67e22, #f39c12);
     }
   }
 

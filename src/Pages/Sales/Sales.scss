@@ -656,3 +656,496 @@
   margin-top: 10px;
   padding-top: 10px;
 }
+
+
+// Invoice Modal Styles
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.invoice-modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 95%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    border-bottom: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #7366ff, #948cff);
+    color: white;
+
+    .modal-title {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 28px;
+      cursor: pointer;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+  }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 30px;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    padding: 20px 30px;
+    border-top: 1px solid #e0e0e0;
+    background: #f8f9fa;
+  }
+}
+
+// Invoice Sections
+.invoice-section {
+  margin-bottom: 30px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #3f3f91;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #7366ff;
+  }
+}
+
+// Basic Information Grid
+.wo-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1px !important;
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #f0f0f0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      font-weight: 600;
+      color: #555;
+      min-width: 140px;
+    }
+
+    .detail-value {
+      color: #333;
+      text-align: right;
+      flex: 1;
+    }
+
+    .edit-input {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 200px;
+
+      &:focus {
+        border-color: #7366ff;
+        outline: none;
+      }
+    }
+
+    textarea.edit-input {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+    }
+  }
+}
+
+// Items Table in Modal
+.items-table-container {
+  overflow-x: auto;
+  margin: 20px 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.items-details-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+
+  th {
+    background: #f8f9fa;
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #e0e0e0;
+    font-size: 14px;
+  }
+
+  td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+  }
+
+  tr:hover {
+    background: #f8f9ff;
+  }
+
+  .product-name {
+    font-weight: 500;
+    color: #333;
+  }
+
+  .product-barcode {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  .batch-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .batch-tag {
+    background: #e3f2fd;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #1976d2;
+    display: inline-block;
+  }
+
+  .expiry-date {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .category-tag {
+    background: #f3e5f5;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #7b1fa2;
+    display: inline-block;
+  }
+
+  .amount-cell {
+    font-weight: 600;
+    color: #2e7d32;
+  }
+}
+
+.no-items-message {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-style: italic;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #ddd;
+}
+
+// Invoice Summary
+.invoice-summary-grid {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  max-width: 400px;
+  margin-left: auto;
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #e0e0e0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .summary-label {
+      font-weight: 500;
+      color: #555;
+    }
+
+    .summary-value {
+      font-weight: 600;
+      color: #333;
+    }
+
+    &.total-row {
+      border-top: 2px solid #7366ff;
+      margin-top: 10px;
+      padding-top: 15px;
+
+      .summary-label {
+        font-size: 16px;
+        color: #3f3f91;
+      }
+
+      .total-amount {
+        font-size: 18px;
+        color: #2e7d32;
+      }
+    }
+  }
+}
+
+// Action Buttons
+.update-btn,
+.delete-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  font-size: 14px;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.update-btn {
+  background: #7366ff;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: #5a4ee2;
+    transform: translateY(-1px);
+  }
+
+  &.save-btn {
+    background: #28a745;
+
+    &:hover:not(:disabled) {
+      background: #218838;
+    }
+  }
+}
+
+.delete-btn {
+  background: #dc3545;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: #c82333;
+    transform: translateY(-1px);
+  }
+}
+
+// Delete Confirmation Dialog
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
+}
+
+.confirm-dialog {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+
+  h3 {
+    margin: 0 0 15px 0;
+    color: #dc3545;
+    font-size: 20px;
+  }
+
+  p {
+    margin: 0 0 25px 0;
+    color: #666;
+    line-height: 1.5;
+  }
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+
+  button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 80px;
+  }
+
+  .confirm-cancel {
+    background: #6c757d;
+    color: white;
+
+    &:hover {
+      background: #5a6268;
+    }
+  }
+
+  .confirm-delete {
+    background: #dc3545;
+    color: white;
+
+    &:hover {
+      background: #c82333;
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .invoice-modal-content {
+    width: 100%;
+    max-height: 95vh;
+
+    .modal-header {
+      padding: 15px 20px;
+
+      .modal-title {
+        font-size: 20px;
+      }
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .modal-footer {
+      padding: 15px 20px;
+      flex-direction: column;
+
+      button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  }
+
+  .wo-details-grid {
+    grid-template-columns: 1fr;
+
+    .detail-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+
+      .detail-value {
+        text-align: left;
+        width: 100%;
+      }
+
+      .edit-input {
+        width: 100%;
+      }
+    }
+  }
+
+  .items-details-table {
+    font-size: 14px;
+
+    th,
+    td {
+      padding: 8px 10px;
+    }
+  }
+
+  .invoice-summary-grid {
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .confirm-dialog {
+    padding: 20px;
+
+    .confirm-buttons {
+      flex-direction: column;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .items-details-table {
+    font-size: 12px;
+
+    th,
+    td {
+      padding: 6px 8px;
+    }
+  }
+
+  .batch-tag,
+  .category-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}

@@ -6,6 +6,7 @@ import "./Inventory.scss";
 import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+// import XLSX from 'xlsx'; 
 
 const Inventory = () => {
     const [inventory, setInventory] = useState([]);
@@ -277,18 +278,55 @@ const Inventory = () => {
 
 
     const downloadTemplate = () => {
-        const templateData = [
-            ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date'],
-            ['Example Product 1', 'BATCH-001', '50', '2024-01-15'],
-            ['Example Product 2', 'BATCH-002', '25', '2024-02-20']
-        ];
+        try {
+            // Check if XLSX is available
+            if (typeof XLSX === 'undefined') {
+                throw new Error('XLSX library not loaded');
+            }
 
-        const worksheet = XLSX.utils.aoa_to_sheet(templateData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+            const templateData = [
+                ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date'],
+                ['Example Product 1', 'BATCH-001', '50', '2024-01-15'],
+                ['Example Product 2', 'BATCH-002', '25', '2024-02-20'],
+                ['Example Product 3', 'BATCH-003', '100', '2024-03-10']
+            ];
 
-        XLSX.writeFile(workbook, 'batch-upload-template.xlsx');
-        toast.info("Template downloaded successfully!");
+            // Create worksheet
+            const worksheet = XLSX.utils.aoa_to_sheet(templateData);
+
+            // Create workbook
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+
+            // Generate and download file
+            XLSX.writeFile(workbook, 'batch-upload-template.xlsx');
+
+            toast.info("Template downloaded successfully!");
+        } catch (error) {
+            console.error("Error downloading template:", error);
+
+            // Fallback to CSV
+            const templateData = [
+                ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date'],
+                ['Example Product 1', 'BATCH-001', '50', '2024-01-15'],
+                ['Example Product 2', 'BATCH-002', '25', '2024-02-20']
+            ];
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            templateData.forEach(row => {
+                csvContent += row.join(",") + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "batch-upload-template.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.info("CSV Template downloaded successfully!");
+        }
     };
 
     // Filter products for searchable dropdown
@@ -669,7 +707,7 @@ const Inventory = () => {
                                                     onChange={(e) => updateBatch(index, "manufactureDate", e.target.value)}
                                                     required
                                                 />
-                                                <small>Expiry will be automatically calculated (36 months from manufacture)</small>
+                                                {/* <small>Expiry will be automatically calculated (36 months from manufacture)</small>  */}
                                             </div>
                                             {batches.length > 1 && (
                                                 <button type="button" onClick={() => removeBatchRow(index)} className="remove-batch-btn">
@@ -711,7 +749,7 @@ const Inventory = () => {
                                         onChange={(e) => setUploadFile(e.target.files[0])}
                                         required
                                     />
-                                    <small>Format: Product Name, Batch Number, Quantity, Expiry Date (YYYY-MM-DD)</small>
+                                    <small>Format: Product Name, Batch Number, Quantity, Manufacture Date (YYYY-MM-DD)</small>
                                 </div>
 
                                 <div className="download-template">
