@@ -53,13 +53,13 @@ const Navbar = ({ children }) => {
     // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor", permission: "vendor" },
     { icon: <LuFile />, title: "Products", path: "/items", permission: "products" },
     { icon: <TbUsers />, title: "Admin", path: "/admin", permission: "admin" },
-    { icon: <MdDiscount  />, title: "Discount", path: "/productdiscount", permission: "admin" }, 
+    { icon: <MdDiscount  />, title: "Discount", path: "/productdiscount", permission: "discount" }, 
     // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order", permission: "purchase" },
     // { icon: <BsBell />, title: "GRN", path: "/grn", permission: "grn" },
     // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom", permission: "bom" },
     // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order", permission: "workorder" },
-    { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "admin" },  
-    { icon: <TbMessages />, title: "Product Disposal", path: "/defective", permission: "admin" },
+    { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },  
+    { icon: <TbMessages />, title: "Product Disposal", path: "/defective", permission: "disposal" },
     // { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
   ];
 

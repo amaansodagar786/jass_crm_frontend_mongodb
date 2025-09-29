@@ -30,7 +30,7 @@ const Router = () => {
         <div style={{ flex: 1 }}>
           <Routes>
             {/* Public Routes */}
-             <Route path="/register" element={<Register />} />  
+            <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
 
             {/* Smart Root Route - Redirects based on permissions */}
@@ -109,7 +109,7 @@ const Router = () => {
 
             <Route path="/inventory" element={
               <ProtectedRoute>
-                <PermissionRoute requiredPermission="admin">
+                <PermissionRoute requiredPermission="inventory">
                   <Inventory />
                 </PermissionRoute>
               </ProtectedRoute>
@@ -125,8 +125,8 @@ const Router = () => {
 
             <Route path="/defective" element={
               <ProtectedRoute>
-                <PermissionRoute requiredPermission="admin">
-                  <ProductDisposal/>
+                <PermissionRoute requiredPermission="disposal">
+                  <ProductDisposal />
                 </PermissionRoute>
               </ProtectedRoute>
             } />
@@ -141,7 +141,7 @@ const Router = () => {
 
             <Route path="/productdiscount" element={
               <ProtectedRoute>
-                <PermissionRoute requiredPermission="admin">
+                <PermissionRoute requiredPermission="discount">
                   <DiscountProduct />
                 </PermissionRoute>
               </ProtectedRoute>
@@ -159,12 +159,22 @@ const Router = () => {
 const PermissionRoute = ({ children, requiredPermission }) => {
   const userPermissions = JSON.parse(localStorage.getItem("permissions") || "[]");
 
-  // If user has admin permission or the required permission, allow access
-  if (userPermissions.includes("admin") || userPermissions.includes(requiredPermission)) {
+  // Admin can access everything
+  if (userPermissions.includes("admin")) {
     return children;
   }
 
-  // If user doesn't have permission, redirect to smart redirect
+  // If `requiredPermission` is a string
+  if (typeof requiredPermission === "string" && userPermissions.includes(requiredPermission)) {
+    return children;
+  }
+
+  // If `requiredPermission` is an array (multiple options allowed)
+  if (Array.isArray(requiredPermission) && requiredPermission.some(p => userPermissions.includes(p))) {
+    return children;
+  }
+
+  // No access → redirect to SmartRedirect
   return <SmartRedirect />;
 };
 
@@ -172,7 +182,7 @@ const PermissionRoute = ({ children, requiredPermission }) => {
 // const PermissionRoute = ({ children, requiredPermission }) => {
 //   // TEMPORARILY ALLOW ALL ACCESS - COMMENT THIS OUT AFTER CREATING ADMIN
 //   return children;
-  
+
 //   // ORIGINAL CODE - UNCOMMENT AFTER CREATING ADMIN
 //   // const userPermissions = JSON.parse(localStorage.getItem("permissions") || "[]");
 //   // if (userPermissions.includes("admin") || userPermissions.includes(requiredPermission)) {

@@ -33,7 +33,10 @@ const AdminUsers = () => {
     { id: "products", name: "Products" },
     { id: "invoice", name: "Invoice" },
     { id: "dashboard", name: "Dashboard" },
-    { id: "admin", name: "Admin" }
+    { id: "inventory", name: "Inventory" },
+    { id: "discount", name: "Discount" },
+    { id: "disposal", name: "Disposal" },
+    { id: "admin", name: "Admin" },
   ];
 
   useEffect(() => {
