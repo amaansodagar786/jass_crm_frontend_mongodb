@@ -40,7 +40,7 @@
           font-size: 14px;
           outline: none;
           background-color: white;
-          appearance: none; 
+          appearance: none;
           cursor: pointer;
 
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -136,7 +136,8 @@
       width: 100%;
       border-collapse: collapse;
 
-      th, td {
+      th,
+      td {
         padding: 12px 16px;
         border-bottom: 1px solid #eee;
         font-size: 14px;
@@ -309,3 +310,352 @@
     }
   }
 }
+
+
+
+// Add these styles to your Inventory.scss
+
+.action-buttons-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+
+  .add-qty-btn,
+  .bulk-upload-btn,
+  .export-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+
+  .add-qty-btn {
+    background: linear-gradient(to right, #2196F3, #21CBF3);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(to right, #1976D2, #2196F3);
+    }
+  }
+
+  .bulk-upload-btn {
+    background: linear-gradient(to right, #FF9800, #FFB74D);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(to right, #F57C00, #FF9800);
+    }
+  }
+
+  .export-all-btn {
+    background: linear-gradient(to right, #4caf50, #66bb6a);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(to right, #388e3c, #4caf50);
+    }
+  }
+}
+
+// Modal Styles
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 10px;
+  padding: 0;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+
+    h3 {
+      margin: 0;
+      color: #3f3f91;
+      font-size: 18px;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #666;
+
+      &:hover {
+        color: #333;
+      }
+    }
+  }
+
+  form {
+    padding: 20px;
+
+    .form-group {
+      margin-bottom: 20px;
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+
+        &:focus {
+          border-color: #7366ff;
+          outline: none;
+        }
+      }
+
+      small {
+        color: #666;
+        font-size: 12px;
+      }
+    }
+  }
+}
+
+// Searchable Dropdown
+.searchable-dropdown {
+  position: relative;
+
+  .dropdown-options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    max-height: 300px; // Increased height
+    overflow-y: auto;
+    z-index: 10;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+
+    .dropdown-option {
+      padding: 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+
+      &:hover {
+        background: #f5f6fa;
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &.no-results {
+        color: #666;
+        font-style: italic;
+        cursor: default;
+
+        &:hover {
+          background: white;
+        }
+      }
+    }
+  }
+}
+
+
+.product-info {
+  background: #f9f9f9;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 10px;
+
+  p {
+    margin: 5px 0;
+    font-size: 14px;
+  }
+}
+
+// Batches Section
+.batches-section {
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+
+    .add-batch-btn {
+      background: #4caf50;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+
+      &:hover {
+        background: #388e3c;
+      }
+    }
+  }
+
+  .batch-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 6px;
+    margin-bottom: 10px;
+
+    .remove-batch-btn {
+      background: #f44336;
+      color: white;
+      border: none;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+
+      &:hover {
+        background: #d32f2f;
+      }
+    }
+  }
+}
+
+// Modal Actions
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+
+  .cancel-btn {
+    background: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: #e0e0e0;
+    }
+  }
+
+  .submit-btn {
+    background: #7366ff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: #5f53cc;
+    }
+
+    &:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.download-template {
+  margin: 15px 0;
+  text-align: center;
+
+  a {
+    color: #7366ff;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .action-buttons-group {
+    flex-direction: column;
+    width: 100%;
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  .batch-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+}
+
+
+// Add these styles to your existing Inventory.scss
+
+.download-template {
+  margin: 15px 0;
+  text-align: center;
+
+  .template-download-btn {
+    background: #7366ff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: 0.3s;
+    text-decoration: none;
+    display: inline-block;
+
+    &:hover {
+      background: #5f53cc;
+      text-decoration: none;
+    }
+  }
+}
+
+

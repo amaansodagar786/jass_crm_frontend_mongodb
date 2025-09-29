@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
-import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf, FaSpinner, FaEdit } from "react-icons/fa";
+import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf, FaSpinner, FaEdit, FaChevronDown } from "react-icons/fa";
 import Navbar from "../../Components/Sidebar/Navbar";
 import "react-toastify/dist/ReactToastify.css";
 import "./Sales.scss";
@@ -26,28 +26,89 @@ const Sales = () => {
     name: "",
     email: "",
     mobile: "",
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    remarks: ""
   });
   const [isExporting, setIsExporting] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isLoadingInventory, setIsLoadingInventory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showBatchDropdown, setShowBatchDropdown] = useState(null);
   const customerSearchRef = useRef(null);
+  const batchDropdownRef = useRef(null);
 
-  // Add new state near the top with other useState declarations:
-  const [invoiceForPrint, setInvoiceForPrint] = useState(null); // { invoice, openWhatsapp }
+  const [invoiceForPrint, setInvoiceForPrint] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categories, setCategories] = useState([]);
 
-  // Fetch customers, products and invoices from backend
+  // Fetch all data on component mount
   useEffect(() => {
     fetchCustomers();
     fetchProducts();
+    fetchInventory();
     fetchInvoices();
   }, []);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (customerSearchRef.current && !customerSearchRef.current.contains(event.target)) {
+        setShowCustomerDropdown(false);
+      }
+      if (batchDropdownRef.current && !batchDropdownRef.current.contains(event.target)) {
+        setShowBatchDropdown(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Add this useEffect after your other useEffects
+  useEffect(() => {
+    if (!invoiceForPrint) return;
+
+    const generatePDFAndHandleWhatsApp = async () => {
+      try {
+        // Wait for the SalesPrint component to render with new data
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Generate PDF
+        await generatePDF(invoiceForPrint.invoice);
+
+        // Open WhatsApp if needed
+        if (invoiceForPrint.openWhatsapp) {
+          const customerMobile = (invoiceForPrint.invoice.customer?.mobile || "").replace(/\D/g, "");
+          if (customerMobile) {
+            const message = `Hello ${invoiceForPrint.invoice.customer?.name || ""}, your invoice (No: ${invoiceForPrint.invoice.invoiceNumber}) has been generated.`;
+            window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
+          }
+        }
+      } catch (error) {
+        console.error("Error in PDF/WhatsApp process:", error);
+        toast.error("Failed to generate PDF");
+      } finally {
+        setInvoiceForPrint(null);
+      }
+    };
+
+    generatePDFAndHandleWhatsApp();
+  }, [invoiceForPrint]);
+
+  useEffect(() => {
+    const uniqueCategories = [...new Set(products.map(product => product.category).filter(Boolean))];
+    setCategories(uniqueCategories);
+  }, [products]);
+
+  // Fetch functions
   const fetchInvoices = async () => {
     try {
       setIsLoading(true);
@@ -55,13 +116,9 @@ const Sales = () => {
       const invoicesData = (response.data && response.data.data) ? response.data.data : [];
 
       const sortedInvoices = invoicesData.sort((a, b) => {
-        // Prefer createdAt if available, else use date
         const dateA = new Date(a.createdAt || a.date || 0);
         const dateB = new Date(b.createdAt || b.date || 0);
-
         if (dateB - dateA !== 0) return dateB - dateA;
-
-        // fallback: compare numeric suffix of invoiceNumber (INVYYYYNNNN -> numeric part)
         const numA = parseInt((a.invoiceNumber || "").replace(/\D/g, "")) || 0;
         const numB = parseInt((b.invoiceNumber || "").replace(/\D/g, "")) || 0;
         return numB - numA;
@@ -75,38 +132,6 @@ const Sales = () => {
       setIsLoading(false);
     }
   };
-
-
-  useEffect(() => {
-    if (!invoiceForPrint) return;
-
-    let mounted = true;
-
-    const runPrint = async () => {
-      try {
-        // small delay to ensure the hidden component finished rendering
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await generatePDF(invoiceForPrint.invoice);
-
-        if (invoiceForPrint.openWhatsapp) {
-          const customerMobile = (invoiceForPrint.invoice.customer?.mobile || "").replace(/\D/g, "");
-          if (customerMobile) {
-            const message = `Hello ${invoiceForPrint.invoice.customer?.name || ""}, your invoice (No: ${invoiceForPrint.invoice.invoiceNumber}) has been generated.`;
-            window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
-          }
-        }
-      } catch (err) {
-        console.error("Error printing/opening whatsapp:", err);
-      } finally {
-        if (mounted) setInvoiceForPrint(null);
-      }
-    };
-
-    runPrint();
-
-    return () => { mounted = false; };
-  }, [invoiceForPrint]); // runs when invoiceForPrint is set
-
 
   const fetchCustomers = async () => {
     try {
@@ -142,170 +167,151 @@ const Sales = () => {
     }
   };
 
-  // Save invoice to database
-  const saveInvoiceToDB = async (invoice) => {
+  const fetchInventory = async () => {
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/invoices/create-invoice`, invoice);
-      return response.data;
+      setIsLoadingInventory(true);
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/inventory/get-inventory`);
+
+      // FIX: Extract the data array from response
+      setInventory(response.data.data || []);
+
     } catch (error) {
-      console.error("Error saving invoice to database:", error);
-      throw error;
+      console.error("Error fetching inventory:", error);
+      toast.error("Failed to load inventory data");
+    } finally {
+      setIsLoadingInventory(false);
     }
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (customerSearchRef.current && !customerSearchRef.current.contains(event.target)) {
-        setShowCustomerDropdown(false);
-      }
-    };
+  // Batch management functions
+  // Batch management functions
+  const getAvailableBatches = (productId) => {
+    const inventoryItem = inventory.find(item => item.productId === productId);
+    if (!inventoryItem) return [];
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+    const currentDate = new Date();
 
-  // Filter products based on search term
-  const filteredProducts = useMemo(() => {
-    if (!itemSearchTerm) return [];
+    return inventoryItem.batches
+      .filter(batch => {
+        const isExpired = new Date(batch.expiryDate) < currentDate;
+        return batch.quantity > 0 && !isExpired;
+      })
+      .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate)) // Sort by expiry date (earliest first)
+      .map(batch => ({
+        ...batch,
+        productId: inventoryItem.productId,
+        productName: inventoryItem.productName,
+        category: inventoryItem.category
+      }));
+  };
 
-    const term = itemSearchTerm.toLowerCase();
-    return products.filter(product =>
-      (product.productName && product.productName.toLowerCase().includes(term)) ||
-      (product.hsnCode && product.hsnCode.toLowerCase().includes(term)) ||
-      (product.barcode && product.barcode.includes(term)) ||
-      (product.price && product.price.toString().includes(term))
-    );
-  }, [itemSearchTerm, products]);
 
-  // Filter customers based on mobile search term
-  const filteredCustomers = useMemo(() => {
-    if (!customerMobileSearch) return [];
+  const getAvailableQuantity = (productId, batchNumber) => {
+    const inventoryItem = inventory.find(item => item.productId === productId);
+    if (!inventoryItem) return 0;
 
-    const term = customerMobileSearch.toLowerCase();
-    return customers.filter(customer =>
-      (customer.mobile && customer.mobile.includes(term)) ||
-      (customer.name && customer.name.toLowerCase().includes(term))
-    );
-  }, [customerMobileSearch, customers]);
+    const batch = inventoryItem.batches.find(b => b.batchNumber === batchNumber);
+    return batch ? batch.quantity : 0;
+  };
 
-  // Updated calculateInvoiceTotals function
-  // Replace the calculateInvoiceTotals function with this corrected version:
-  const calculateInvoiceTotals = () => {
-    let subtotal = 0; // total including tax before discount
-    let totalDiscountAmount = 0; // total discount given to customer
-    let totalBaseValue = 0; // total after discount excluding tax
-    let totalTaxAmount = 0; // total tax after discount
-    let cgstAmount = 0;
-    let sgstAmount = 0;
+  const handleProductSelect = (product) => {
+    const availableBatches = getAvailableBatches(product.productId);
 
-    const taxPercentages = new Set();
-
-    const itemsWithCalculations = selectedItems.map(item => {
-      const quantity = item.quantity || 1;
-      const taxRate = item.taxSlab || 18;
-      const discountPercentage = item.discount || 0;
-
-      // Track tax percentage
-      taxPercentages.add(taxRate);
-
-      // Step 1: Total including tax for this item
-      const itemTotalInclTax = item.price * quantity;
-
-      // Step 2: Apply discount on total including tax
-      const itemDiscountAmount = itemTotalInclTax * (discountPercentage / 100);
-      const itemTotalAfterDiscount = itemTotalInclTax - itemDiscountAmount;
-
-      // Step 3: Calculate base value excluding tax
-      const itemBaseValue = itemTotalAfterDiscount / (1 + taxRate / 100);
-
-      // Step 4: Calculate tax on discounted total
-      const itemTaxAmount = itemTotalAfterDiscount - itemBaseValue;
-
-      // Step 5: CGST/SGST split if same tax rate
-      const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
-      const itemSgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
-
-      // Step 6: Total for this item after discount (same as itemTotalAfterDiscount)
-      const itemTotalAmount = itemTotalAfterDiscount;
-
-      // Add to overall totals
-      subtotal += itemTotalInclTax;
-      totalDiscountAmount += itemDiscountAmount;
-      totalBaseValue += itemBaseValue;
-      totalTaxAmount += itemTaxAmount;
-      cgstAmount += itemCgstAmount;
-      sgstAmount += itemSgstAmount;
-
-      return {
-        ...item,
-        baseValue: itemBaseValue,
-        discountAmount: itemDiscountAmount,
-        taxAmount: itemTaxAmount,
-        cgstAmount: itemCgstAmount,
-        sgstAmount: itemSgstAmount,
-        totalAmount: itemTotalAmount
-      };
+    // Check if all batches are expired
+    const inventoryItem = inventory.find(item => item.productId === product.productId);
+    const hasExpiredBatches = inventoryItem && inventoryItem.batches.some(batch => {
+      const isExpired = new Date(batch.expiryDate) < new Date();
+      return batch.quantity > 0 && isExpired;
     });
 
-    // If mixed tax rates, do not split CGST/SGST
-    const hasMixedTaxRates = taxPercentages.size > 1;
-    if (hasMixedTaxRates) {
-      cgstAmount = 0;
-      sgstAmount = 0;
+    if (availableBatches.length === 0) {
+      if (hasExpiredBatches) {
+        toast.error("All batches for this product are expired");
+      } else {
+        toast.error("No available stock for this product");
+      }
+      setItemSearchTerm(""); // Clear search term
+      return;
     }
 
-    // Grand total = subtotal after discount (already includes tax)
-    const grandTotal = subtotal - totalDiscountAmount;
-
-    return {
-      items: itemsWithCalculations,
-      subtotal: subtotal, // total including tax before discount
-      baseValue: totalBaseValue, // total excluding tax after discount
-      discount: totalDiscountAmount, // total discount customer gets
-      tax: totalTaxAmount, // total tax after discount
-      cgst: cgstAmount,
-      sgst: sgstAmount,
-      hasMixedTaxRates: hasMixedTaxRates,
-      taxPercentages: Array.from(taxPercentages),
-      grandTotal: grandTotal
-    };
+    if (availableBatches.length === 1) {
+      handleBatchSelect(availableBatches[0]);
+      setItemSearchTerm(""); // Clear search term after selection
+    } else {
+      setShowBatchDropdown(product.productId);
+      setItemSearchTerm(""); // Clear search term
+    }
   };
-  // Handle item selection
-  // Handle item selection
-  const handleItemSelect = (product) => {
-    const existingItemIndex = selectedItems.findIndex(i => i.productId === product.productId);
+
+  // Update the handleBatchSelect function
+  const handleBatchSelect = (batch) => {
+    const existingItemIndex = selectedItems.findIndex(i =>
+      i.productId === batch.productId && i.batchNumber === batch.batchNumber
+    );
 
     if (existingItemIndex >= 0) {
-      // Item already exists, increase quantity
       const updatedItems = [...selectedItems];
-      updatedItems[existingItemIndex].quantity = (updatedItems[existingItemIndex].quantity || 1) + 1;
+      const availableQty = getAvailableQuantity(batch.productId, batch.batchNumber);
+
+      if (updatedItems[existingItemIndex].quantity >= availableQty) {
+        toast.error(`Only ${availableQty} items available in this batch`);
+        return;
+      }
+
+      updatedItems[existingItemIndex].quantity += 1;
       setSelectedItems(updatedItems);
     } else {
-      // Add new item with default quantity of 1 and product discount
+      const product = products.find(p => p.productId === batch.productId);
       setSelectedItems([...selectedItems, {
-        ...product,
-        id: product.productId,
-        name: product.productName,
-        hsn: product.hsnCode,
-        originalPrice: product.price,
-        price: product.price,
-        quantity: 1, // Default to 1
-        discount: product.discount || 0 // Use product discount instead of 0
+        productId: batch.productId,
+        id: batch.productId,
+        name: batch.productName,
+        category: batch.category,
+        hsn: product?.hsnCode || "",
+        barcode: product?.barcode || "",
+        originalPrice: product?.price || 0,
+        price: product?.price || 0,
+        quantity: 1,
+        discount: product?.discount || 0,
+        taxSlab: product?.taxSlab || 18, // ✅ ADD THIS LINE
+        batchNumber: batch.batchNumber,
+        expiryDate: batch.expiryDate
       }]);
     }
 
+    setShowBatchDropdown(null);
     setItemSearchTerm("");
   };
 
-  // Handle item updates
+  // Inventory update function
+  const updateInventoryQuantities = async (invoiceItems) => {
+    try {
+      for (const item of invoiceItems) {
+        await axios.put(`${import.meta.env.VITE_API_URL}/inventory/update-batch-quantity`, {
+          productId: item.productId,
+          batchNumber: item.batchNumber,
+          quantitySold: item.quantity
+        });
+      }
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      throw new Error("Failed to update inventory quantities");
+    }
+  };
+
+  // Item management
   const handleItemUpdate = (index, field, value) => {
     const updatedItems = [...selectedItems];
 
     if (field === 'quantity') {
-      // Allow empty string (for backspace/editing) but validate on submit
+      const item = updatedItems[index];
+      const availableQty = getAvailableQuantity(item.productId, item.batchNumber);
+
+      if (value > availableQty) {
+        toast.error(`Only ${availableQty} items available in this batch`);
+        return;
+      }
+
       updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
     } else if (field === 'discount') {
       updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
@@ -318,19 +324,20 @@ const Sales = () => {
     setSelectedItems(updatedItems);
   };
 
-  // Handle customer selection from dropdown
+  // Customer management
   const handleCustomerSelect = (customer) => {
     setNewCustomer({
       customerNumber: customer.customerNumber,
       name: customer.name,
       email: customer.email,
-      mobile: customer.mobile
+      mobile: customer.mobile,
+      date: newCustomer.date,
+      remarks: newCustomer.remarks
     });
-    setCustomerMobileSearch(customer.mobile); // Set the mobile number in the search field
+    setCustomerMobileSearch(customer.mobile);
     setShowCustomerDropdown(false);
   };
 
-  // Create new customer in backend
   const createCustomer = async (customerData) => {
     try {
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/customer/create-customer`, {
@@ -352,17 +359,75 @@ const Sales = () => {
     }
   };
 
-  // Form initial values
-  const initialValues = {
-    paymentType: "cash"
+  // Invoice calculations
+  const calculateInvoiceTotals = () => {
+    let subtotal = 0;
+    let totalDiscountAmount = 0;
+    let totalBaseValue = 0;
+    let totalTaxAmount = 0;
+    let cgstAmount = 0;
+    let sgstAmount = 0;
+    const taxPercentages = new Set();
+
+    const itemsWithCalculations = selectedItems.map(item => {
+      const quantity = item.quantity || 1;
+      const taxRate = item.taxSlab || 18;
+      const discountPercentage = item.discount || 0;
+
+      console.log(`Product: ${item.productName || "Unnamed"}, Tax Slab: ${taxRate}%`);
+
+      taxPercentages.add(taxRate);
+
+      const itemTotalInclTax = item.price * quantity;
+      const itemDiscountAmount = itemTotalInclTax * (discountPercentage / 100);
+      const itemTotalAfterDiscount = itemTotalInclTax - itemDiscountAmount;
+      const itemBaseValue = itemTotalAfterDiscount / (1 + taxRate / 100);
+      const itemTaxAmount = itemTotalAfterDiscount - itemBaseValue;
+      const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
+      const itemSgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
+      const itemTotalAmount = itemTotalAfterDiscount;
+
+      subtotal += itemTotalInclTax;
+      totalDiscountAmount += itemDiscountAmount;
+      totalBaseValue += itemBaseValue;
+      totalTaxAmount += itemTaxAmount;
+      cgstAmount += itemCgstAmount;
+      sgstAmount += itemSgstAmount;
+
+      return {
+        ...item,
+        baseValue: itemBaseValue,
+        discountAmount: itemDiscountAmount,
+        taxAmount: itemTaxAmount,
+        cgstAmount: itemCgstAmount,
+        sgstAmount: itemSgstAmount,
+        totalAmount: itemTotalAmount
+      };
+    });
+
+    const hasMixedTaxRates = taxPercentages.size > 1;
+    if (hasMixedTaxRates) {
+      cgstAmount = 0;
+      sgstAmount = 0;
+    }
+
+    const grandTotal = subtotal - totalDiscountAmount;
+
+    return {
+      items: itemsWithCalculations,
+      subtotal: subtotal,
+      baseValue: totalBaseValue,
+      discount: totalDiscountAmount,
+      tax: totalTaxAmount,
+      cgst: cgstAmount,
+      sgst: sgstAmount,
+      hasMixedTaxRates: hasMixedTaxRates,
+      taxPercentages: Array.from(taxPercentages),
+      grandTotal: grandTotal
+    };
   };
 
-  // Validation schema
-  const validationSchema = Yup.object().shape({
-    paymentType: Yup.string().required("Payment type is required")
-  });
-
-  // Handle form submission
+  // Form submission
   const handleSubmit = async (values) => {
     const hasInvalidQuantity = selectedItems.some(item =>
       !item.quantity || item.quantity === "" || item.quantity < 1
@@ -378,24 +443,29 @@ const Sales = () => {
       return;
     }
 
+    // Validate quantities against available stock
+    for (const item of selectedItems) {
+      const availableQty = getAvailableQuantity(item.productId, item.batchNumber);
+      if (item.quantity > availableQty) {
+        toast.error(`Only ${availableQty} items available for ${item.name} (Batch: ${item.batchNumber})`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Check if customer already exists in our database
       const existingCustomer = customers.find(c => c.mobile === newCustomer.mobile);
-
       let customerToUse = { ...newCustomer };
 
-      // If customer doesn't exist, create it in the backend
       if (!existingCustomer) {
         try {
           const createdCustomer = await createCustomer(newCustomer);
           customerToUse = createdCustomer;
-          // Add the new customer to our local state
           setCustomers([...customers, createdCustomer]);
           toast.success("New customer created successfully!");
         } catch (error) {
-          if (error.response && error.response.data && error.response.data.field === "email") {
+          if (error.response?.data?.field === "email") {
             toast.error("Customer with this email already exists. Please use a different email.");
           } else {
             toast.error("Failed to create customer. Please try again.");
@@ -414,9 +484,9 @@ const Sales = () => {
         customer: customerToUse,
         items: invoiceTotals.items.map(item => ({
           ...item,
-          // Include both the original price and the potentially modified price
           originalPrice: item.originalPrice || item.price,
-          price: item.price
+          price: item.price,
+          category: item.category
         })),
         paymentType: values.paymentType,
         subtotal: invoiceTotals.subtotal,
@@ -431,14 +501,11 @@ const Sales = () => {
         remarks: newCustomer.remarks || ''
       };
 
-      // Save to database
-      // Save to database
       const savedInvoice = await saveInvoiceToDB(invoice);
+      // await updateInventoryQuantities(selectedItems); 
 
-      // Update local state safely (functional update)
       setInvoices(prev => {
         const updated = [savedInvoice.data, ...prev];
-        // Re-sort to keep consistent ordering
         updated.sort((a, b) => {
           const dateA = new Date(a.createdAt || a.date || 0);
           const dateB = new Date(b.createdAt || b.date || 0);
@@ -449,17 +516,22 @@ const Sales = () => {
         });
         return updated;
       });
+
+      await fetchInventory();
       setSelectedItems([]);
-      setNewCustomer({ customerNumber: "", name: "", email: "", mobile: "", date: new Date().toISOString().split('T')[0] });
+      setNewCustomer({
+        customerNumber: "",
+        name: "",
+        email: "",
+        mobile: "",
+        date: new Date().toISOString().split('T')[0],
+        remarks: ""
+      });
       setCustomerMobileSearch("");
 
-      // Generate and download PDF
       setInvoiceForPrint({ invoice: savedInvoice.data, openWhatsapp: true });
 
-      // toast.success("Invoice created successfully!"); 
-
-      // ✅ Open WhatsApp with customer mobile
-      const customerMobile = customerToUse.mobile.replace(/\D/g, ""); // remove non-numeric characters
+      const customerMobile = customerToUse.mobile.replace(/\D/g, "");
       const message = `Hello ${customerToUse.name}, your invoice (No: ${savedInvoice.data.invoiceNumber}) has been generated.`;
       window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
 
@@ -472,25 +544,74 @@ const Sales = () => {
     }
   };
 
+  // Database operations
+  const saveInvoiceToDB = async (invoice) => {
+    try {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/invoices/create-invoice`, invoice);
+      return response.data;
+    } catch (error) {
+      console.error("Error saving invoice to database:", error);
+      throw error;
+    }
+  };
 
-  // Generate PDF function
+  const updateInvoice = async (invoiceData) => {
+    try {
+      const updatePayload = {
+        customer: {
+          customerId: invoiceData.customer?.customerId,
+          customerNumber: invoiceData.customer?.customerNumber,
+          name: invoiceData.customer?.name,
+          email: invoiceData.customer?.email,
+          mobile: invoiceData.customer?.mobile
+        },
+        paymentType: invoiceData.paymentType,
+        remarks: invoiceData.remarks || ''
+      };
+
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/invoices/update-invoice/${invoiceData.invoiceNumber}`,
+        updatePayload
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      throw error;
+    }
+  };
+
+  const deleteInvoice = async (invoiceNumber) => {
+    try {
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/invoices/delete-invoice/${invoiceNumber}`
+      );
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+      throw error;
+    }
+  };
+
+  // PDF generation
+  // Update the generatePDF function
   const generatePDF = async (invoice) => {
     if (!invoice) return;
     if (isExporting) return;
     setIsExporting(true);
 
     try {
+      // Wait a bit more to ensure the hidden element is rendered
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const element = document.getElementById("sales-pdf");
       if (!element) {
-        throw new Error("print element not found");
+        console.error("PDF element not found, retrying...");
+        // Try one more time after a delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const retryElement = document.getElementById("sales-pdf");
+        if (!retryElement) {
+          throw new Error("PDF print element not found after retry");
+        }
       }
-
-      // Remove the cloning and spacer - let CSS handle the breaks
-      // const clonedElement = element.cloneNode(true);
-      // const footerSpacer = document.createElement('div');
-      // footerSpacer.style.height = '20mm';
-      // footerSpacer.style.visibility = 'hidden';
-      // clonedElement.querySelector('.invoice-container').appendChild(footerSpacer);
 
       const addFooterToEachPage = (pdf) => {
         const totalPages = pdf.internal.getNumberOfPages();
@@ -498,23 +619,17 @@ const Sales = () => {
 
         for (let i = 1; i <= totalPages; i++) {
           pdf.setPage(i);
-
-          // Set footer text
           pdf.setFontSize(8);
           pdf.setFont("helvetica", "italic");
           pdf.setTextColor(100, 100, 100);
 
-          // Add footer text at safe distance from bottom
           const pageWidth = pdf.internal.pageSize.getWidth();
           const text = "THIS IS A COMPUTER GENERATED BILL";
           const textWidth = pdf.getTextWidth(text);
           const xPosition = (pageWidth - textWidth) / 2;
-          const yPosition = pageHeight - 10; // 10mm from bottom for safety
+          const yPosition = pageHeight - 10;
 
-          // Add footer text ONLY - remove the white rectangle that's hiding content
           pdf.text(text, xPosition, yPosition);
-
-          // Optional: Add a subtle line above footer
           pdf.setDrawColor(200, 200, 200);
           pdf.line(15, yPosition - 3, pageWidth - 15, yPosition - 3);
         }
@@ -540,21 +655,20 @@ const Sales = () => {
           mode: ['css', 'legacy'],
           avoid: ['tr', '.invoice-footer']
         },
-        margin: [0, 0, 20, 0] // <-- top, right, bottom, left
-        // ↑ Add more bottom space so footer text never clashes
+        margin: [0, 0, 20, 0]
       };
 
-
-      // Generate PDF with proper page breaks
       await html2pdf()
         .set(opt)
-        .from(element) // Use original element, not cloned
+        .from(element)
         .toPdf()
         .get('pdf')
         .then((pdf) => {
           return addFooterToEachPage(pdf);
         })
         .save();
+
+      console.log("PDF generated successfully");
 
     } catch (error) {
       console.error("Export error:", error);
@@ -564,35 +678,29 @@ const Sales = () => {
       setIsExporting(false);
     }
   };
-
-  // Add this near your other useMemo hooks
-  const filteredInvoices = useMemo(() => {
-    if (!searchTerm) return invoices;
-
-    const term = searchTerm.toLowerCase();
-    return invoices.filter(invoice =>
-      (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
-      (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
-      (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
-      (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
-      (invoice.total && invoice.total.toString().includes(term))
-    );
-  }, [searchTerm, invoices]);
-
-
-  // Export to Excel
-  // Export to Excel
-  // Export to Excel
+  // Excel export
   const handleExportExcel = () => {
     if (invoices.length === 0) {
       toast.warn("No invoices to export");
       return;
     }
 
-    // Create a flat array where each item gets its own row
     const data = invoices.flatMap((invoice) => {
-      // If invoice has no items, create one row with basic info
-      if (!invoice.items || invoice.items.length === 0) {
+      // Filter items based on category filter
+      let filteredItems = invoice.items || [];
+
+      if (categoryFilter) {
+        filteredItems = filteredItems.filter(item =>
+          item.category === categoryFilter
+        );
+      }
+
+      // If no items after filtering and we have a category filter, skip this invoice
+      if (categoryFilter && filteredItems.length === 0) {
+        return [];
+      }
+
+      if (filteredItems.length === 0) {
         return [{
           'Invoice Number': invoice.invoiceNumber,
           'Date': invoice.date,
@@ -600,61 +708,65 @@ const Sales = () => {
           'Customer Email': invoice.customer?.email || '',
           'Customer Mobile': invoice.customer?.mobile || '',
           'Payment Type': invoice.paymentType,
-          'Remarks': invoice.remarks || '', // Add Remarks field
+          'Remarks': invoice.remarks || '',
           'Items Count': 0,
           'Item Name': 'No items',
           'HSN Code': 'N/A',
+          'Batch Number': 'N/A',
+          'Category': 'N/A',
           'Quantity': 0,
           'Price': 0,
           'Total Amount': `₹${invoice.total?.toFixed(2) || '0.00'}`
         }];
       }
 
-      // Create one row for each item in the invoice
-      return invoice.items.map((item, index) => ({
+      return filteredItems.map((item, index) => ({
         'Invoice Number': invoice.invoiceNumber,
         'Date': invoice.date,
         'Customer Name': invoice.customer?.name || '',
         'Customer Email': invoice.customer?.email || '',
         'Customer Mobile': invoice.customer?.mobile || '',
         'Payment Type': invoice.paymentType,
-        'Remarks': invoice.remarks || '', // Add Remarks field
-        'Items Count': invoice.items.length,
+        'Remarks': invoice.remarks || '',
+        'Items Count': filteredItems.length,
         'Item Name': item.name || item.productName || 'Unknown',
         'HSN Code': item.hsn || item.hsnCode || 'N/A',
+        'Batch Number': item.batchNumber || 'N/A',
+        'Category': item.category || 'N/A',
         'Quantity': item.quantity || 0,
         'Price': `₹${(item.price || 0).toFixed(2)}`,
         'Total Amount': `₹${invoice.total?.toFixed(2) || '0.00'}`
       }));
     });
 
+    if (data.length === 0) {
+      toast.warn(`No invoices found with category: ${categoryFilter}`);
+      return;
+    }
+
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Invoices");
-    XLSX.writeFile(workbook, "invoices.xlsx");
 
-    toast.success(`Exported ${invoices.length} invoices with ${data.length} item rows`);
+    const fileName = categoryFilter
+      ? `invoices_${categoryFilter.replace(/\s+/g, '_')}.xlsx`
+      : "invoices.xlsx";
+
+    XLSX.writeFile(workbook, fileName);
+
+    const invoiceCount = new Set(data.map(item => item['Invoice Number'])).size;
+    toast.success(`Exported ${invoiceCount} invoices with ${data.length} item rows${categoryFilter ? ` (Filtered by: ${categoryFilter})` : ''}`);
   };
 
   const handleUpdateInvoice = async (updatedInvoice) => {
     try {
-      console.log("Updating invoice with data:", updatedInvoice);
-      console.log("Remarks being sent:", updatedInvoice.remarks);
-
       const result = await updateInvoice(updatedInvoice);
-
-      console.log("Update response:", result);
-
-      // Update local state with the returned data from server - FIXED
       setInvoices(prev =>
         prev.map(inv =>
           inv.invoiceNumber === updatedInvoice.invoiceNumber ? { ...inv, ...result.data } : inv
         )
       );
-
-      // Also update the selectedInvoice to reflect changes immediately in modal
       setSelectedInvoice(prev => prev ? { ...prev, ...result.data } : null);
-
       toast.success("Invoice updated successfully!");
     } catch (error) {
       console.error("Error updating invoice:", error);
@@ -665,11 +777,8 @@ const Sales = () => {
   const handleDeleteInvoice = async (invoiceNumber) => {
     try {
       await deleteInvoice(invoiceNumber);
-
-      // Update local state
       setInvoices(prev => prev.filter(inv => inv.invoiceNumber !== invoiceNumber));
       setSelectedInvoice(null);
-
       toast.success("Invoice deleted successfully!");
     } catch (error) {
       console.error("Error deleting invoice:", error);
@@ -677,52 +786,44 @@ const Sales = () => {
     }
   };
 
-  // Update invoice in backend - Only send editable fields
-  const updateInvoice = async (invoiceData) => {
-    try {
-      // Send ONLY the editable fields to backend
-      const updatePayload = {
-        customer: {
-          customerId: invoiceData.customer?.customerId,
-          customerNumber: invoiceData.customer?.customerNumber,
-          name: invoiceData.customer?.name,
-          email: invoiceData.customer?.email,
-          mobile: invoiceData.customer?.mobile
-        },
-        paymentType: invoiceData.paymentType,
-        remarks: invoiceData.remarks || ''
-      };
+  // Filter functions
+  const filteredProducts = useMemo(() => {
+    if (!itemSearchTerm) return [];
+    const term = itemSearchTerm.toLowerCase();
+    return products.filter(product =>
+      (product.productName && product.productName.toLowerCase().includes(term)) ||
+      (product.hsnCode && product.hsnCode.toLowerCase().includes(term)) ||
+      (product.barcode && product.barcode.includes(term)) ||
+      (product.price && product.price.toString().includes(term))
+    );
+  }, [itemSearchTerm, products]);
 
-      console.log("Sending to backend:", updatePayload);
+  const filteredCustomers = useMemo(() => {
+    if (!customerMobileSearch) return [];
+    const term = customerMobileSearch.toLowerCase();
+    return customers.filter(customer =>
+      (customer.mobile && customer.mobile.includes(term)) ||
+      (customer.name && customer.name.toLowerCase().includes(term))
+    );
+  }, [customerMobileSearch, customers]);
 
-      const response = await axios.put(
-        `${import.meta.env.VITE_API_URL}/invoices/update-invoice/${invoiceData.invoiceNumber}`,
-        updatePayload
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error updating invoice:", error);
-      throw error;
-    }
-  };
+  const filteredInvoices = useMemo(() => {
+    if (!searchTerm) return invoices;
+    const term = searchTerm.toLowerCase();
+    return invoices.filter(invoice =>
+      (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
+      (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
+      (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
+      (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
+      (invoice.total && invoice.total.toString().includes(term))
+    );
+  }, [searchTerm, invoices]);
 
-
-
-  // Delete invoice from backend
-  const deleteInvoice = async (invoiceNumber) => {
-    try {
-      await axios.delete(
-        `${import.meta.env.VITE_API_URL}/invoices/delete-invoice/${invoiceNumber}`
-      );
-    } catch (error) {
-      console.error("Error deleting invoice:", error);
-      throw error;
-    }
-  };
-
+  // Modal component
   const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedInvoice, setEditedInvoice] = useState({});
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     useEffect(() => {
       if (invoice) {
@@ -732,15 +833,12 @@ const Sales = () => {
 
     const handleInputChange = (e) => {
       const { name, value } = e.target;
-
       if (name === "remarks") {
-        // Handle remarks field separately
         setEditedInvoice(prev => ({
           ...prev,
           remarks: value
         }));
       } else {
-        // Handle customer fields
         setEditedInvoice(prev => ({
           ...prev,
           customer: {
@@ -783,35 +881,16 @@ const Sales = () => {
 
           <div className="modal-body">
             <div className="wo-details-grid">
-              {/* Invoice Number (Read-only) */}
               <div className="detail-row">
                 <span className="detail-label">Invoice Number:</span>
                 <span className="detail-value">{invoice.invoiceNumber}</span>
               </div>
 
-              {/* Date (Read-only) */}
               <div className="detail-row">
                 <span className="detail-label">Date:</span>
                 <span className="detail-value">{invoice.date}</span>
               </div>
 
-              {/* Customer Number */}
-              {/* <div className="detail-row">
-                <span className="detail-label">Customer Number:</span>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="customerNumber"
-                    value={editedInvoice.customer?.customerNumber || ''}
-                    onChange={handleInputChange}
-                    className="edit-input"
-                  />
-                ) : (
-                  <span className="detail-value">{invoice.customer?.customerNumber || 'N/A'}</span>
-                )}
-              </div> */}
-
-              {/* Customer Name */}
               <div className="detail-row">
                 <span className="detail-label">Customer Name:</span>
                 {isEditing ? (
@@ -827,7 +906,6 @@ const Sales = () => {
                 )}
               </div>
 
-              {/* Customer Email */}
               <div className="detail-row">
                 <span className="detail-label">Customer Email:</span>
                 {isEditing ? (
@@ -843,7 +921,6 @@ const Sales = () => {
                 )}
               </div>
 
-              {/* Customer Mobile - NOW EDITABLE */}
               <div className="detail-row">
                 <span className="detail-label">Customer Mobile:</span>
                 {isEditing ? (
@@ -859,7 +936,6 @@ const Sales = () => {
                 )}
               </div>
 
-              {/* Payment Type */}
               <div className="detail-row">
                 <span className="detail-label">Payment Type:</span>
                 {isEditing ? (
@@ -877,7 +953,6 @@ const Sales = () => {
                 )}
               </div>
 
-              {/* Remarks */}
               <div className="detail-row">
                 <span className="detail-label">Remarks:</span>
                 {isEditing ? (
@@ -898,13 +973,11 @@ const Sales = () => {
                 )}
               </div>
 
-              {/* Total Amount (Read-only) */}
               <div className="detail-row">
                 <span className="detail-label">Total Amount:</span>
                 <span className="detail-value">₹{invoice.total?.toFixed(2)}</span>
               </div>
 
-              {/* Items Count (Read-only) */}
               <div className="detail-row">
                 <span className="detail-label">Items Count:</span>
                 <span className="detail-value">{invoice.items?.length || 0}</span>
@@ -929,7 +1002,6 @@ const Sales = () => {
           </div>
         </div>
 
-        {/* Delete Confirmation Dialog */}
         {showDeleteConfirm && (
           <div className="confirm-dialog-overlay">
             <div className="confirm-dialog">
@@ -963,11 +1035,38 @@ const Sales = () => {
 
   return (
     <Navbar>
-      <ToastContainer position="top-center" autoClose={3000} />
+      {/* <ToastContainer position="top-center" autoClose={3000} />  */}
+
+      <ToastContainer
+        position="top-center"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+
+      />
       <div className="main">
         <div className="page-header">
           <h2>Tax Invoices</h2>
           <div className="right-section">
+
+            <div className="category-filter">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="">All Categories</option>
+                {categories.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+
+
             <div className="search-container">
               <FaSearch className="search-icon" />
               <input
@@ -982,7 +1081,7 @@ const Sales = () => {
                 <FaFileExcel /> Export All
               </button>
               <button className="add-btn" onClick={() => setShowForm(!showForm)}>
-                <FaPlus /> {showForm ? "Close Form" : "Create Invoice"}
+                <FaPlus /> {showForm ? "Close" : "Create"}
               </button>
             </div>
           </div>
@@ -992,27 +1091,27 @@ const Sales = () => {
           <div className="form-container premium">
             <h2>Create Tax Invoice</h2>
             <Formik
-              initialValues={initialValues}
-              validationSchema={validationSchema}
+              initialValues={{ paymentType: "cash" }}
+              validationSchema={Yup.object().shape({
+                paymentType: Yup.string().required("Payment type is required")
+              })}
               onSubmit={handleSubmit}
             >
               {({ values, setFieldValue }) => (
                 <Form>
-
-                  {/* Date Selection Section */}
                   <h3 className="section-heading">Invoice Date</h3>
                   <div className="form-group-row">
                     <div className="field-wrapper" style={{ flex: '0 0 33%', maxWidth: '300px' }}>
                       <label>Date *</label>
                       <input
                         type="date"
-                        value={newCustomer.date || new Date().toISOString().split('T')[0]}
+                        value={newCustomer.date}
                         onChange={(e) => setNewCustomer({ ...newCustomer, date: e.target.value })}
                         required
                       />
                     </div>
                   </div>
-                  {/* Item Selection Section */}
+
                   <h3 className="section-heading">Item Details</h3>
                   <div className="form-group-row">
                     <div className="field-wrapper">
@@ -1028,26 +1127,118 @@ const Sales = () => {
                           <div className="dropdown-item">Loading products...</div>
                         </div>
                       )}
+                      {/* In the product search section */}
+
+
                       {itemSearchTerm && !isLoadingProducts && filteredProducts.length > 0 && (
                         <div className="search-dropdown">
-                          {filteredProducts.map(product => (
-                            <div
-                              key={product.productId}
-                              className="dropdown-item"
-                              onClick={() => handleItemSelect(product)}
-                            >
-                              <div>{product.productName}</div>
-                              <div>
-                                HSN: {product.hsnCode || "N/A"} |
-                                Price: ₹{product.price || 0} |
-                                Discount: {product.discount || 0}%
+                          {filteredProducts.map(product => {
+                            const availableBatches = getAvailableBatches(product.productId);
+                            const totalAvailable = availableBatches.reduce((sum, batch) => sum + batch.quantity, 0);
+
+                            // Check for expired batches
+                            const inventoryItem = inventory.find(item => item.productId === product.productId);
+                            const hasExpiredBatches = inventoryItem && inventoryItem.batches.some(batch => {
+                              const isExpired = new Date(batch.expiryDate) < new Date();
+                              return batch.quantity > 0 && isExpired;
+                            });
+
+                            return (
+                              <div
+                                key={product.productId}
+                                className={`dropdown-item ${totalAvailable === 0 ? 'out-of-stock' : ''}`}
+                                onClick={() => {
+                                  if (totalAvailable > 0) {
+                                    handleProductSelect(product);
+                                  }
+                                }}
+                              >
+                                <div>
+                                  {product.productName}
+                                  {totalAvailable === 0 && hasExpiredBatches && (
+                                    <span className="expired-badge">Expired Batches</span>
+                                  )}
+                                  {totalAvailable === 0 && !hasExpiredBatches && (
+                                    <span className="stock-badge">Out of Stock</span>
+                                  )}
+                                  {totalAvailable > 0 && (
+                                    <span className="stock-badge">In Stock: {totalAvailable}</span>
+                                  )}
+                                </div>
+                                <div>
+                                  HSN: {product.hsnCode || "N/A"} |
+                                  Price: ₹{product.price || 0} |
+                                  Tax: {product.taxSlab || 18}% |
+                                  Category: {product.category}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
                   </div>
+
+                  {showBatchDropdown && (
+                    <div className="batch-dropdown-overlay">
+                      <div className="batch-dropdown" ref={batchDropdownRef}>
+                        <h4>Select Batch</h4>
+                        {getAvailableBatches(showBatchDropdown).map(batch => (
+                          <div
+                            key={batch.batchNumber}
+                            className="batch-option"
+                            onClick={() => handleBatchSelect(batch)}
+                          >
+                            <div className="batch-info">
+                              <strong>Batch: {batch.batchNumber}</strong>
+                              <span>Qty: {batch.quantity}</span>
+                            </div>
+                            <div className="batch-details">
+                              Expiry: {new Date(batch.expiryDate).toLocaleDateString()}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Show expired batches as disabled */}
+                        {(() => {
+                          const inventoryItem = inventory.find(item => item.productId === showBatchDropdown);
+                          const expiredBatches = inventoryItem ? inventoryItem.batches.filter(batch => {
+                            const isExpired = new Date(batch.expiryDate) < new Date();
+                            return batch.quantity > 0 && isExpired;
+                          }) : [];
+
+                          return expiredBatches.length > 0 ? (
+                            <div className="expired-batches-section">
+                              <h5 style={{ color: '#ff6b6b', margin: '10px 0 5px 0' }}>Expired Batches</h5>
+                              {expiredBatches.map(batch => (
+                                <div
+                                  key={batch.batchNumber}
+                                  className="batch-option expired"
+                                  style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                                  onClick={() => toast.error("This batch has expired and cannot be selected")}
+                                >
+                                  <div className="batch-info">
+                                    <strong>Batch: {batch.batchNumber}</strong>
+                                    <span>Qty: {batch.quantity}</span>
+                                  </div>
+                                  <div className="batch-details" style={{ color: '#ff6b6b' }}>
+                                    EXPIRED: {new Date(batch.expiryDate).toLocaleDateString()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
+
+                        <button
+                          className="cancel-batch-select"
+                          onClick={() => setShowBatchDropdown(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {selectedItems.length > 0 && (
                     <div>
@@ -1056,72 +1247,88 @@ const Sales = () => {
                           <thead>
                             <tr>
                               <th width="5%">Sr No</th>
-                              <th width="15%">Barcode</th>
-                              <th width="25%">Product Name</th>
+                              <th width="15%">Batch No</th>
+                              <th width="20%">Product Name</th>
                               <th width="10%">HSN</th>
                               <th width="8%">Qty</th>
-                              <th width="12%">Price (Incl. Tax)</th>
+                              <th width="12%">Price</th>
                               <th width="10%">Discount %</th>
                               <th width="15%">Total</th>
                               <th width="5%"></th>
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedItems.slice().reverse().map((item, index) => (
-                              <tr key={selectedItems.length - index - 1}>
-                                <td>{selectedItems.length - index}</td>
-                                <td>{item.barcode || "N/A"}</td>
-                                <td>{item.name}</td>
-                                <td>{item.hsn || "N/A"}</td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    required
-                                    value={item.quantity}
-                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'quantity', e.target.value)}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={item.price || 0}
-                                    onChange={(e) => handleItemUpdate(selectedItems.length - index - 1, 'price', parseFloat(e.target.value) || 0)}
-                                    style={{ width: "80px" }} // Optional: to control the input width
-                                  />
-                                </td>
-                                <td>
-                                  {item.discount || 0}% {/* Display discount as read-only */}
-                                </td>
-                                <td>
-                                  ₹{(
-                                    (item.price || 0) * item.quantity -
-                                    ((item.price || 0) * item.quantity * (item.discount || 0) / 100)
-                                  ).toFixed(2)}
-                                </td>
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="invoice-remove-btn"
-                                    onClick={() => {
-                                      const actualIndex = selectedItems.length - index - 1;
-                                      setSelectedItems(selectedItems.filter((_, i) => i !== actualIndex));
-                                    }}
-                                  >
-                                    <FaTrash />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                            {selectedItems.slice().reverse().map((item, index) => {
+                              const availableQty = getAvailableQuantity(item.productId, item.batchNumber);
+                              const actualIndex = selectedItems.length - index - 1;
+
+                              return (
+                                <tr key={`${item.productId}-${item.batchNumber}`}>
+                                  <td>{selectedItems.length - index}</td>
+                                  <td>
+                                    <span className="batch-tag">{item.batchNumber}</span>
+                                    <br />
+                                    <small>Exp: {new Date(item.expiryDate).toLocaleDateString()}</small>
+                                  </td>
+                                  <td>
+                                    {item.name}
+                                    <br />
+                                    <small className="category-tag">{item.category}</small>
+                                  </td>
+                                  <td>{item.hsn || "N/A"}</td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={availableQty}
+                                      required
+                                      value={item.quantity}
+                                      onChange={(e) => {
+                                        const newQty = parseInt(e.target.value) || 0;
+                                        if (newQty > availableQty) {
+                                          toast.error(`Only ${availableQty} items available`);
+                                          return;
+                                        }
+                                        handleItemUpdate(actualIndex, 'quantity', newQty);
+                                      }}
+                                    />
+                                    <div className="available-qty">Available: {availableQty}</div>
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={item.price || 0}
+                                      onChange={(e) => handleItemUpdate(actualIndex, 'price', parseFloat(e.target.value) || 0)}
+                                      style={{ width: "80px" }}
+                                    />
+                                  </td>
+                                  <td>{item.discount || 0}%</td>
+                                  <td>
+                                    ₹{(
+                                      (item.price || 0) * item.quantity -
+                                      ((item.price || 0) * item.quantity * (item.discount || 0) / 100)
+                                    ).toFixed(2)}
+                                  </td>
+                                  <td>
+                                    <button
+                                      type="button"
+                                      className="invoice-remove-btn"
+                                      onClick={() => {
+                                        setSelectedItems(selectedItems.filter((_, i) => i !== actualIndex));
+                                      }}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
 
-
-                      {/* Calculation Summary */}
-                      {/* Calculation Summary */}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
                         <div style={{ width: '350px', background: '#f9f9f9', padding: '15px', borderRadius: '8px' }}>
                           <h4 style={{ marginTop: 0, borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>Invoice Calculation</h4>
@@ -1129,16 +1336,11 @@ const Sales = () => {
                             <span>Subtotal (Incl. Tax):</span>
                             <span>₹{invoiceTotals.subtotal.toFixed(2)}</span>
                           </div>
-                          {/*<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span>Base Value (Excl. Tax):</span>
-                            <span>₹{invoiceTotals.baseValue.toFixed(2)}</span>
-                          </div> */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <span>Total Discount:</span>
                             <span>₹{invoiceTotals.discount.toFixed(2)}</span>
                           </div>
 
-                          {/* Show tax breakdown based on tax percentages */}
                           {!invoiceTotals.hasMixedTaxRates && invoiceTotals.taxPercentages.length > 0 && (
                             <>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -1173,7 +1375,6 @@ const Sales = () => {
                     </div>
                   )}
 
-                  {/* Customer Details Section */}
                   <h3 className="section-heading">Customer Details</h3>
                   <div className="form-group-row" ref={customerSearchRef}>
                     <div className="field-wrapper">
@@ -1233,9 +1434,6 @@ const Sales = () => {
                     </div>
                   </div>
 
-
-
-                  {/* Payment Type Section */}
                   <h3 className="section-heading">Payment Type</h3>
                   <div className="payment-options-container">
                     <div className="payment-options">
@@ -1253,7 +1451,6 @@ const Sales = () => {
                       </label>
                     </div>
                   </div>
-
 
                   <h3 className="section-heading">Remarks (Optional)</h3>
                   <div className="form-group-row">
@@ -1287,7 +1484,6 @@ const Sales = () => {
           </div>
         )}
 
-        {/* Invoices Table */}
         <div className="data-table">
           <table>
             <thead>
@@ -1316,13 +1512,11 @@ const Sales = () => {
                 </tr>
               ) : (
                 filteredInvoices.map(invoice => (
-                  // In the table row, modify the onClick handler
                   <tr
                     key={invoice.invoiceNumber}
                     onClick={(e) => {
-                      // Check if the click came from the export button
                       if (e.target.closest('.export-pdf-btn')) {
-                        return; // Don't open modal if export button was clicked
+                        return;
                       }
                       setSelectedInvoice(invoice);
                     }}
@@ -1338,7 +1532,7 @@ const Sales = () => {
                       <button
                         className="export-pdf-btn"
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent the row click from firing
+                          e.stopPropagation();
                           setInvoiceForPrint({ invoice, openWhatsapp: false });
                         }}
                         disabled={isExporting}
@@ -1362,7 +1556,6 @@ const Sales = () => {
           />
         )}
 
-        {/* Hidden PDF element */}
         <div style={{ position: "absolute", left: "-9999px", top: 0, visibility: "hidden" }}>
           {invoiceForPrint && <SalesPrint invoice={invoiceForPrint.invoice} />}
         </div>

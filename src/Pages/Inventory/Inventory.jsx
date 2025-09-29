@@ -4,10 +4,12 @@ import html2pdf from "html2pdf.js";
 import { FaFileExport, FaSearch, FaFilter, FaChevronDown, FaChevronUp, FaPlus, FaUpload } from "react-icons/fa";
 import "./Inventory.scss";
 import axios from "axios";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const Inventory = () => {
     const [inventory, setInventory] = useState([]);
-    const [products, setProducts] = useState([]); // For dropdown
+    const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [expandedRows, setExpandedRows] = useState(new Set());
@@ -28,27 +30,16 @@ const Inventory = () => {
     // Add Qty form states
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [productSearch, setProductSearch] = useState("");
-    const [batches, setBatches] = useState([{ batchNumber: "", quantity: "", expiryDate: "" }]);
-
+    const [batches, setBatches] = useState([{ batchNumber: "", quantity: "", manufactureDate: "" }]);
     // Bulk upload states
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
 
     useEffect(() => {
         window.scrollTo(0, 0);
+        fetchData();
         fetchProducts();
     }, []);
-
-    const fetchProducts = async () => {
-        try {
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/product/get-products`);
-            if (Array.isArray(response.data)) {
-                setProducts(response.data);
-            }
-        } catch (error) {
-            console.error("Error fetching products:", error);
-        }
-    };
 
     useEffect(() => {
         if (loaderTimeoutRef.current) clearTimeout(loaderTimeoutRef.current);
@@ -76,6 +67,33 @@ const Inventory = () => {
             setShowLoader(false);
         }
     }, [searchTerm]);
+
+    const fetchData = async () => {
+        try {
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/inventory/get-inventory`);
+            if (response.data.success) {
+                setInventory(Array.isArray(response.data.data) ? response.data.data : []);
+            } else {
+                setError(response.data.message || "Failed to load inventory data");
+            }
+            setLoading(false);
+        } catch (error) {
+            console.error("Error fetching inventory:", error);
+            setError("Failed to load inventory data");
+            setLoading(false);
+        }
+    };
+
+    const fetchProducts = async () => {
+        try {
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/products/get-products`);
+            if (Array.isArray(response.data)) {
+                setProducts(response.data);
+            }
+        } catch (error) {
+            console.error("Error fetching products:", error);
+        }
+    };
 
     // Filter inventory
     const filteredInventory = useMemo(() => {
@@ -117,25 +135,6 @@ const Inventory = () => {
         setCurrentPage(prev => prev + 1);
     };
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await axios.get(`${import.meta.env.VITE_API_URL}/inventory/get-inventory`);
-                if (response.data.success) {
-                    setInventory(Array.isArray(response.data.data) ? response.data.data : []);
-                } else {
-                    setError(response.data.message || "Failed to load inventory data");
-                }
-                setLoading(false);
-            } catch (error) {
-                console.error("Error fetching inventory:", error);
-                setError("Failed to load inventory data");
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
-
     const toggleRow = (inventoryId) => {
         setExpandedRows(prev => {
             const newSet = new Set(prev);
@@ -146,6 +145,171 @@ const Inventory = () => {
             }
             return newSet;
         });
+    };
+
+    // Add Qty Modal Functions
+    const addBatchRow = () => {
+        setBatches([...batches, { batchNumber: "", quantity: "", expiryDate: "" }]);
+    };
+
+    const removeBatchRow = (index) => {
+        if (batches.length > 1) {
+            const newBatches = batches.filter((_, i) => i !== index);
+            setBatches(newBatches);
+        }
+    };
+
+    const updateBatch = (index, field, value) => {
+        const newBatches = batches.map((batch, i) =>
+            i === index ? { ...batch, [field]: value } : batch
+        );
+        setBatches(newBatches);
+    };
+
+    const handleAddQtySubmit = async (e) => {
+        e.preventDefault();
+
+        if (!selectedProduct) {
+            toast.error("Please select a product");
+            return;
+        }
+
+        // Validate batches
+        const validBatches = batches.filter(batch =>
+            batch.batchNumber && batch.quantity && batch.manufactureDate
+        );
+
+        if (validBatches.length === 0) {
+            toast.error("Please add at least one valid batch");
+            return;
+        }
+
+        try {
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
+                productId: selectedProduct.productId,
+                batches: validBatches.map(batch => {
+                    const manufactureDate = new Date(batch.manufactureDate);
+                    const expiryDate = new Date(manufactureDate);
+                    expiryDate.setMonth(expiryDate.getMonth() + 36); // Add 36 months
+
+                    return {
+                        batchNumber: batch.batchNumber,
+                        quantity: parseInt(batch.quantity),
+                        manufactureDate: manufactureDate,
+                        expiryDate: expiryDate
+                    }
+                })
+            });
+
+            if (response.data.success) {
+                toast.success("Batches added successfully!");
+                setShowAddQtyModal(false);
+                resetAddQtyForm();
+                fetchData();
+            }
+        } catch (error) {
+            console.error("Error adding batches:", error);
+            toast.error("Error adding batches: " + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const resetAddQtyForm = () => {
+        setSelectedProduct(null);
+        setProductSearch("");
+        setBatches([{ batchNumber: "", quantity: "", expiryDate: "" }]);
+    };
+
+    // Bulk Upload Functions
+    // Bulk Upload Functions - UPDATED
+    const handleBulkUpload = async (e) => {
+        e.preventDefault();
+
+        if (!uploadFile) {
+            toast.error("Please select a file");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", uploadFile);
+
+        setUploadLoading(true);
+        try {
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/bulk-upload-batches`, formData, {
+                headers: {
+                    "Content-Type": "multipart/form-data"
+                }
+            });
+
+            if (response.data.success) {
+                if (response.data.addedBatches > 0) {
+                    toast.success(`Bulk upload successful! ${response.data.addedBatches} batches added.`);
+                } else {
+                    toast.warning("No batches were added. Please check your file format.");
+                }
+
+                // Show detailed errors in console
+                if (response.data.errors && response.data.errors.length > 0) {
+                    console.error("Bulk upload errors:", response.data.errors);
+                    if (response.data.errors.length <= 5) {
+                        response.data.errors.forEach(error => toast.error(error));
+                    } else {
+                        toast.error(`${response.data.errors.length} errors occurred. Check console for details.`);
+                    }
+                }
+
+                setShowBulkUploadModal(false);
+                setUploadFile(null);
+                fetchData();
+            }
+        } catch (error) {
+            console.error("Error in bulk upload:", error);
+
+            if (error.response?.data?.errors) {
+                console.error("Detailed errors:", error.response.data.errors);
+                toast.error("Upload failed with errors. Check console for details.");
+            } else {
+                toast.error(error.response?.data?.message || "Failed to upload file");
+            }
+        } finally {
+            setUploadLoading(false);
+        }
+    };
+
+
+    const downloadTemplate = () => {
+        const templateData = [
+            ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date'],
+            ['Example Product 1', 'BATCH-001', '50', '2024-01-15'],
+            ['Example Product 2', 'BATCH-002', '25', '2024-02-20']
+        ];
+
+        const worksheet = XLSX.utils.aoa_to_sheet(templateData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+
+        XLSX.writeFile(workbook, 'batch-upload-template.xlsx');
+        toast.info("Template downloaded successfully!");
+    };
+
+    // Filter products for searchable dropdown
+    const filteredProducts = useMemo(() => {
+        if (!productSearch) return products;
+        const filtered = products.filter(product =>
+            product.productName.toLowerCase().includes(productSearch.toLowerCase()) ||
+            product.productId.toLowerCase().includes(productSearch.toLowerCase())
+        );
+
+        // Remove selected product from dropdown if it's already selected
+        if (selectedProduct) {
+            return filtered.filter(product => product.productId !== selectedProduct.productId);
+        }
+        return filtered;
+    }, [products, productSearch, selectedProduct]);
+
+    // Update product selection to clear search
+    const handleProductSelect = (product) => {
+        setSelectedProduct(product);
+        setProductSearch("");
     };
 
     const handleExport = () => {
@@ -238,114 +402,6 @@ const Inventory = () => {
         }).save();
     };
 
-    const addBatchRow = () => {
-        setBatches([...batches, { batchNumber: "", quantity: "", expiryDate: "" }]);
-    };
-
-    const removeBatchRow = (index) => {
-        if (batches.length > 1) {
-            const newBatches = batches.filter((_, i) => i !== index);
-            setBatches(newBatches);
-        }
-    };
-
-    const updateBatch = (index, field, value) => {
-        const newBatches = batches.map((batch, i) =>
-            i === index ? { ...batch, [field]: value } : batch
-        );
-        setBatches(newBatches);
-    };
-
-    const handleAddQtySubmit = async (e) => {
-        e.preventDefault();
-
-        if (!selectedProduct) {
-            alert("Please select a product");
-            return;
-        }
-
-        // Validate batches
-        const validBatches = batches.filter(batch =>
-            batch.batchNumber && batch.quantity && batch.expiryDate
-        );
-
-        if (validBatches.length === 0) {
-            alert("Please add at least one valid batch");
-            return;
-        }
-
-        try {
-            const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
-                productId: selectedProduct.productId,
-                batches: validBatches.map(batch => ({
-                    batchNumber: batch.batchNumber,
-                    quantity: parseInt(batch.quantity),
-                    expiryDate: batch.expiryDate
-                }))
-            });
-
-            if (response.data.success) {
-                alert("Batches added successfully!");
-                setShowAddQtyModal(false);
-                resetAddQtyForm();
-                // Refresh inventory data
-                fetchData();
-            }
-        } catch (error) {
-            console.error("Error adding batches:", error);
-            alert("Error adding batches: " + error.response?.data?.message || error.message);
-        }
-    };
-
-    const resetAddQtyForm = () => {
-        setSelectedProduct(null);
-        setProductSearch("");
-        setBatches([{ batchNumber: "", quantity: "", expiryDate: "" }]);
-    };
-
-    // Bulk Upload Functions
-    const handleBulkUpload = async (e) => {
-        e.preventDefault();
-
-        if (!uploadFile) {
-            alert("Please select a file");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append("file", uploadFile);
-
-        setUploadLoading(true);
-        try {
-            const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/bulk-upload-batches`, formData, {
-                headers: {
-                    "Content-Type": "multipart/form-data"
-                }
-            });
-
-            if (response.data.success) {
-                alert(`Bulk upload successful! ${response.data.addedBatches} batches added.`);
-                setShowBulkUploadModal(false);
-                setUploadFile(null);
-                fetchData();
-            }
-        } catch (error) {
-            console.error("Error in bulk upload:", error);
-            alert("Error in bulk upload: " + error.response?.data?.message || error.message);
-        } finally {
-            setUploadLoading(false);
-        }
-    };
-
-    const filteredProducts = useMemo(() => {
-        if (!productSearch) return products;
-        return products.filter(product =>
-            product.productName.toLowerCase().includes(productSearch.toLowerCase()) ||
-            product.productId.toLowerCase().includes(productSearch.toLowerCase())
-        );
-    }, [products, productSearch]);
-
-
     if (error) {
         return (
             <Navbar>
@@ -358,6 +414,22 @@ const Inventory = () => {
 
     return (
         <Navbar>
+
+
+            <ToastContainer
+                position="top-center"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+
+
+            />
+
             <div className="inventory-page">
                 <div className="page-header">
                     <h2>Inventory</h2>
@@ -386,6 +458,7 @@ const Inventory = () => {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
+
                         <div className="action-buttons-group">
                             <button
                                 className="add-qty-btn"
@@ -466,6 +539,7 @@ const Inventory = () => {
                                                                                 <tr>
                                                                                     <th>Batch Number</th>
                                                                                     <th>Quantity</th>
+                                                                                    <th>Manufacture Date</th>
                                                                                     <th>Expiry Date</th>
                                                                                     <th>Added On</th>
                                                                                 </tr>
@@ -475,6 +549,7 @@ const Inventory = () => {
                                                                                     <tr key={batchIndex}>
                                                                                         <td>{batch.batchNumber}</td>
                                                                                         <td>{batch.quantity}</td>
+                                                                                        <td>{new Date(batch.manufactureDate).toLocaleDateString()}</td>
                                                                                         <td>{new Date(batch.expiryDate).toLocaleDateString()}</td>
                                                                                         <td>{new Date(batch.addedAt).toLocaleDateString()}</td>
                                                                                     </tr>
@@ -504,6 +579,163 @@ const Inventory = () => {
                         </>
                     )}
                 </div>
+
+                {/* Add Qty Modal */}
+                {showAddQtyModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h3>Add Quantity to Product</h3>
+                                <button onClick={() => { setShowAddQtyModal(false); resetAddQtyForm(); }} className="close-btn">×</button>
+                            </div>
+
+                            <form onSubmit={handleAddQtySubmit}>
+                                <div className="form-group">
+                                    <label>Search Product *</label>
+                                    <div className="searchable-dropdown">
+                                        <input
+                                            type="text"
+                                            placeholder="Type product name or ID..."
+                                            value={productSearch}
+                                            onChange={(e) => setProductSearch(e.target.value)}
+                                            onFocus={() => setProductSearch("")}
+                                        />
+                                        {productSearch && (
+                                            <div className="dropdown-options">
+                                                {filteredProducts.map(product => (
+                                                    <div
+                                                        key={product.productId}
+                                                        className="dropdown-option"
+                                                        onClick={() => {
+                                                            handleProductSelect(product);
+                                                        }}
+                                                    >
+                                                        {product.productName} ({product.productId})
+                                                    </div>
+                                                ))}
+                                                {filteredProducts.length === 0 && (
+                                                    <div className="dropdown-option no-results">
+                                                        No products found
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {selectedProduct && (
+                                        <div className="product-info">
+                                            <p><strong>Product:</strong> {selectedProduct.productName}</p>
+                                            <p><strong>Category:</strong> {selectedProduct.category}</p>
+                                            <p><strong>HSN:</strong> {selectedProduct.hsnCode || "-"}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="batches-section">
+                                    <div className="section-header">
+                                        <label>Batch Details *</label>
+                                        <button type="button" onClick={addBatchRow} className="add-batch-btn">
+                                            <FaPlus /> Add Batch
+                                        </button>
+                                    </div>
+
+                                    {batches.map((batch, index) => (
+                                        <div key={index} className="batch-row">
+                                            <div className="form-group">
+                                                <label>Batch Number</label>
+                                                <input
+                                                    type="text"
+                                                    value={batch.batchNumber}
+                                                    onChange={(e) => updateBatch(index, "batchNumber", e.target.value)}
+                                                    placeholder="e.g., BATCH-001"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    value={batch.quantity}
+                                                    onChange={(e) => updateBatch(index, "quantity", e.target.value)}
+                                                    placeholder="Enter quantity"
+                                                    min="1"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Manufacture Date *</label>
+                                                <input
+                                                    type="date"
+                                                    value={batch.manufactureDate}
+                                                    onChange={(e) => updateBatch(index, "manufactureDate", e.target.value)}
+                                                    required
+                                                />
+                                                <small>Expiry will be automatically calculated (36 months from manufacture)</small>
+                                            </div>
+                                            {batches.length > 1 && (
+                                                <button type="button" onClick={() => removeBatchRow(index)} className="remove-batch-btn">
+                                                    ×
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="modal-actions">
+                                    <button type="button" onClick={() => { setShowAddQtyModal(false); resetAddQtyForm(); }} className="cancel-btn">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="submit-btn">
+                                        Save Batches
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Bulk Upload Modal */}
+                {showBulkUploadModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h3>Bulk Upload Batches</h3>
+                                <button onClick={() => setShowBulkUploadModal(false)} className="close-btn">×</button>
+                            </div>
+
+                            <form onSubmit={handleBulkUpload}>
+                                <div className="form-group">
+                                    <label>Upload Excel File *</label>
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls, .csv"
+                                        onChange={(e) => setUploadFile(e.target.files[0])}
+                                        required
+                                    />
+                                    <small>Format: Product Name, Batch Number, Quantity, Expiry Date (YYYY-MM-DD)</small>
+                                </div>
+
+                                <div className="download-template">
+                                    <button
+                                        type="button"
+                                        onClick={downloadTemplate}
+                                        className="template-download-btn"
+                                    >
+                                        📥 Download Template File
+                                    </button>
+                                </div>
+
+                                <div className="modal-actions">
+                                    <button type="button" onClick={() => setShowBulkUploadModal(false)} className="cancel-btn">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" disabled={uploadLoading} className="submit-btn">
+                                        {uploadLoading ? "Uploading..." : "Upload File"}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </Navbar>
     );
