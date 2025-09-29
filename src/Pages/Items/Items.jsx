@@ -28,7 +28,6 @@ import "./Items.scss";
 import "react-toastify/dist/ReactToastify.css";
 import { TAX_SLABS } from "../../Components/TaxSlab/Taxslab";
 
-
 const CATEGORY_OPTIONS = [
   "Air Freshener",
   "Deodorant & Body Spray",
@@ -73,7 +72,6 @@ const Items = () => {
     hsnCode: "",
     taxSlab: "",
     price: "",
-    discount: "0",
     category: ""
   };
 
@@ -85,14 +83,9 @@ const Items = () => {
     price: Yup.number()
       .required("Price is required")
       .min(0, "Price cannot be negative"),
-    // ADD DISCOUNT VALIDATION
-    discount: Yup.number()
-      .min(0, "Discount cannot be negative")
-      .max(100, "Discount cannot exceed 100%"),
     category: Yup.string().required("Category is required")
   });
 
-  // Fetch items
   // Fetch items
   useEffect(() => {
     setIsLoading(true);
@@ -155,7 +148,7 @@ const Items = () => {
         ...values,
         taxSlab: Number(values.taxSlab),
         price: Number(values.price),
-        discount: Number(values.discount) || 0
+        discount: 0 // Set discount to 0 by default
       };
 
       const response = await axios.post(
@@ -223,10 +216,7 @@ const Items = () => {
           <strong>Tax Slab:</strong> ${item.taxSlab}%
         </p>
         <p style="margin: 10px 0; font-size: 14px;">
-          <strong>Price:</strong> $${item.price.toFixed(2)}
-        </p>
-        <p style="margin: 10px 0; font-size: 14px;">
-          <strong>Discount:</strong> ${item.discount}% {/* ADD DISCOUNT FIELD */}
+          <strong>Price:</strong> ₹${item.price.toFixed(2)}
         </p>
       </div>
     </div>
@@ -258,8 +248,7 @@ const Items = () => {
       "Barcode": item.barcode,
       "HSN Code": item.hsnCode,
       "Tax Slab": `${item.taxSlab}%`,
-      "Price": `₹${item.price.toFixed(2)}`,
-      "Discount": `${item.discount}%`
+      "Price": `₹${item.price.toFixed(2)}`
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(data);
@@ -318,7 +307,6 @@ const Items = () => {
         "HSN Code": "123456",
         "Tax Slab": "18",
         "Price": "29.99",
-        "Discount": "10",
         "Category": "Electronics"
       }
     ];
@@ -358,7 +346,7 @@ const Items = () => {
         hsnCode: item['HSN Code']?.trim() || '00',
         taxSlab: item['Tax Slab'] ? Number(item['Tax Slab']) : 0,
         price: item['Price'] ? Number(item['Price']) : 0,
-        discount: item['Discount'] ? Number(item['Discount']) : 0,
+        discount: 0 // Set discount to 0 by default
       }));
 
       // Filter out items with no product name OR no category
@@ -497,7 +485,7 @@ const Items = () => {
                 )}
               </div>
 
-              {/* In the ItemModal component, replace the category input with dropdown */}
+              {/* Category */}
               <div className="detail-row">
                 <span className="detail-label">Category:</span>
                 {isEditing ? (
@@ -590,24 +578,6 @@ const Items = () => {
                   />
                 ) : (
                   <span className="detail-value">₹{item.price?.toFixed(2)}</span>
-                )}
-              </div>
-
-              <div className="detail-row">
-                <span className="detail-label">Discount:</span>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    name="discount"
-                    value={editedItem.discount || 0}
-                    onChange={handleInputChange}
-                    className="edit-input"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                  />
-                ) : (
-                  <span className="detail-value">{item.discount}%</span>
                 )}
               </div>
 
@@ -721,7 +691,7 @@ const Items = () => {
               <h4>Instructions:</h4>
               <ul>
                 <li>Download the template file to ensure proper formatting</li>
-                <li>Your Excel file should include these columns: Product Name, Category, Barcode, HSN Code, Tax Slab, Price, Discount</li>
+                <li>Your Excel file should include these columns: Product Name, Category, Barcode, HSN Code, Tax Slab, Price</li>
                 <li>Ensure all required fields are filled (Product Name and Category are required)</li>
                 <li>Tax Slab should be a number (e.g., 5, 18)</li>
                 <li>Price should be numeric values</li>
@@ -828,8 +798,6 @@ const Items = () => {
                   </div>
                 </div>
 
-
-
                 <div className="form-row">
                   <div className="form-field">
                     <label><FaBarcode /> Barcode *</label>
@@ -841,7 +809,6 @@ const Items = () => {
                     <Field name="hsnCode" type="text" />
                     <ErrorMessage name="hsnCode" component="div" className="error" />
                   </div>
-
                 </div>
 
                 <div className="form-row">
@@ -850,14 +817,6 @@ const Items = () => {
                     <Field name="price" type="number" step="0.01" />
                     <ErrorMessage name="price" component="div" className="error" />
                   </div>
-                  <div className="form-field">
-                    <label><FaPercent /> Discount (%)</label>
-                    <Field name="discount" type="number" min="0" max="100" step="0.01" />
-                    <ErrorMessage name="discount" component="div" className="error" />
-                  </div>
-                </div>
-
-                <div className="form-row">
                   <div className="form-field">
                     <label><FaPercent /> Tax Slab *</label>
                     <Field as="select" name="taxSlab" className="select-field">
@@ -869,9 +828,6 @@ const Items = () => {
                       ))}
                     </Field>
                     <ErrorMessage name="taxSlab" component="div" className="error" />
-                  </div>
-                  <div className="form-field">
-
                   </div>
                 </div>
 
@@ -900,9 +856,7 @@ const Items = () => {
                     <th>Barcode</th>
                     <th>HSN Code</th>
                     <th>Tax Slab</th>
-                    <th>Discount</th>
                     <th>Price</th>
-
                   </tr>
                 </thead>
                 <tbody>
@@ -917,9 +871,7 @@ const Items = () => {
                       <td>{item.barcode}</td>
                       <td>{item.hsnCode}</td>
                       <td>{item.taxSlab}%</td>
-                      <td>{item.discount}%</td>
                       <td>₹{item.price?.toFixed(2)}</td>
-
                     </tr>
                   ))}
                 </tbody>
@@ -954,7 +906,7 @@ const Items = () => {
           />
         )}
       </div>
-    </Navbar >
+    </Navbar>
   );
 };
 

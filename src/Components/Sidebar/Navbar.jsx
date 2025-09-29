@@ -59,7 +59,7 @@ const Navbar = ({ children }) => {
     // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom", permission: "bom" },
     // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order", permission: "workorder" },
     { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "admin" },  
-    // { icon: <TbMessages />, title: "Defective", path: "/defective", permission: "defective" },
+    { icon: <TbMessages />, title: "Product Disposal", path: "/defective", permission: "admin" },
     // { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
   ];
 

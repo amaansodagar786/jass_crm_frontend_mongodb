@@ -659,3 +659,323 @@
 }
 
 
+// Error Report Modal Styles
+.error-report-modal {
+  max-width: 900px;
+  max-height: 80vh;
+
+  .error-report-content {
+    padding: 0;
+  }
+
+  .error-summary {
+    padding: 15px 20px;
+    background-color: #fff3f3;
+    border-bottom: 1px solid #ffcdd2;
+
+    p {
+      margin: 0;
+      color: #d32f2f;
+      font-size: 14px;
+    }
+  }
+
+  .errors-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 0 20px;
+  }
+
+  .errors-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+
+    th {
+      background-color: #f5f6fa;
+      padding: 12px 8px;
+      text-align: left;
+      font-weight: 600;
+      color: #3f3f91;
+      border-bottom: 2px solid #e0e0e0;
+      font-size: 13px;
+      position: sticky;
+      top: 0;
+    }
+
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+    }
+
+    .error-row {
+      &:hover {
+        background-color: #fff9f9;
+      }
+
+      .error-row-number {
+        color: #666;
+        font-weight: 500;
+      }
+
+      .error-product {
+        font-weight: 500;
+      }
+
+      .error-batch {
+        font-family: monospace;
+      }
+
+      .error-reason {
+        color: #d32f2f;
+
+        .error-message {
+          display: block;
+          font-weight: 500;
+        }
+
+        .error-details {
+          display: block;
+          color: #666;
+          font-size: 11px;
+          margin-top: 2px;
+        }
+      }
+    }
+  }
+
+  .error-actions {
+    padding: 15px 20px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+
+    .download-error-btn {
+      background-color: #ff9800;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+
+      &:hover {
+        background-color: #f57c00;
+      }
+    }
+
+    .close-error-btn {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+
+      &:hover {
+        background-color: #545b62;
+      }
+    }
+  }
+}
+
+// Scrollbar styling for error table
+.errors-table-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.errors-table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.errors-table-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.errors-table-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+
+
+
+// Batch Disposal Styles
+.batch-main-row {
+    td {
+        vertical-align: middle;
+    }
+}
+
+.quantity-badge {
+    background: #e8f5e8;
+    color: #388e3c;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    
+    &.zero {
+        background: #ffebee;
+        color: #d32f2f;
+    }
+}
+
+.disposed-badge {
+    background: #fff3e0;
+    color: #f57c00;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.no-disposal {
+    color: #999;
+    font-style: italic;
+}
+
+.expired-date {
+    color: #f57c00;
+    font-weight: 600;
+}
+
+.view-disposal-btn {
+    background: #7366ff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+
+    &:hover {
+        background: #5f53cc;
+    }
+}
+
+.no-disposal-history {
+    color: #999;
+    font-size: 12px;
+    font-style: italic;
+}
+
+// Disposal Details Styles
+.disposal-details-row {
+    background-color: #f9f9f9;
+    
+    td {
+        padding: 0 !important;
+        border-bottom: 1px solid #ddd;
+    }
+}
+
+.disposal-details-container {
+    padding: 20px;
+    background: white;
+    margin: 10px;
+    border-radius: 8px;
+    border: 1px solid #eee;
+
+    h5 {
+        margin: 0 0 15px 0;
+        color: #3f3f91;
+        font-size: 14px;
+        font-weight: 600;
+    }
+}
+
+.disposal-details-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+
+    th, td {
+        padding: 10px 12px;
+        border: 1px solid #eee;
+        font-size: 12px;
+        text-align: left;
+    }
+
+    th {
+        background: #f0f4ff;
+        font-weight: 600;
+        color: #3f3f91;
+    }
+
+    .disposal-row {
+        &.defective {
+            background: #fff5f5;
+        }
+        
+        &.expired {
+            background: #fffaf0;
+        }
+    }
+
+    .disposal-type-badge {
+        padding: 3px 6px;
+        border-radius: 8px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+
+        &.defective {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        &.expired {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+    }
+
+    .quantity-removed {
+        color: #d32f2f;
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .disposal-reason {
+        max-width: 200px;
+        word-wrap: break-word;
+    }
+
+    .disposal-id {
+        font-family: 'Courier New', monospace;
+        font-size: 10px;
+        color: #666;
+    }
+}
+
+.disposal-summary {
+    display: flex;
+    gap: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+
+    .summary-item {
+        font-size: 13px;
+        
+        strong {
+            color: #333;
+        }
+    }
+}
+
+// Batch number cell styling
+.batch-number-cell {
+    font-weight: 600;
+    color: #333;
+}
+
+.disposal-info-cell {
+    text-align: center;
+}

@@ -13,7 +13,7 @@ import Register from "../Pages/Authentication/Register/Register";
 import Login from "../Pages/Authentication/Login/Login";
 import ProtectedRoute from "../Components/Protected/ProtectedRoute";
 import WorkOrder from "../Pages/WorkOrder/WorkOrder";
-import Defective from "../Pages/Defective/Defective";
+import ProductDisposal from "../Pages/Defective/ProductDisposal";
 import AdminUsers from "../Pages/Authentication/Admin/AdminUsers";
 import DiscountProduct from "../Pages/DiscountProduct/DiscountProduct";
 import SmartRedirect from "./SmartRedirect"; // ADD THIS
@@ -125,8 +125,8 @@ const Router = () => {
 
             <Route path="/defective" element={
               <ProtectedRoute>
-                <PermissionRoute requiredPermission="defective">
-                  <Defective />
+                <PermissionRoute requiredPermission="admin">
+                  <ProductDisposal/>
                 </PermissionRoute>
               </ProtectedRoute>
             } />

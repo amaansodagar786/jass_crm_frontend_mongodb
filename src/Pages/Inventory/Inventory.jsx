@@ -36,6 +36,13 @@ const Inventory = () => {
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
 
+    // Add these to your existing state declarations
+    const [uploadErrors, setUploadErrors] = useState([]);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+
+    const [expandedBatchDisposals, setExpandedBatchDisposals] = useState(new Set());
+
+
     useEffect(() => {
         window.scrollTo(0, 0);
         fetchData();
@@ -148,6 +155,18 @@ const Inventory = () => {
         });
     };
 
+    const toggleBatchDisposal = (batchNumber) => {
+        setExpandedBatchDisposals(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(batchNumber)) {
+                newSet.delete(batchNumber);
+            } else {
+                newSet.add(batchNumber);
+            }
+            return newSet;
+        });
+    };
+
     // Add Qty Modal Functions
     const addBatchRow = () => {
         setBatches([...batches, { batchNumber: "", quantity: "", expiryDate: "" }]);
@@ -234,6 +253,8 @@ const Inventory = () => {
         formData.append("file", uploadFile);
 
         setUploadLoading(true);
+        setUploadErrors([]); // Reset errors
+
         try {
             const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/bulk-upload-batches`, formData, {
                 headers: {
@@ -244,30 +265,34 @@ const Inventory = () => {
             if (response.data.success) {
                 if (response.data.addedBatches > 0) {
                     toast.success(`Bulk upload successful! ${response.data.addedBatches} batches added.`);
-                } else {
-                    toast.warning("No batches were added. Please check your file format.");
                 }
 
-                // Show detailed errors in console
+                // Check if there are errors to show
                 if (response.data.errors && response.data.errors.length > 0) {
-                    console.error("Bulk upload errors:", response.data.errors);
-                    if (response.data.errors.length <= 5) {
-                        response.data.errors.forEach(error => toast.error(error));
+                    setUploadErrors(response.data.errors);
+                    setShowErrorModal(true);
+
+                    if (response.data.addedBatches === 0) {
+                        toast.error("Upload completed with errors. No batches were added.");
                     } else {
-                        toast.error(`${response.data.errors.length} errors occurred. Check console for details.`);
+                        toast.warning("Upload completed with some errors. Please check the error report.");
                     }
+                } else {
+                    toast.success("All batches uploaded successfully!");
+                    setShowBulkUploadModal(false);
+                    setUploadFile(null);
                 }
 
-                setShowBulkUploadModal(false);
-                setUploadFile(null);
                 fetchData();
             }
         } catch (error) {
             console.error("Error in bulk upload:", error);
 
+            // Handle structured errors from backend
             if (error.response?.data?.errors) {
-                console.error("Detailed errors:", error.response.data.errors);
-                toast.error("Upload failed with errors. Check console for details.");
+                setUploadErrors(error.response.data.errors);
+                setShowErrorModal(true);
+                toast.error("Upload failed with errors. Please check the error report.");
             } else {
                 toast.error(error.response?.data?.message || "Failed to upload file");
             }
@@ -276,6 +301,42 @@ const Inventory = () => {
         }
     };
 
+    const downloadErrorReport = () => {
+        try {
+            const errorData = [
+                ['Row', 'Product Name', 'Batch Number', 'Error Reason', 'Details']
+            ];
+
+            uploadErrors.forEach((error, index) => {
+                errorData.push([
+                    error.rowNumber || index + 1,
+                    error.productName || 'N/A',
+                    error.batchNumber || 'N/A',
+                    error.message || error.reason || 'Unknown error',
+                    error.details || ''
+                ]);
+            });
+
+            // Create CSV content
+            let csvContent = "data:text/csv;charset=utf-8,";
+            errorData.forEach(row => {
+                csvContent += row.map(field => `"${field}"`).join(",") + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `batch-upload-errors-${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.info("Error report downloaded successfully!");
+        } catch (error) {
+            console.error("Error downloading error report:", error);
+            toast.error("Failed to download error report");
+        }
+    };
 
     const downloadTemplate = () => {
         try {
@@ -576,21 +637,118 @@ const Inventory = () => {
                                                                             <thead>
                                                                                 <tr>
                                                                                     <th>Batch Number</th>
-                                                                                    <th>Quantity</th>
+                                                                                    <th>Current Quantity</th>
+                                                                                    <th>Total Disposed</th>
                                                                                     <th>Manufacture Date</th>
                                                                                     <th>Expiry Date</th>
                                                                                     <th>Added On</th>
+                                                                                    <th>Disposal History</th>
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody>
                                                                                 {item.batches.map((batch, batchIndex) => (
-                                                                                    <tr key={batchIndex}>
-                                                                                        <td>{batch.batchNumber}</td>
-                                                                                        <td>{batch.quantity}</td>
-                                                                                        <td>{new Date(batch.manufactureDate).toLocaleDateString()}</td>
-                                                                                        <td>{new Date(batch.expiryDate).toLocaleDateString()}</td>
-                                                                                        <td>{new Date(batch.addedAt).toLocaleDateString()}</td>
-                                                                                    </tr>
+                                                                                    <React.Fragment key={batchIndex}>
+                                                                                        <tr className="batch-main-row">
+                                                                                            <td className="batch-number-cell">
+                                                                                                <strong>{batch.batchNumber}</strong>
+                                                                                            </td>
+                                                                                            <td className="quantity-cell">
+                                                                                                <span className={`quantity-badge ${batch.currentQuantity === 0 ? 'zero' : ''}`}>
+                                                                                                    {batch.currentQuantity}
+                                                                                                </span>
+                                                                                            </td>
+                                                                                            <td className="disposed-cell">
+                                                                                                {batch.totalDisposed > 0 ? (
+                                                                                                    <span className="disposed-badge">
+                                                                                                        {batch.totalDisposed} units
+                                                                                                    </span>
+                                                                                                ) : (
+                                                                                                    <span className="no-disposal">-</span>
+                                                                                                )}
+                                                                                            </td>
+                                                                                            <td>{new Date(batch.manufactureDate).toLocaleDateString()}</td>
+                                                                                            <td className={
+                                                                                                new Date(batch.expiryDate) < new Date() ? 'expired-date' : ''
+                                                                                            }>
+                                                                                                {new Date(batch.expiryDate).toLocaleDateString()}
+                                                                                            </td>
+                                                                                            <td>{new Date(batch.addedAt).toLocaleDateString()}</td>
+                                                                                            <td className="disposal-info-cell">
+                                                                                                {batch.disposals && batch.disposals.length > 0 ? (
+                                                                                                    <button
+                                                                                                        className="view-disposal-btn"
+                                                                                                        onClick={() => toggleBatchDisposal(batch.batchNumber)}
+                                                                                                    >
+                                                                                                        {expandedBatchDisposals.has(batch.batchNumber) ? 'Hide' : 'View'} Details
+                                                                                                        ({batch.disposals.length})
+                                                                                                    </button>
+                                                                                                ) : (
+                                                                                                    <span className="no-disposal-history">No disposals</span>
+                                                                                                )}
+                                                                                            </td>
+                                                                                        </tr>
+
+                                                                                        {/* Disposal Details Row */}
+                                                                                        {batch.disposals && batch.disposals.length > 0 &&
+                                                                                            expandedBatchDisposals.has(batch.batchNumber) && (
+                                                                                                <tr className="disposal-details-row">
+                                                                                                    <td colSpan="7">
+                                                                                                        <div className="disposal-details-container">
+                                                                                                            <h5>Disposal History for Batch {batch.batchNumber}</h5>
+                                                                                                            <div className="disposal-table-container">
+                                                                                                                <table className="disposal-details-table">
+                                                                                                                    <thead>
+                                                                                                                        <tr>
+                                                                                                                            <th>Date</th>
+                                                                                                                            <th>Type</th>
+                                                                                                                            <th>Quantity</th>
+                                                                                                                            <th>Reason</th>
+                                                                                                                            <th>Disposal ID</th>
+                                                                                                                        </tr>
+                                                                                                                    </thead>
+                                                                                                                    <tbody>
+                                                                                                                        {batch.disposals.map((disposal, disposalIndex) => (
+                                                                                                                            <tr key={disposalIndex} className={`disposal-row ${disposal.type}`}>
+                                                                                                                                <td className="disposal-date">
+                                                                                                                                    {new Date(disposal.disposalDate).toLocaleDateString()}
+                                                                                                                                </td>
+                                                                                                                                <td>
+                                                                                                                                    <span className={`disposal-type-badge ${disposal.type}`}>
+                                                                                                                                        {disposal.type === 'defective' ? 'Defective' : 'Expired'}
+                                                                                                                                    </span>
+                                                                                                                                </td>
+                                                                                                                                <td className="disposal-quantity">
+                                                                                                                                    <span className="quantity-removed">
+                                                                                                                                        {disposal.quantity} units
+                                                                                                                                    </span>
+                                                                                                                                </td>
+                                                                                                                                <td className="disposal-reason">
+                                                                                                                                    {disposal.reason || 'Not specified'}
+                                                                                                                                </td>
+                                                                                                                                <td className="disposal-id">
+                                                                                                                                    {disposal.disposalId}
+                                                                                                                                </td>
+                                                                                                                            </tr>
+                                                                                                                        ))}
+                                                                                                                    </tbody>
+                                                                                                                </table>
+                                                                                                            </div>
+                                                                                                            <div className="disposal-summary">
+                                                                                                                <div className="summary-item">
+                                                                                                                    <strong>Original Quantity:</strong> {batch.originalQuantity} units
+                                                                                                                </div>
+                                                                                                                <div className="summary-item">
+                                                                                                                    <strong>Total Disposed:</strong> {batch.totalDisposed} units
+                                                                                                                </div>
+                                                                                                                <div className="summary-item">
+                                                                                                                    <strong>Current Quantity:</strong> {batch.currentQuantity} units
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            )}
+                                                                                    </React.Fragment>
                                                                                 ))}
                                                                             </tbody>
                                                                         </table>
@@ -771,6 +929,71 @@ const Inventory = () => {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                )}
+
+
+                {/* Error Report Modal */}
+                {showErrorModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-content error-report-modal">
+                            <div className="modal-header">
+                                <h3>Upload Error Report</h3>
+                                <button onClick={() => setShowErrorModal(false)} className="close-btn">×</button>
+                            </div>
+
+                            <div className="error-report-content">
+                                <div className="error-summary">
+                                    <p><strong>{uploadErrors.length} errors found during upload:</strong></p>
+                                </div>
+
+                                <div className="errors-table-container">
+                                    <table className="errors-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Row</th>
+                                                <th>Product Name</th>
+                                                <th>Batch Number</th>
+                                                <th>Error Reason</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {uploadErrors.map((error, index) => (
+                                                <tr key={index} className="error-row">
+                                                    <td className="error-row-number">#{error.rowNumber || index + 1}</td>
+                                                    <td className="error-product">{error.productName || "N/A"}</td>
+                                                    <td className="error-batch">{error.batchNumber || "N/A"}</td>
+                                                    <td className="error-reason">
+                                                        <span className="error-message">{error.message || error.reason}</span>
+                                                        {error.details && (
+                                                            <small className="error-details">{error.details}</small>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="error-actions">
+                                    <button
+                                        onClick={() => {
+                                            // Download error report as CSV
+                                            downloadErrorReport();
+                                        }}
+                                        className="download-error-btn"
+                                    >
+                                        📥 Download Error Report
+                                    </button>
+                                    <button
+                                        onClick={() => setShowErrorModal(false)}
+                                        className="close-error-btn"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
