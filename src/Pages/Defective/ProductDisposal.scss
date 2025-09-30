@@ -459,6 +459,9 @@
                 }
             }
         }
+
+
+
     }
 
     // No Expired Batches
@@ -1187,5 +1190,195 @@
                 grid-template-columns: 1fr !important;
             }
         }
+    }
+}
+
+
+/* Add these styles to your existing CSS */
+
+/* Expired Disposal Buttons */
+.expired-batches-section .form-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.expired-batches-section .cancel-btn {
+    background: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.expired-batches-section .cancel-btn:hover {
+    background: #e0e0e0;
+    border-color: #bbb;
+}
+
+.expired-batches-section .dispose-btn.expired {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #ffa726, #f57c00);
+    color: white;
+    min-width: 200px;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.expired-batches-section .dispose-btn.expired:hover:not(:disabled) {
+    background: linear-gradient(135deg, #f57c00, #ef6c00);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 124, 0, 0.3);
+}
+
+.expired-batches-section .dispose-btn.expired:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Fix Filter Heights to Match Search */
+.history-section .filter-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.history-section .filter-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.history-section .filter-with-icon .filter-icon {
+    position: absolute;
+    left: 12px;
+    color: #666;
+    z-index: 2;
+    font-size: 14px;
+}
+
+.history-section .history-filter,
+.history-section .date-filter {
+    padding: 10px 15px 10px 35px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    min-width: 150px;
+    height: 40px;
+    /* Match search input height */
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 14px;
+}
+
+.history-section .history-filter:focus,
+.history-section .date-filter:focus {
+    border-color: #7366ff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(115, 102, 255, 0.1);
+}
+
+.history-section .history-filter:hover,
+.history-section .date-filter:hover {
+    border-color: #bbb;
+}
+
+/* Search Container Height Fix */
+.history-section .search-container {
+    position: relative;
+    width: 200px;
+}
+
+.history-section .search-container input {
+    width: 100%;
+    padding: 8px 12px 8px 35px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    height: 40px;
+    /* Ensure consistent height */
+    box-sizing: border-box;
+}
+
+.history-section .search-container input:focus {
+    border-color: #7366ff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(115, 102, 255, 0.1);
+}
+
+/* Export Button Height Fix */
+.history-section .export-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(to right, #4caf50, #66bb6a);
+    color: white;
+    padding: 10px 16px;
+    /* Adjusted padding for height consistency */
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    height: 40px;
+    /* Match other filter heights */
+    box-sizing: border-box;
+    transition: 0.3s;
+    font-weight: 500;
+}
+
+.history-section .export-btn:hover {
+    background: linear-gradient(to right, #388e3c, #4caf50);
+    transform: translateY(-1px);
+}
+
+/* Responsive Design for Filters */
+@media (max-width: 768px) {
+    .expired-batches-section .form-actions {
+        flex-direction: column;
+    }
+
+    .expired-batches-section .cancel-btn,
+    .expired-batches-section .dispose-btn.expired {
+        min-width: 100%;
+        width: 100%;
+    }
+
+    .history-section .filter-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .history-section .history-filter,
+    .history-section .date-filter {
+        min-width: calc(50% - 6px);
+        /* Two filters side by side on mobile */
+        flex: 1;
+    }
+
+    .history-section .search-container {
+        width: 100%;
     }
 }
