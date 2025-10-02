@@ -19,7 +19,7 @@ import logo from "../../Assets/logo/jass_logo_new.png"
 // CSS
 import "./Navbar.css";
 
-const Navbar = ({ children }) => {
+const Navbar = ({ children , onNavigation }) => {
   const [toggle, setToggle] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
@@ -48,19 +48,19 @@ const Navbar = ({ children }) => {
   // Define all possible menu items with their required permissions
   const allMenuData = [
     { icon: <PiBasket />, title: "Invoice", path: "/", permission: "invoice" },
-    // { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard", permission: "dashboard" },
+    { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard", permission: "dashboard" },
     { icon: <TbUsers />, title: "Customer", path: "/customer", permission: "customer" },
     // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor", permission: "vendor" },
     { icon: <LuFile />, title: "Products", path: "/items", permission: "products" },
     { icon: <TbUsers />, title: "Admin", path: "/admin", permission: "admin" },
-    { icon: <MdDiscount  />, title: "Discount", path: "/productdiscount", permission: "discount" }, 
+    { icon: <MdDiscount />, title: "Discount", path: "/productdiscount", permission: "discount" },
     // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order", permission: "purchase" },
     // { icon: <BsBell />, title: "GRN", path: "/grn", permission: "grn" },
     // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom", permission: "bom" },
     // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order", permission: "workorder" },
-    { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },  
+    { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },
     { icon: <TbMessages />, title: "Product Disposal", path: "/defective", permission: "disposal" },
-    // { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
+    { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" }, 
   ];
 
   // Filter menu items based on user permissions
@@ -69,9 +69,9 @@ const Navbar = ({ children }) => {
     if (userPermissions.includes("admin")) {
       return allMenuData;
     }
-    
+
     // Otherwise, filter menu items based on user's permissions
-    return allMenuData.filter(item => 
+    return allMenuData.filter(item =>
       userPermissions.includes(item.permission)
     );
   };
@@ -107,6 +107,12 @@ const Navbar = ({ children }) => {
               <NavLink
                 to={path}
                 className={({ isActive }) => (isActive ? "active" : "")}
+                onClick={(e) => {
+                  if (onNavigation) {
+                    e.preventDefault();
+                    onNavigation(path);
+                  }
+                }}
               >
                 <span className="menu-icon">{icon}</span>
                 <span className="menu-title">{title}</span>

@@ -12,10 +12,11 @@ import Inventory from "../Pages/Inventory/Inventory";
 import Register from "../Pages/Authentication/Register/Register";
 import Login from "../Pages/Authentication/Login/Login";
 import ProtectedRoute from "../Components/Protected/ProtectedRoute";
-import WorkOrder from "../Pages/WorkOrder/WorkOrder";
+// import WorkOrder from "../Pages/WorkOrder/WorkOrder"; 
 import ProductDisposal from "../Pages/Defective/ProductDisposal";
 import AdminUsers from "../Pages/Authentication/Admin/AdminUsers";
 import DiscountProduct from "../Pages/DiscountProduct/DiscountProduct";
+import Report from "../Pages/Reports/Report";
 import SmartRedirect from "./SmartRedirect"; // ADD THIS
 import Footer from "../Components/Footer/Footer";
 
@@ -115,13 +116,13 @@ const Router = () => {
               </ProtectedRoute>
             } />
 
-            <Route path="/work-order" element={
+            {/* <Route path="/work-order" element={
               <ProtectedRoute>
                 <PermissionRoute requiredPermission="workorder">
                   <WorkOrder />
                 </PermissionRoute>
               </ProtectedRoute>
-            } />
+            } /> */}
 
             <Route path="/defective" element={
               <ProtectedRoute>
@@ -143,6 +144,14 @@ const Router = () => {
               <ProtectedRoute>
                 <PermissionRoute requiredPermission="discount">
                   <DiscountProduct />
+                </PermissionRoute>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/report" element={
+              <ProtectedRoute>
+                <PermissionRoute requiredPermission="report">
+                  <Report />
                 </PermissionRoute>
               </ProtectedRoute>
             } />

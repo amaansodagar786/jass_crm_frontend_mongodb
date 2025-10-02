@@ -9,6 +9,7 @@ import {
   FiCheckCircle,
   FiClock,
   FiPlusCircle,
+  FiCalendar,
 } from "react-icons/fi";
 import {
   BarChart,
@@ -26,7 +27,6 @@ import {
 import "./Home.css";
 import { useNavigate } from "react-router-dom";
 
-
 const Home = () => {
   const [salesData, setSalesData] = useState([]);
   const [purchaseData, setPurchaseData] = useState([]);
@@ -39,8 +39,10 @@ const Home = () => {
 
   const [showLowStockModal, setShowLowStockModal] = useState(false);
   const [showOutOfStockModal, setShowOutOfStockModal] = useState(false);
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
   const [lowStockItems, setLowStockItems] = useState([]);
   const [outOfStockItems, setOutOfStockItems] = useState([]);
+  const [expiringItems, setExpiringItems] = useState([]);
   const [itemsToShow, setItemsToShow] = useState(6);
 
   const navigate = useNavigate();
@@ -50,22 +52,18 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    if (showLowStockModal || showOutOfStockModal) {
+    if (showLowStockModal || showOutOfStockModal || showExpiryModal) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
     }
 
-    // Cleanup on component unmount
     return () => {
       document.body.classList.remove('modal-open');
     };
-  }, [showLowStockModal, showOutOfStockModal]);
+  }, [showLowStockModal, showOutOfStockModal, showExpiryModal]);
 
-
-  // Add this function to handle ordering items
   const handleOrderItem = (item) => {
-    // Store the complete item data in localStorage
     localStorage.setItem('preSelectedItem', JSON.stringify({
       itemName: item.itemName,
       description: item.description || "",
@@ -76,13 +74,41 @@ const Home = () => {
       minimumQty: item.minimumQty || 0
     }));
 
-    // Navigate to Purchase Order page
     navigate('/purchase-order');
   };
 
-  // Enhanced data processing with proper date handling
+  // Function to calculate expiring items (within 3 months)
+  const getExpiringItems = (inventoryData) => {
+    const today = new Date();
+    const threeMonthsFromNow = new Date();
+    threeMonthsFromNow.setMonth(today.getMonth() + 3);
+
+    const expiringItems = [];
+
+    inventoryData.forEach(item => {
+      if (item.batches && Array.isArray(item.batches)) {
+        item.batches.forEach(batch => {
+          if (batch.expiryDate) {
+            const expiryDate = new Date(batch.expiryDate);
+            if (expiryDate <= threeMonthsFromNow && expiryDate >= today) {
+              expiringItems.push({
+                ...item,
+                batchNumber: batch.batchNumber,
+                expiryDate: batch.expiryDate,
+                quantity: batch.quantity,
+                daysUntilExpiry: Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24))
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // Sort by closest expiry date
+    return expiringItems.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  };
+
   const processChartData = (data, type) => {
-    console.log(`Processing ${type} data:`, data);
     if (!Array.isArray(data)) {
       console.error(`Expected array for ${type} data, got:`, typeof data);
       return [];
@@ -91,7 +117,6 @@ const Home = () => {
     const dateField = type === "sales" ? "invoiceDate" : "grnDate";
     const valueField = "total";
 
-    // Group by month for better visualization
     const monthlyData = data.reduce((acc, item) => {
       if (!item[dateField]) {
         console.warn(`Missing date field in ${type} item:`, item);
@@ -111,7 +136,7 @@ const Home = () => {
 
     return Object.values(monthlyData)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .slice(-6); // Last 6 months
+      .slice(-6);
   };
 
   useEffect(() => {
@@ -119,39 +144,58 @@ const Home = () => {
       try {
         console.log("Starting data fetch...");
 
+        // Only include URLs that exist and work
         const urls = [
-          `${import.meta.env.VITE_API_URL}/sales/get-sales`,
-          `${import.meta.env.VITE_API_URL}/grn/get-grns`,
+          `${import.meta.env.VITE_API_URL}/invoices/get-invoices`,
           `${import.meta.env.VITE_API_URL}/inventory/get-inventory`,
-          `${import.meta.env.VITE_API_URL}/bom/get-boms`,
-          `${import.meta.env.VITE_API_URL}/workorder/get-workorders`,
-          `${import.meta.env.VITE_API_URL}/po/get-pos`
+          // Commented out until these routes are implemented
+          // `${import.meta.env.VITE_API_URL}/grn/get-grns`,
+          // `${import.meta.env.VITE_API_URL}/bom/get-boms`,
+          // `${import.meta.env.VITE_API_URL}/workorder/get-workorders`,
+          // `${import.meta.env.VITE_API_URL}/po/get-pos` 
         ];
 
-        const responses = await Promise.all(urls.map(url =>
-          fetch(url).then(res => res.json())
-        ));
-
-        // Extract data property from each response
-        const [sales, purchases, inventory, bom, workOrders, pos] = responses.map(
-          res => res.success ? res.data : []
+        const responses = await Promise.all(
+          urls.map(url =>
+            fetch(url)
+              .then(res => {
+                if (!res.ok) {
+                  throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+              })
+              .catch(error => {
+                console.warn(`Failed to fetch from ${url}:`, error.message);
+                return { success: false, data: [] }; // Return empty data on error
+              })
+          )
         );
+
+        // Extract data from responses - only for the URLs we actually called
+        const [salesResponse, inventoryResponse] = responses;
+
+        const sales = salesResponse.success ? salesResponse.data : [];
+        const inventory = inventoryResponse.success ? inventoryResponse.data : [];
 
         console.log("Extracted data:", {
           sales: sales.length,
-          purchases: purchases.length,
           inventory: inventory.length,
-          bom: bom.length,
-          workOrders: workOrders.length,
-          purchaseOrders: pos.length
         });
 
         setSalesData(Array.isArray(sales) ? sales : []);
-        setPurchaseData(Array.isArray(purchases) ? purchases : []);
         setInventoryData(Array.isArray(inventory) ? inventory : []);
-        setBomData(Array.isArray(bom) ? bom : []);
-        setWorkOrders(Array.isArray(workOrders) ? workOrders : []);
-        setPurchaseOrders(Array.isArray(pos) ? pos : []);
+        
+        // Set empty arrays for the commented out routes
+        setPurchaseData([]);
+        setBomData([]);
+        setWorkOrders([]);
+        setPurchaseOrders([]);
+
+        // Calculate expiring items
+        if (Array.isArray(inventory)) {
+          const expiring = getExpiringItems(inventory);
+          setExpiringItems(expiring);
+        }
 
       } catch (error) {
         console.error("Error in fetchData:", error);
@@ -164,37 +208,47 @@ const Home = () => {
     fetchData();
   }, []);
 
-  // Find work orders without sales
-  const pendingWorkOrders = workOrders.filter(wo => {
-    return !salesData.some(sale => sale.workOrderNumber === wo.workOrderNumber);
-  });
+  // Find work orders without sales - temporarily disabled
+  const pendingWorkOrders = []; // workOrders.filter(wo => {
+    // return !salesData.some(sale => sale.workOrderNumber === wo.workOrderNumber);
+  // });
 
-  // Find POs without GRNs
-  const pendingGRNs = purchaseOrders.filter(po => {
-    return !purchaseData.some(grn => grn.poNumber === po.poNumber);
-  });
+  // Find POs without GRNs - temporarily disabled
+  const pendingGRNs = []; // purchaseOrders.filter(po => {
+    // return !purchaseData.some(grn => grn.poNumber === po.poNumber);
+  // });
 
   // Inventory status
   const inventoryStatus = inventoryData.reduce(
     (acc, item) => {
-      if (item.currentStock <= 0) acc.outOfStock++;
-      else if (item.currentStock <= (item.minimumQty || 0)) acc.lowStock++;
+      // Use totalQuantity instead of currentStock since that's what your inventory schema has
+      const stock = item.totalQuantity || 0;
+      const minQty = item.minimumQty || 0;
+      
+      if (stock <= 0) acc.outOfStock++;
+      else if (stock <= minQty) acc.lowStock++;
       else acc.inStock++;
       return acc;
     },
     { inStock: 0, lowStock: 0, outOfStock: 0 }
   );
 
-
   useEffect(() => {
     const lowStock = inventoryData.filter(
-      item => item.currentStock > 0 && item.currentStock <= item.minimumQty
+      item => {
+        const stock = item.totalQuantity || 0;
+        const minQty = item.minimumQty || 0;
+        return stock > 0 && stock <= minQty;
+      }
     );
     setLowStockItems(lowStock);
   }, [inventoryData]);
 
   useEffect(() => {
-    const outOfStock = inventoryData.filter(item => item.currentStock <= 0);
+    const outOfStock = inventoryData.filter(item => {
+      const stock = item.totalQuantity || 0;
+      return stock <= 0;
+    });
     setOutOfStockItems(outOfStock);
   }, [inventoryData]);
 
@@ -210,11 +264,22 @@ const Home = () => {
     <div>
       <Navbar>
         <div className="dashboard-container">
-          {/* Inventory Alerts */}
-          {/* Inventory Alerts */}
+          {/* Inventory Alerts - Updated with Expiry Alert */}
           <div className="inventory-alerts">
             <h3>Inventory Alerts</h3>
             <div className="alert-grid">
+              <div
+                className="alert-section expiry-alert clickable-alert"
+                onClick={() => setShowExpiryModal(true)}
+              >
+                <h4>
+                  <FiCalendar className="icon-expiry" /> Expiring Soon
+                </h4>
+                <div className="alert-count">
+                  {expiringItems.length} items expiring in 3 months
+                </div>
+              </div>
+
               <div
                 className="alert-section low-stock-alert clickable-alert"
                 onClick={() => setShowLowStockModal(true)}
@@ -288,8 +353,8 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Pending Actions Section */}
-          <div className="pending-actions">
+          {/* Pending Actions Section - Temporarily hidden since routes are commented out */}
+          {/* <div className="pending-actions">
             <div className="pending-section work-orders-pending">
               <h3><FiClock /> Pending Work Orders</h3>
               <div className="pending-list">
@@ -327,7 +392,7 @@ const Home = () => {
                 )}
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Charts Section */}
           <div className="charts-section">
@@ -347,11 +412,11 @@ const Home = () => {
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => value.split('-')[1]} // Show only month number
+                    tickFormatter={(value) => value.split('-')[1]}
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `₹${value / 1000}k`} // Format as thousands
+                    tickFormatter={(value) => `₹${value / 1000}k`}
                   />
                   <Tooltip
                     formatter={(value) => [`₹${value.toLocaleString()}`, "Sales"]}
@@ -387,11 +452,11 @@ const Home = () => {
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => value.split('-')[1]} // Show only month number
+                    tickFormatter={(value) => value.split('-')[1]}
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `₹${value / 1000}k`} // Format as thousands
+                    tickFormatter={(value) => `₹${value / 1000}k`}
                   />
                   <Tooltip
                     formatter={(value) => [`₹${value.toLocaleString()}`, "Purchases"]}
@@ -409,6 +474,63 @@ const Home = () => {
           </div>
         </div>
       </Navbar>
+
+      {/* Expiry Alert Modal */}
+      {showExpiryModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowExpiryModal(false);
+          setItemsToShow(6);
+          document.body.classList.remove('modal-open');
+        }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <FiCalendar className="icon-expiry" /> Products Expiring Soon (Within 3 Months)
+              </h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowExpiryModal(false);
+                  setItemsToShow(6);
+                  document.body.classList.remove('modal-open');
+                }}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="inventory-list">
+                {expiringItems.slice(0, itemsToShow).map((item, index) => (
+                  <div key={`${item.inventoryId}-${item.batchNumber}-${index}`} className="inventory-item">
+                    <div className="item-info">
+                      <span className="item-name">{item.productName}</span>
+                      <span className="item-batch">Batch: {item.batchNumber}</span>
+                    </div>
+                    <div className="item-details">
+                      <span className="item-stock">Qty: {item.quantity}</span>
+                      <span className="item-expiry">
+                        Expires: {new Date(item.expiryDate).toLocaleDateString()} 
+                        ({item.daysUntilExpiry} days)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {expiringItems.length === 0 && (
+                  <div className="no-items">No products expiring within 3 months</div>
+                )}
+              </div>
+              {itemsToShow < expiringItems.length && (
+                <button
+                  className="load-more-btn"
+                  onClick={() => setItemsToShow(prev => prev + 6)}
+                >
+                  Load More
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Low Stock Modal */}
       {showLowStockModal && (
@@ -437,9 +559,9 @@ const Home = () => {
               <div className="inventory-list">
                 {lowStockItems.slice(0, itemsToShow).map(item => (
                   <div key={item.inventoryId} className="inventory-item">
-                    <span className="item-name">{item.itemName}</span>
+                    <span className="item-name">{item.productName}</span>
                     <span className="item-stock">
-                      {item.currentStock} left (min: {item.minimumQty})
+                      {item.totalQuantity} left (min: {item.minimumQty || 0})
                     </span>
                     <FiPlusCircle
                       className="order-icon"
@@ -492,16 +614,16 @@ const Home = () => {
               <div className="inventory-list">
                 {outOfStockItems.slice(0, itemsToShow).map(item => (
                   <div key={item.inventoryId} className="inventory-item">
-                    <span className="item-name">{item.itemName}</span>
+                    <span className="item-name">{item.productName}</span>
                     <span className="item-status">Out of stock</span>
-                    <FiPlusCircle
+                    {/* <FiPlusCircle
                       className="order-icon"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleOrderItem(item);
                       }}
                       title="Create Purchase Order for this item"
-                    />
+                    /> */}
                   </div>
                 ))}
               </div>

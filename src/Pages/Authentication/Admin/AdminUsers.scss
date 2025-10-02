@@ -117,6 +117,43 @@
   }
 }
 
+/* Section Tabs */
+.section-tabs {
+  max-width: 1200px;
+  margin: 0 auto 25px;
+  display: flex;
+  gap: 10px;
+  padding: 0 25px;
+
+  .tab-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #6c757d;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      background: #e9ecef;
+      border-color: #dee2e6;
+      color: #495057;
+    }
+
+    &.active {
+      background: #7366ff;
+      border-color: #7366ff;
+      color: white;
+      box-shadow: 0 4px 12px rgba(115, 102, 255, 0.3);
+    }
+  }
+}
+
 .data-table {
   max-width: 1200px;
   margin: 30px auto;
@@ -287,6 +324,57 @@
       }
     }
   }
+
+  /* Bulk Category Section */
+  .bulk-category-section {
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid #eee;
+
+    h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #3f3f91;
+    }
+
+    p {
+      margin-bottom: 15px;
+      color: #666;
+    }
+
+    .bulk-category-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      resize: vertical;
+      margin-bottom: 15px;
+
+      &:focus {
+        border-color: #7366ff;
+        outline: none;
+      }
+    }
+
+    .bulk-category-btn {
+      background: linear-gradient(to right, #e67e22, #f39c12);
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: 0.3s;
+
+      &:hover {
+        background: linear-gradient(to right, #d35400, #e67e22);
+      }
+    }
+  }
 }
 
 @media screen and (max-width: 768px) {
@@ -314,6 +402,15 @@
         flex: 1;
         min-width: fit-content;
       }
+    }
+  }
+
+  .section-tabs {
+    flex-direction: column;
+    padding: 0 15px;
+
+    .tab-button {
+      justify-content: center;
     }
   }
 
@@ -460,11 +557,23 @@
     border-color: #7366ff;
     outline: none;
   }
+
+  &.error {
+    border-color: #f44336;
+  }
 }
 
 .edit-textarea {
   resize: vertical;
   min-height: 80px;
+}
+
+.edit-field-container {
+  .error-message {
+    color: #f44336;
+    font-size: 12px;
+    margin-top: 5px;
+  }
 }
 
 .modal-footer {

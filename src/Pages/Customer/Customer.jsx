@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
@@ -24,6 +24,13 @@ const Customer = () => {
   const [itemsPerPage, setItemsPerPage] = useState(9);
 
   const [isLoading, setIsLoading] = useState(true);
+
+  const [showBulkImport, setShowBulkImport] = useState(false);
+
+  // Add these with your other state declarations
+  const [isBulkImportLoading, setIsBulkImportLoading] = useState(false);
+  const [isFormSubmitting, setIsFormSubmitting] = useState(false);
+
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -194,6 +201,98 @@ const Customer = () => {
     XLSX.writeFile(workbook, fileName);
   };
 
+  const handleBulkImport = async (file) => {
+    try {
+      setIsBulkImportLoading(true);
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          // Validate and transform data
+          const customers = jsonData.map((row, index) => {
+            // Handle different column name variations
+            const customerName = row['Customer Name'] || row['customerName'] || row['Name'] || '';
+            const email = row['Email'] || row['email'] || '';
+            const contactNumber = row['Mobile Number'] || row['contactNumber'] || row['Mobile'] || '';
+
+            return {
+              customerName: customerName.toString().trim(),
+              email: email ? email.toString().trim() : '',
+              contactNumber: contactNumber.toString().trim()
+            };
+          }).filter(customer => customer.customerName && customer.contactNumber); // Filter out empty rows
+
+          if (customers.length === 0) {
+            toast.error("No valid customer data found in the file");
+            setIsBulkImportLoading(false);
+            return;
+          }
+
+          // Send to backend
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL}/customer/bulk-create-customers`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ customers }),
+            }
+          );
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.message || "Failed to import customers");
+          }
+
+          // Show success message with details
+          toast.success(
+            `Import completed: ${result.results.successful.length} successful, ${result.results.failed.length} failed`
+          );
+
+          // Refresh customer list
+          if (result.results.successful.length > 0) {
+            setCustomers(prev => [...result.results.successful, ...prev]);
+          }
+
+          // Show failed imports if any
+          if (result.results.failed.length > 0) {
+            console.warn("Failed imports:", result.results.failed);
+          }
+
+          setShowBulkImport(false);
+
+        } catch (error) {
+          console.error("Error processing file:", error);
+          toast.error(error.message || "Error processing the file");
+        }
+        finally {
+          setIsBulkImportLoading(false); // Stop loading
+        }
+      };
+
+      reader.onerror = () => {
+        toast.error("Error reading file");
+        setIsBulkImportLoading(false);
+      };
+
+      reader.readAsArrayBuffer(file);
+
+    } catch (error) {
+      console.error("Error in bulk import:", error);
+      toast.error("Failed to import customers");
+      setIsBulkImportLoading(false);
+    }
+  };
+
+
   // Form initial values
   const initialValues = {
     customerName: "",
@@ -218,6 +317,7 @@ const Customer = () => {
   // Handle form submission
   const handleSubmit = async (values, { resetForm, setFieldError }) => {
     try {
+      setIsFormSubmitting(true);
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/customer/create-customer`,
         {
@@ -250,6 +350,9 @@ const Customer = () => {
     } catch (error) {
       console.error("Error adding customer:", error);
       toast.error(error.message || "Error creating customer");
+    }
+    finally {
+      setIsFormSubmitting(false); // Stop loading
     }
   };
 
@@ -513,6 +616,165 @@ const Customer = () => {
     );
   };
 
+
+  // Add the BulkImportModal component
+  const BulkImportModal = ({ onClose, onImport, isLoading }) => {
+    const [file, setFile] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const handleFileSelect = (selectedFile) => {
+      if (selectedFile && !isLoading) {
+        const validTypes = [
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'text/csv'
+        ];
+
+        if (!validTypes.includes(selectedFile.type)) {
+          toast.error("Please select a valid Excel file (.xlsx, .xls, .csv)");
+          return;
+        }
+        setFile(selectedFile);
+      }
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      if (!isLoading) {
+        setIsDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      if (!isLoading) {
+        setIsDragging(false);
+        const droppedFile = e.dataTransfer.files[0];
+        handleFileSelect(droppedFile);
+      }
+    };
+
+    const handleImport = () => {
+      if (!file || isLoading) return;
+      onImport(file);
+    };
+
+    return (
+      <div className="modal-overlay" onClick={!isLoading ? onClose : undefined}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title">
+              {isLoading ? "Importing Customers..." : "Bulk Import Customers"}
+            </div>
+            {!isLoading && (
+              <button className="modal-close" onClick={onClose}>&times;</button>
+            )}
+          </div>
+
+          <div className="modal-body">
+            {isLoading ? (
+              <div className="import-loading">
+                <div className="loading-spinner large"></div>
+                <p>Importing customers, please wait...</p>
+                <div className="loading-progress">
+                  <div className="progress-bar">
+                    <div className="progress-fill"></div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="import-instructions">
+                  <h4>File Requirements:</h4>
+                  <ul>
+                    <li>File format: Excel (.xlsx, .xls) or CSV</li>
+                    <li>Required columns: <strong>Customer Name</strong>, <strong>Mobile Number</strong></li>
+                    <li>Optional columns: Email</li>
+                    <li>Maximum 1000 records per file</li>
+                  </ul>
+                </div>
+
+                <div
+                  className={`file-drop-zone ${isDragging ? 'dragging' : ''} ${file ? 'has-file' : ''} ${isLoading ? 'disabled' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => !isLoading && fileInputRef.current?.click()}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    disabled={isLoading}
+                  />
+
+                  {file ? (
+                    <div className="file-selected">
+                      <FaFileExcel className="file-icon" />
+                      <div className="file-info">
+                        <div className="file-name">{file.name}</div>
+                        <div className="file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                      </div>
+                      {!isLoading && (
+                        <button
+                          className="remove-file"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFile(null);
+                          }}
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="file-placeholder">
+                      <FaFileExcel className="upload-icon" />
+                      <p>Drop Excel file here or click to browse</p>
+                      <small>Supports .xlsx, .xls, .csv files</small>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="modal-footer">
+            {!isLoading && (
+              <button className="cancel-btn" onClick={onClose}>
+                Cancel
+              </button>
+            )}
+            <button
+              className={`import-btn ${isLoading ? 'loading' : ''}`}
+              onClick={handleImport}
+              disabled={!file || isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <div className="loading-spinner small"></div>
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <FaFileExcel /> Import Customers
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Navbar>
       <ToastContainer position="top-center" autoClose={3000} />
@@ -530,6 +792,13 @@ const Customer = () => {
               />
             </div>
             <div className="action-buttons-group">
+
+              <button
+                className="bulk-import-btn"
+                onClick={() => setShowBulkImport(true)}
+              >
+                <FaFileExcel /> Bulk Import
+              </button>
               <button className="export-all-btn" onClick={exportAllAsExcel}>
                 <FaFileExcel /> Export All
               </button>
@@ -573,7 +842,16 @@ const Customer = () => {
                   </div>
                 </div>
 
-                <button type="submit">Submit</button>
+                <button type="submit" disabled={isFormSubmitting}>
+                  {isFormSubmitting ? (
+                    <>
+                      <div className="loading-spinner small"></div>
+                      Adding...
+                    </>
+                  ) : (
+                    "Submit"
+                  )}
+                </button>
               </Form>
             </Formik>
           </div>
@@ -632,7 +910,16 @@ const Customer = () => {
             onDelete={handleDeleteCustomer}
           />
         )}
+
+        {showBulkImport && (
+          <BulkImportModal
+            onClose={() => setShowBulkImport(false)}
+            onImport={handleBulkImport}
+            isLoading={isBulkImportLoading}
+          />
+        )}
       </div>
+
     </Navbar>
   );
 };

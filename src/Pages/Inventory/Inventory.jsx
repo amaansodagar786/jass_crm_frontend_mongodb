@@ -6,7 +6,7 @@ import "./Inventory.scss";
 import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-// import XLSX from 'xlsx'; 
+import * as XLSX from 'xlsx';
 
 const Inventory = () => {
     const [inventory, setInventory] = useState([]);
@@ -42,11 +42,45 @@ const Inventory = () => {
 
     const [expandedBatchDisposals, setExpandedBatchDisposals] = useState(new Set());
 
+    const [productPrice, setProductPrice] = useState("");
 
     useEffect(() => {
         window.scrollTo(0, 0);
         fetchData();
         fetchProducts();
+    }, []);
+
+    // In your Inventory.js component
+    useEffect(() => {
+        const runAutoCleanup = async () => {
+            try {
+                // Check if cleanup was run today
+                const lastCleanup = localStorage.getItem('lastAutoCleanup');
+                const today = new Date().toDateString();
+
+                if (lastCleanup !== today) {
+                    const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/run-cleanup`);
+
+                    if (response.data.success && response.data.data) {
+                        const results = response.data.data;
+
+                        // Show notification if batches were cleaned up
+                        if (results.zeroQuantity.count > 0 || results.expired.count > 0) {
+                            toast.info(
+                                `Auto-cleanup: ${results.zeroQuantity.count} empty batches and ${results.expired.count} expired batches removed`
+                            );
+                        }
+
+                        localStorage.setItem('lastAutoCleanup', today);
+                    }
+                }
+            } catch (error) {
+                console.error("Auto-cleanup failed:", error);
+                // Don't show error to user - fail silently
+            }
+        };
+
+        runAutoCleanup();
     }, []);
 
     useEffect(() => {
@@ -167,6 +201,105 @@ const Inventory = () => {
         });
     };
 
+    // Export Functions
+    const exportToExcel = () => {
+        try {
+            // Data to export (basic inventory data)
+            const exportData = filteredInventory.map(item => ({
+                'Product Name': item.productName,
+                'Category': item.category,
+                'HSN Code': item.hsnCode || '-',
+                'Price': `₹${item.price?.toFixed(2) || "0.00"}`,
+                'Total Quantity': item.totalQuantity,
+                'Status': item.status
+            }));
+
+            // Create worksheet
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+            // Create workbook
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `inventory_export_${timestamp}.xlsx`;
+
+            // Download file
+            XLSX.writeFile(workbook, filename);
+
+            toast.success("Inventory exported successfully!");
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            toast.error("Failed to export inventory");
+        }
+    };
+
+    const exportWithBatches = () => {
+        try {
+            const exportData = [];
+
+            filteredInventory.forEach(item => {
+                // Add main product row
+                exportData.push({
+                    'Product Name': item.productName,
+                    'Category': item.category,
+                    'HSN Code': item.hsnCode || '-',
+                    'Price': `₹${item.price?.toFixed(2) || "0.00"}`,
+                    'Total Quantity': item.totalQuantity,
+                    'Status': item.status,
+                    'Batch Number': '-',
+                    'Batch Quantity': '-',
+                    'Current Quantity': '-',
+                    'Manufacture Date': '-',
+                    'Expiry Date': '-',
+                    'Added On': '-',
+                    'Total Disposed': '-'
+                });
+
+                // Add batch rows if available
+                if (item.batches && item.batches.length > 0) {
+                    item.batches.forEach(batch => {
+                        exportData.push({
+                            'Product Name': '',
+                            'Category': '',
+                            'HSN Code': '',
+                            'Price': '',
+                            'Total Quantity': '',
+                            'Status': '',
+                            'Batch Number': batch.batchNumber,
+                            'Batch Quantity': batch.originalQuantity,
+                            'Current Quantity': batch.currentQuantity,
+                            'Manufacture Date': new Date(batch.manufactureDate).toLocaleDateString(),
+                            'Expiry Date': new Date(batch.expiryDate).toLocaleDateString(),
+                            'Added On': new Date(batch.addedAt).toLocaleDateString(),
+                            'Total Disposed': batch.totalDisposed || 0
+                        });
+                    });
+                }
+            });
+
+            // Create worksheet
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+            // Create workbook
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory with Batches');
+
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `inventory_with_batches_${timestamp}.xlsx`;
+
+            // Download file
+            XLSX.writeFile(workbook, filename);
+
+            toast.success("Inventory with batches exported successfully!");
+        } catch (error) {
+            console.error("Error exporting with batches:", error);
+            toast.error("Failed to export inventory with batches");
+        }
+    };
+
     // Add Qty Modal Functions
     const addBatchRow = () => {
         setBatches([...batches, { batchNumber: "", quantity: "", expiryDate: "" }]);
@@ -187,59 +320,83 @@ const Inventory = () => {
     };
 
     const handleAddQtySubmit = async (e) => {
-        e.preventDefault();
+    e.preventDefault();
 
-        if (!selectedProduct) {
-            toast.error("Please select a product");
-            return;
-        }
+    if (!selectedProduct) {
+        toast.error("Please select a product");
+        return;
+    }
 
-        // Validate batches
-        const validBatches = batches.filter(batch =>
-            batch.batchNumber && batch.quantity && batch.manufactureDate
-        );
+    if (!productPrice) {
+        toast.error("Please enter purchase price per unit");
+        return;
+    }
 
-        if (validBatches.length === 0) {
-            toast.error("Please add at least one valid batch");
-            return;
-        }
+    // Validate batches
+    const validBatches = batches.filter(batch =>
+        batch.batchNumber && batch.quantity && batch.manufactureDate
+    );
 
-        try {
-            const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
-                productId: selectedProduct.productId,
-                batches: validBatches.map(batch => {
-                    const manufactureDate = new Date(batch.manufactureDate);
-                    const expiryDate = new Date(manufactureDate);
-                    expiryDate.setMonth(expiryDate.getMonth() + 36); // Add 36 months
+    if (validBatches.length === 0) {
+        toast.error("Please add at least one valid batch");
+        return;
+    }
 
-                    return {
-                        batchNumber: batch.batchNumber,
-                        quantity: parseInt(batch.quantity),
-                        manufactureDate: manufactureDate,
-                        expiryDate: expiryDate
-                    }
-                })
-            });
+    try {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
+            productId: selectedProduct.productId,
+            price: parseFloat(productPrice),
+            batches: validBatches.map(batch => {
+                // Extract only YYYY-MM from the month input
+                // The input type="month" returns format like "2024-04"
+                const yearMonth = batch.manufactureDate.substring(0, 7); // Get YYYY-MM
+                
+                return {
+                    batchNumber: batch.batchNumber,
+                    quantity: parseInt(batch.quantity),
+                    manufactureDate: yearMonth // Send only YYYY-MM format
+                }
+            })
+        });
 
-            if (response.data.success) {
-                toast.success("Batches added successfully!");
-                setShowAddQtyModal(false);
-                resetAddQtyForm();
-                fetchData();
+        // ✅ FIX: Check if operation was successful (even with some warnings)
+        if (response.data.success) {
+            // Check if there are any errors in the response
+            if (response.data.errors && response.data.errors.length > 0) {
+                // Show warning but still consider it success
+                toast.warning(`Batches processed with some warnings: ${response.data.message}`);
+            } else {
+                toast.success(response.data.message || "Batches processed successfully!");
             }
-        } catch (error) {
-            console.error("Error adding batches:", error);
+
+            setShowAddQtyModal(false);
+            resetAddQtyForm();
+            fetchData();
+        } else {
+            // ❌ Actual failure
+            toast.error(response.data.message || "Failed to add batches");
+        }
+    } catch (error) {
+        console.error("Error adding batches:", error);
+
+        // ✅ FIX: Better error handling
+        if (error.response?.data?.message) {
+            toast.error("Error adding batches: " + error.response.data.message);
+        } else if (error.response?.data?.errors?.length > 0) {
+            toast.error("Error adding batches: " + error.response.data.errors[0].message);
+        } else {
             toast.error("Error adding batches: " + (error.response?.data?.message || error.message));
         }
-    };
+    }
+};
 
     const resetAddQtyForm = () => {
         setSelectedProduct(null);
         setProductSearch("");
-        setBatches([{ batchNumber: "", quantity: "", expiryDate: "" }]);
+        setProductPrice(""); // Reset price
+        setBatches([{ batchNumber: "", quantity: "", manufactureDate: "" }]);
     };
 
-    // Bulk Upload Functions
     // Bulk Upload Functions - UPDATED
     const handleBulkUpload = async (e) => {
         e.preventDefault();
@@ -340,16 +497,11 @@ const Inventory = () => {
 
     const downloadTemplate = () => {
         try {
-            // Check if XLSX is available
-            if (typeof XLSX === 'undefined') {
-                throw new Error('XLSX library not loaded');
-            }
-
             const templateData = [
-                ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date'],
-                ['Example Product 1', 'BATCH-001', '50', '2024-01-15'],
-                ['Example Product 2', 'BATCH-002', '25', '2024-02-20'],
-                ['Example Product 3', 'BATCH-003', '100', '2024-03-10']
+                ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date (YYYY-MM)', 'Price'],
+                ['Example Product 1', 'BATCH-001', '50', '2024-01', '100.00'],
+                ['Example Product 2', 'BATCH-002', '25', '2024-02', '150.00'],
+                ['Example Product 3', 'BATCH-003', '100', '2024-03', '200.00']
             ];
 
             // Create worksheet
@@ -368,9 +520,9 @@ const Inventory = () => {
 
             // Fallback to CSV
             const templateData = [
-                ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date'],
-                ['Example Product 1', 'BATCH-001', '50', '2024-01-15'],
-                ['Example Product 2', 'BATCH-002', '25', '2024-02-20']
+                ['Product Name', 'Batch Number', 'Quantity', 'Manufacture Date (YYYY-MM)', 'Price'],
+                ['Example Product 1', 'BATCH-001', '50', '2024-01', '100.00'],
+                ['Example Product 2', 'BATCH-002', '25', '2024-02', '150.00']
             ];
 
             let csvContent = "data:text/csv;charset=utf-8,";
@@ -513,8 +665,6 @@ const Inventory = () => {
 
     return (
         <Navbar>
-
-
             <ToastContainer
                 position="top-center"
                 autoClose={5000}
@@ -525,8 +675,6 @@ const Inventory = () => {
                 pauseOnFocusLoss
                 draggable
                 pauseOnHover
-
-
             />
 
             <div className="inventory-page">
@@ -571,10 +719,22 @@ const Inventory = () => {
                             >
                                 <FaUpload /> Bulk Upload
                             </button>
-                            <button className="export-all-btn" onClick={handleExport}>
-                                <FaFileExport /> Export
-                            </button>
+                            {/* <button className="export-all-btn" onClick={handleExport}>
+                                <FaFileExport /> Export PDF
+                            </button> */}
                         </div>
+                    </div>
+                </div>
+
+                {/* Export Buttons Row */}
+                <div className="export-buttons-row">
+                    <div className="export-buttons-container">
+                        <button className="export-btn" onClick={exportToExcel}>
+                            <FaFileExport /> Export
+                        </button>
+                        <button className="export-with-batches-btn" onClick={exportWithBatches}>
+                            <FaFileExport /> Export with Batches
+                        </button>
                     </div>
                 </div>
 
@@ -826,6 +986,20 @@ const Inventory = () => {
                                     )}
                                 </div>
 
+                                <div className="form-group">
+                                    <label>Purchase Price per Unit (₹) *</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={productPrice}
+                                        onChange={(e) => setProductPrice(e.target.value)}
+                                        placeholder="Enter purchase price per unit"
+                                        min="0.01"
+                                        required
+                                    />
+                                    <small>This price will be recorded for this inventory addition</small>
+                                </div>
+
                                 <div className="batches-section">
                                     <div className="section-header">
                                         <label>Batch Details *</label>
@@ -858,14 +1032,13 @@ const Inventory = () => {
                                                 />
                                             </div>
                                             <div className="form-group">
-                                                <label>Manufacture Date *</label>
+                                                <label>Manufacture Date (Year & Month) *</label>
                                                 <input
-                                                    type="date"
+                                                    type="month"
                                                     value={batch.manufactureDate}
                                                     onChange={(e) => updateBatch(index, "manufactureDate", e.target.value)}
                                                     required
                                                 />
-                                                {/* <small>Expiry will be automatically calculated (36 months from manufacture)</small>  */}
                                             </div>
                                             {batches.length > 1 && (
                                                 <button type="button" onClick={() => removeBatchRow(index)} className="remove-batch-btn">
@@ -907,7 +1080,7 @@ const Inventory = () => {
                                         onChange={(e) => setUploadFile(e.target.files[0])}
                                         required
                                     />
-                                    <small>Format: Product Name, Batch Number, Quantity, Manufacture Date (YYYY-MM-DD)</small>
+                                    <small>Format: Product Name, Batch Number, Quantity, Manufacture Date (YYYY-MM), Price</small>
                                 </div>
 
                                 <div className="download-template">
@@ -932,7 +1105,6 @@ const Inventory = () => {
                         </div>
                     </div>
                 )}
-
 
                 {/* Error Report Modal */}
                 {showErrorModal && (

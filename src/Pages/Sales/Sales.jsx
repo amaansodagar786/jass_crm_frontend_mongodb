@@ -47,6 +47,9 @@ const Sales = () => {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [categories, setCategories] = useState([]);
 
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [isBulkImportLoading, setIsBulkImportLoading] = useState(false);
+
   // Fetch all data on component mount
   useEffect(() => {
     fetchCustomers();
@@ -283,21 +286,7 @@ const Sales = () => {
     setItemSearchTerm("");
   };
 
-  // Inventory update function
-  const updateInventoryQuantities = async (invoiceItems) => {
-    try {
-      for (const item of invoiceItems) {
-        await axios.put(`${import.meta.env.VITE_API_URL}/inventory/update-batch-quantity`, {
-          productId: item.productId,
-          batchNumber: item.batchNumber,
-          quantitySold: item.quantity
-        });
-      }
-    } catch (error) {
-      console.error("Error updating inventory:", error);
-      throw new Error("Failed to update inventory quantities");
-    }
-  };
+
 
   // Item management
   const handleItemUpdate = (index, field, value) => {
@@ -592,7 +581,6 @@ const Sales = () => {
   };
 
   // PDF generation
-  // Update the generatePDF function
   const generatePDF = async (invoice) => {
     if (!invoice) return;
     if (isExporting) return;
@@ -678,7 +666,7 @@ const Sales = () => {
       setIsExporting(false);
     }
   };
-  // Excel export
+
   // Excel export - UPDATED VERSION with complete calculations
   const handleExportExcel = () => {
     if (invoices.length === 0) {
@@ -856,6 +844,183 @@ const Sales = () => {
 
     return filtered;
   }, [searchTerm, invoices, categoryFilter]);
+
+
+  // Bulk import function - Groups items by invoice
+  const handleBulkImport = async (file) => {
+    try {
+      setIsBulkImportLoading(true);
+
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          if (jsonData.length === 0) {
+            toast.error("No data found in the file");
+            setIsBulkImportLoading(false);
+            return;
+          }
+
+          console.log("Raw Excel data:", jsonData[0]); // Debug first row
+
+          // Group rows by invoice number
+          const invoicesMap = new Map();
+
+          jsonData.forEach((row, index) => {
+            const invoiceNumber = row['Invoice Number'];
+
+            if (!invoiceNumber) {
+              console.warn(`Skipping row ${index + 1}: No invoice number`);
+              return;
+            }
+
+            if (!invoicesMap.has(invoiceNumber)) {
+              // Create new invoice structure with ALL fields from Excel
+              invoicesMap.set(invoiceNumber, {
+                invoiceNumber: invoiceNumber,
+                date: row['Date'] || new Date().toISOString().split('T')[0],
+                customer: {
+                  customerId: row['Customer ID'] || `CUST-${invoiceNumber}`,
+                  customerNumber: row['Customer ID'] || `CUST-${invoiceNumber}`,
+                  name: row['Customer Name'] || '',
+                  email: row['Customer Email'] || '',
+                  mobile: row['Customer Mobile'] || ''
+                },
+                items: [],
+                paymentType: row['Payment Type'] || 'cash',
+                // IMPORTANT: Read all calculation fields from Excel
+                subtotal: parseFloat(row['Subtotal']) || 0,
+                baseValue: parseFloat(row['Base Value']) || 0,
+                discount: parseFloat(row['Total Discount']) || 0,
+                tax: parseFloat(row['Total Tax']) || 0,
+                cgst: parseFloat(row['CGST']) || 0,
+                sgst: parseFloat(row['SGST']) || 0,
+                total: parseFloat(row['Grand Total']) || 0,
+                hasMixedTaxRates: row['Has Mixed Tax Rates'] === 'Yes',
+                taxPercentages: row['Tax Percentages'] ?
+                  row['Tax Percentages'].toString().split(',').map(p => parseFloat(p.trim())).filter(n => !isNaN(n)) : [],
+                remarks: row['Remarks'] || '',
+                createdAt: row['Created At'] ? new Date(row['Created At']) : new Date(),
+                updatedAt: row['Updated At'] ? new Date(row['Updated At']) : new Date()
+              });
+            }
+
+            // Add item to the invoice if it has valid item data
+            const currentInvoice = invoicesMap.get(invoiceNumber);
+            if (row['Item Name'] && row['Item Name'] !== 'No items') {
+              const newItem = {
+                productId: row['Item Product ID'] || `PROD-${invoiceNumber}-${index}`,
+                name: row['Item Name'],
+                barcode: row['Item Barcode'] || '',
+                hsn: row['Item HSN'] || row['HSN Code'] || '',
+                category: row['Item Category'] || row['Category'] || '',
+                price: parseFloat(row['Item Price']) || 0,
+                taxSlab: parseFloat(row['Item Tax Slab']) || 18,
+                quantity: parseInt(row['Item Quantity']) || 1,
+                discount: parseFloat(row['Item Discount %']) || 0,
+                batchNumber: row['Item Batch Number'] || 'DEFAULT',
+                expiryDate: row['Item Expiry Date'] || null,
+                // IMPORTANT: Read all item calculation fields
+                baseValue: parseFloat(row['Item Base Value']) || 0,
+                discountAmount: parseFloat(row['Item Discount Amount']) || 0,
+                taxAmount: parseFloat(row['Item Tax Amount']) || 0,
+                cgstAmount: parseFloat(row['Item CGST Amount']) || 0,
+                sgstAmount: parseFloat(row['Item SGST Amount']) || 0,
+                totalAmount: parseFloat(row['Item Total Amount']) || 0
+              };
+
+              currentInvoice.items.push(newItem);
+            }
+          });
+
+          const invoicesToImport = Array.from(invoicesMap.values());
+
+          console.log(`Processed ${invoicesToImport.length} invoices with multiple items`);
+
+          // Debug: Check if data is properly read
+          if (invoicesToImport.length > 0) {
+            const sampleInvoice = invoicesToImport[0];
+            console.log("Sample invoice data:", {
+              invoiceNumber: sampleInvoice.invoiceNumber,
+              subtotal: sampleInvoice.subtotal,
+              cgst: sampleInvoice.cgst,
+              sgst: sampleInvoice.sgst,
+              taxPercentages: sampleInvoice.taxPercentages,
+              hasMixedTaxRates: sampleInvoice.hasMixedTaxRates,
+              items: sampleInvoice.items.map(item => ({
+                name: item.name,
+                cgstAmount: item.cgstAmount,
+                sgstAmount: item.sgstAmount
+              }))
+            });
+          }
+
+          // Send to backend
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL}/invoices/bulk-import-invoices`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ invoices: invoicesToImport }),
+            }
+          );
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.message || "Failed to import invoices");
+          }
+
+          // Show detailed results
+          const totalInvoices = invoicesToImport.length;
+          const totalItems = invoicesToImport.reduce((sum, inv) => sum + inv.items.length, 0);
+
+          toast.success(
+            `Import completed: ${result.results.successful.length}/${totalInvoices} invoices successful, ${totalItems} total items`
+          );
+
+          // Refresh invoices list
+          if (result.results.successful.length > 0) {
+            await fetchInvoices();
+          }
+
+          // Log failed imports for debugging
+          if (result.results.failed.length > 0) {
+            console.warn("Failed imports:", result.results.failed);
+            toast.info(`${result.results.failed.length} invoices failed to import. Check console for details.`);
+          }
+
+          setShowBulkImport(false);
+
+        } catch (error) {
+          console.error("Error processing file:", error);
+          toast.error(error.message || "Error processing the file");
+        } finally {
+          setIsBulkImportLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        toast.error("Error reading file");
+        setIsBulkImportLoading(false);
+      };
+
+      reader.readAsArrayBuffer(file);
+
+    } catch (error) {
+      console.error("Error in bulk import:", error);
+      toast.error("Failed to import invoices");
+      setIsBulkImportLoading(false);
+    }
+  };
 
   // Modal component
   const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete }) => {
@@ -1174,6 +1339,166 @@ const Sales = () => {
     );
   };
 
+
+  // Bulk Import Modal Component
+  const BulkImportModal = ({ onClose, onImport, isLoading }) => {
+    const [file, setFile] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const handleFileSelect = (selectedFile) => {
+      if (selectedFile && !isLoading) {
+        const validTypes = [
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'text/csv'
+        ];
+
+        if (!validTypes.includes(selectedFile.type)) {
+          toast.error("Please select a valid Excel file (.xlsx, .xls, .csv)");
+          return;
+        }
+        setFile(selectedFile);
+      }
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      if (!isLoading) {
+        setIsDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      if (!isLoading) {
+        setIsDragging(false);
+        const droppedFile = e.dataTransfer.files[0];
+        handleFileSelect(droppedFile);
+      }
+    };
+
+    const handleImport = () => {
+      if (!file || isLoading) return;
+      onImport(file);
+    };
+
+    return (
+      <div className="modal-overlay" onClick={!isLoading ? onClose : undefined}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <div className="modal-title">
+              {isLoading ? "Importing Invoices..." : "Bulk Import Invoices"}
+            </div>
+            {!isLoading && (
+              <button className="modal-close" onClick={onClose}>&times;</button>
+            )}
+          </div>
+
+          <div className="modal-body">
+            {isLoading ? (
+              <div className="import-loading">
+                <div className="loading-spinner large"></div>
+                <p>Importing invoices, please wait...</p>
+                <div className="loading-progress">
+                  <div className="progress-bar">
+                    <div className="progress-fill"></div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="import-instructions">
+                  <h4>File Requirements:</h4>
+                  <ul>
+                    <li>File format: Excel (.xlsx, .xls) or CSV</li>
+                    <li>Must contain the exported invoice data with original structure</li>
+                    <li>Multiple items in same invoice will be grouped automatically</li>
+                    <li>Invoice numbers will be preserved as in the file</li>
+                    <li>All data will be imported as-is without validation</li>
+                  </ul>
+                </div>
+
+                <div
+                  className={`file-drop-zone ${isDragging ? 'dragging' : ''} ${file ? 'has-file' : ''} ${isLoading ? 'disabled' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => !isLoading && fileInputRef.current?.click()}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    disabled={isLoading}
+                  />
+
+                  {file ? (
+                    <div className="file-selected">
+                      <FaFileExcel className="file-icon" />
+                      <div className="file-info">
+                        <div className="file-name">{file.name}</div>
+                        <div className="file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                      </div>
+                      {!isLoading && (
+                        <button
+                          className="remove-file"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFile(null);
+                          }}
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="file-placeholder">
+                      <FaFileExcel className="upload-icon" />
+                      <p>Drop Excel file here or click to browse</p>
+                      <small>Supports .xlsx, .xls, .csv files</small>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="modal-footer">
+            {!isLoading && (
+              <button className="cancel-btn" onClick={onClose}>
+                Cancel
+              </button>
+            )}
+            <button
+              className={`import-btn ${isLoading ? 'loading' : ''}`}
+              onClick={handleImport}
+              disabled={!file || isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <div className="loading-spinner small"></div>
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <FaFileExcel /> Import Invoices
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const invoiceTotals = calculateInvoiceTotals();
 
   return (
@@ -1220,6 +1545,15 @@ const Sales = () => {
               />
             </div>
             <div className="action-buttons-group">
+
+              <button
+                className="bulk-import-btn"
+                onClick={() => setShowBulkImport(true)}
+              >
+                <FaFileExcel /> Bulk Import
+              </button>
+
+
               <button className="export-all-btn" onClick={handleExportExcel}>
                 <FaFileExcel /> Export All
               </button>
@@ -1696,6 +2030,14 @@ const Sales = () => {
             onClose={() => setSelectedInvoice(null)}
             onUpdate={handleUpdateInvoice}
             onDelete={handleDeleteInvoice}
+          />
+        )}
+
+        {showBulkImport && (
+          <BulkImportModal
+            onClose={() => setShowBulkImport(false)}
+            onImport={handleBulkImport}
+            isLoading={isBulkImportLoading}
           />
         )}
 

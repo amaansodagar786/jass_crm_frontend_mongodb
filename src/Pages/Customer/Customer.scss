@@ -1,5 +1,4 @@
-.main
-{
+.main {
   background: #dfeafb !important;
 }
 
@@ -8,7 +7,7 @@
   margin: 0 auto 25px;
   padding: 20px 25px;
   background: #ffffff;
-  
+
 
   border-radius: 12px;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
@@ -52,7 +51,7 @@
       transition: 0.3s;
       box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05),
         0 2px 5px rgba(0, 0, 0, 0.08);
-        
+
       &:focus {
         outline: none;
         background: #fff;
@@ -312,6 +311,7 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -333,6 +333,7 @@
       transform: translateY(20px);
       opacity: 0;
     }
+
     to {
       transform: translateY(0);
       opacity: 1;
@@ -399,13 +400,14 @@
   word-break: break-word;
 }
 
-.edit-input, .edit-textarea {
+.edit-input,
+.edit-textarea {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
-  
+
   &:focus {
     border-color: #7366ff;
     outline: none;
@@ -465,7 +467,7 @@
 
   .update-btn {
     background-color: #7366ff;
-    
+
     &.save-btn {
       background-color: #ff7043;
     }
@@ -556,7 +558,7 @@
   .modal-footer {
     padding: 12px 15px;
     flex-direction: column;
-    
+
     button {
       width: 100%;
       padding: 12px 20px;
@@ -609,14 +611,14 @@
   justify-content: center;
   padding: 40px;
   text-align: center;
-  
+
   .loading-spinner.large {
     width: 40px;
     height: 40px;
     border-width: 3px;
     margin-bottom: 15px;
   }
-  
+
   p {
     color: #666;
     font-size: 16px;
@@ -641,6 +643,276 @@
 }
 
 @keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+
+
+
+// BULK UPLOAD 
+
+.bulk-import-btn {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+  }
+
+  &:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.file-drop-zone {
+  border: 2px dashed #3f3f91;
+  border-radius: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+
+  &.dragging {
+    background: #e3f2fd;
+    border-color: #2196f3;
+  }
+
+  &.has-file {
+    background: #e8f5e8;
+    border-color: #28a745;
+  }
+
+  .file-placeholder {
+    .upload-icon {
+      font-size: 48px;
+      color: #3f3f91;
+      margin-bottom: 16px;
+    }
+
+    p {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      color: #333;
+    }
+
+    small {
+      color: #666;
+    }
+  }
+
+  .file-selected {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+
+    .file-icon {
+      font-size: 32px;
+      color: #28a745;
+    }
+
+    .file-info {
+      text-align: left;
+
+      .file-name {
+        font-weight: 500;
+        color: #333;
+      }
+
+      .file-size {
+        color: #666;
+        font-size: 12px;
+      }
+    }
+
+    .remove-file {
+      background: #dc3545;
+      color: white;
+      border: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+}
+
+.import-instructions {
+  background: #e3f2fd;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+
+  h4 {
+    margin: 0 0 12px 0;
+    color: #1976d2;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 20px;
+
+    li {
+      margin-bottom: 4px;
+      color: #555;
+    }
+  }
+}
+
+.import-btn {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+  }
+
+  &:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+  }
+}
+
+.cancel-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &:hover {
+    background: #5a6268;
+  }
+}
+
+
+
+// Loading states for buttons
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.loading-spinner {
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3f3f91;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+
+  &.small {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    margin-right: 8px;
+  }
+
+  &.large {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 20px;
+  }
+}
+
+@keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+// Import loading state
+.import-loading {
+  text-align: center;
+  padding: 40px 20px;
+
+  p {
+    margin: 0 0 20px 0;
+    color: #3f3f91;
+    font-size: 16px;
+  }
+}
+
+.loading-progress {
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3f3f91, #6a6ac5);
+  border-radius: 3px;
+  animation: progressAnimation 2s ease-in-out infinite;
+}
+
+@keyframes progressAnimation {
+  0% { width: 0%; }
+  50% { width: 70%; }
+  100% { width: 100%; }
+}
+
+// Disabled state for file drop zone
+.file-drop-zone.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  
+  .file-placeholder, .file-selected {
+    pointer-events: none;
+  }
+}
+
+// Loading state for import button
+.import-btn.loading {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+// Form submit button loading state
+.form-container button[type="submit"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  
+  &:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+  }
 }

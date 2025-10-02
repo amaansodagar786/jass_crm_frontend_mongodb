@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import {
     FaBox, FaBarcode, FaHashtag, FaDollarSign,
@@ -26,6 +26,10 @@ const DiscountProduct = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isSavingAll, setIsSavingAll] = useState(false);
     const [originalDiscounts, setOriginalDiscounts] = useState({});
+
+    const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
+    const [pendingNavigation, setPendingNavigation] = useState(null);
+
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -335,8 +339,110 @@ const DiscountProduct = () => {
         }
     };
 
+    // Handle unsaved changes alert actions
+    const handleUnsavedAlertAction = async (action) => {
+        if (action === 'save') {
+            await saveAllDiscounts();
+            setShowUnsavedAlert(false);
+            if (pendingNavigation) {
+                navigate(pendingNavigation);
+                setPendingNavigation(null);
+            }
+        } else if (action === 'cancel') {
+            // Revert all changes
+            setEditingDiscounts(originalDiscounts);
+            setShowUnsavedAlert(false);
+            setPendingNavigation(null);
+        } else if (action === 'continue') {
+            setShowUnsavedAlert(false);
+            if (pendingNavigation) {
+                navigate(pendingNavigation);
+                setPendingNavigation(null);
+            }
+        }
+    };
+
+
+    // Check for unsaved discount changes
+    const hasUnsavedChanges = useMemo(() => {
+        return Object.keys(editingDiscounts).some(productId =>
+            editingDiscounts[productId] !== originalDiscounts[productId]
+        );
+    }, [editingDiscounts, originalDiscounts]);
+
+
+    // Unsaved Changes Alert Modal
+    const UnsavedChangesAlert = () => {
+        if (!showUnsavedAlert) return null;
+
+        const changedCount = Object.keys(editingDiscounts).filter(
+            productId => editingDiscounts[productId] !== originalDiscounts[productId]
+        ).length;
+
+        return (
+            <div className="modal-overlay unsaved-alert-overlay">
+                <div className="modal-content unsaved-alert">
+                    <div className="modal-header">
+                        <div className="modal-title">Unsaved Changes</div>
+                    </div>
+                    <div className="modal-body">
+                        <p>You have {changedCount} unsaved discount change(s). What would you like to do?</p>
+                    </div>
+                    <div className="modal-footer">
+                        <button
+                            className="save-all-btn"
+                            onClick={() => handleUnsavedAlertAction('save')}
+                            disabled={isSavingAll}
+                        >
+                            {isSavingAll ? (
+                                <>
+                                    <div className="loading-spinner small"></div>
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <FaSave />
+                                    Save & Go
+                                </>
+                            )}
+                        </button>
+                        <button
+                            className="cancel-changes-btn"
+                            onClick={() => handleUnsavedAlertAction('cancel')}
+                        >
+                            Discard
+                        </button>
+                        <button
+                            className="continue-editing-btn"
+                            onClick={() => handleUnsavedAlertAction('continue')}
+                        >
+                            Go Without Saving
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+
+    // Navigation guard for unsaved changes
+    const handleNavigation = useCallback((path) => {
+        console.log('Navigation attempted to:', path);
+        console.log('Has unsaved changes:', hasUnsavedChanges);
+
+        if (hasUnsavedChanges) {
+            console.log('Showing unsaved alert');
+            setPendingNavigation(path);
+            setShowUnsavedAlert(true);
+        } else {
+            console.log('Navigating directly');
+            navigate(path);
+        }
+    }, [hasUnsavedChanges, navigate]);
+
     return (
-        <Navbar>
+        // In the return statement, update the Navbar component
+        <Navbar onNavigation={handleNavigation}>
             <ToastContainer position="top-center" autoClose={3000} />
             <div className="main">
                 <div className="page-header">
@@ -528,6 +634,9 @@ const DiscountProduct = () => {
                         </>
                     )}
                 </div>
+
+
+                <UnsavedChangesAlert />
             </div>
         </Navbar>
     );

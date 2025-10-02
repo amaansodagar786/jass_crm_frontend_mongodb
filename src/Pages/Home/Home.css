@@ -22,7 +22,7 @@
   font-size: 1.1rem;
 }
 
-/* Inventory Alerts */
+/* Inventory Alerts - Updated for 3 columns */
 .inventory-alerts {
   background: linear-gradient(135deg, #f8f9fc 0%, #e9ecef 100%);
   border-radius: 10px;
@@ -52,20 +52,36 @@
   }
 }
 
+@media (min-width: 1200px) {
+  .alert-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .alert-section {
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.alert-section:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Expiry Alert Styles */
+.expiry-alert {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border: 1px solid #ffd351;
 }
 
 .low-stock-alert {
   background: linear-gradient(135deg, #f4ecfc 0%, #e8dcf8 100%);
   border: 1px solid #d9c6f0;
-
 }
 
 .out-of-stock-alert {
-
   background: linear-gradient(135deg, #ffecf4 0%, #f9d8e6 100%);
   border: 1px solid #ffcce0;
 }
@@ -78,6 +94,11 @@
   color: #333;
 }
 
+.icon-expiry {
+  color: #ff9800;
+  margin-right: 10px;
+}
+
 .icon-warning {
   color: #f6c23e;
   margin-right: 10px;
@@ -88,35 +109,17 @@
   margin-right: 10px;
 }
 
-.alert-section ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.alert-count {
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 10px;
+  color: #333;
 }
 
-.alert-section li {
-  padding: 12px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  background-color: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid;
-  display: flex;
-  justify-content: start;
-  align-items: center;
-  gap: 1rem;
-}
-
-.alert-section li:last-child {
-  margin-bottom: 0;
-}
-
-.low-stock-alert li {
-  border-left-color: #f6c23e;
-}
-
-.out-of-stock-alert li {
-  border-left-color: #e74a3b;
+/* Clickable alert sections */
+.clickable-alert {
+  cursor: pointer;
 }
 
 /* Metrics Grid */
@@ -184,7 +187,6 @@
   font-size: 0.8rem;
 }
 
-/* Pending Actions Section */
 /* Pending Actions Section */
 .pending-actions {
   display: grid;
@@ -281,9 +283,6 @@
   padding: 10px 0;
 }
 
-
-
-
 /* Charts Section */
 .charts-section {
   display: grid;
@@ -359,77 +358,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  /* height: 100vh;  */
   font-size: 1.2rem;
   color: #e74a3b;
-}
-
-/* Mobile Responsiveness */
-@media (max-width: 768px) {
-  .charts-section {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-container {
-    padding: 15px;
-    overflow-x: auto;
-  }
-
-  .chart-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .chart-legend {
-    align-self: flex-end;
-  }
-
-  .ResponsiveContainer {
-    min-width: 300px;
-  }
-}
-
-@media (max-width: 480px) {
-  .chart-header h3 {
-    font-size: 1rem;
-  }
-
-  .legend-item {
-    font-size: 0.7rem;
-  }
-
-  .chart-container {
-    padding: 10px;
-  }
-
-  .dashboard-header.centered h1 {
-    font-size: 1.5rem;
-  }
-
-  .dashboard-header.centered p {
-    font-size: 0.9rem;
-  }
-}
-
-
-
-/* Clickable alert sections */
-.clickable-alert {
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.clickable-alert:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-.alert-count {
-  font-size: 1.2rem;
-  font-weight: 600;
-  text-align: center;
-  margin-top: 10px;
 }
 
 /* Modal styles */
@@ -450,7 +380,7 @@
 .modal-content {
   background: white;
   border-radius: 10px;
-  max-width: 600px;
+  max-width: 700px;
   width: 100%;
   max-height: 80vh;
   overflow: hidden;
@@ -501,30 +431,75 @@
 .inventory-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
 .inventory-item {
   display: flex;
   justify-content: space-between;
-  padding: 12px;
+  align-items: center;
+  padding: 15px;
   border-radius: 8px;
   background-color: #f8f9fa;
   border-left: 4px solid;
   border-bottom: 1px solid #eee;
+}
 
+.item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.item-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.item-batch {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.item-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.item-stock {
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.item-expiry {
+  font-size: 0.8rem;
+  color: #e74a3b;
+  font-weight: 500;
+}
+
+.item-status {
+  color: #666;
 }
 
 .order-icon {
   color: #28a745;
   cursor: pointer;
   font-size: 18px;
-  margin-left: 10px;
+  margin-left: 15px;
+  transition: color 0.2s;
 }
 
 .order-icon:hover {
   color: #218838;
+  transform: scale(1.1);
+}
+
+.expiry-alert .inventory-item {
+  border-left-color: #ff9800;
 }
 
 .low-stock-alert .inventory-item {
@@ -533,15 +508,6 @@
 
 .out-of-stock-alert .inventory-item {
   border-left-color: #e74a3b;
-}
-
-.item-name {
-  font-weight: 500;
-}
-
-.item-stock,
-.item-status {
-  color: #666;
 }
 
 .load-more-btn {
@@ -562,14 +528,85 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Responsive modal */
+.no-items {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
+}
+
+/* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .charts-section {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-container {
+    padding: 15px;
+    overflow-x: auto;
+  }
+
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .chart-legend {
+    align-self: flex-end;
+  }
+
+  .ResponsiveContainer {
+    min-width: 300px;
+  }
+
   .modal-content {
     max-width: 90%;
   }
 
   .inventory-item {
     flex-direction: column;
-    gap: 5px;
+    gap: 10px;
+    align-items: flex-start;
   }
+
+  .item-details {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .alert-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-header h3 {
+    font-size: 1rem;
+  }
+
+  .legend-item {
+    font-size: 0.7rem;
+  }
+
+  .chart-container {
+    padding: 10px;
+  }
+
+  .dashboard-header.centered h1 {
+    font-size: 1.5rem;
+  }
+
+  .dashboard-header.centered p {
+    font-size: 0.9rem;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Body scroll lock for modal */
+body.modal-open {
+  overflow: hidden;
 }
