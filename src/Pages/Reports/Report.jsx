@@ -2220,9 +2220,10 @@ const Report = () => {
         setModalData(null);
         setModalType("");
         setModalTitle("");
-        // Optionally: Re-expand sidebar when modal closes
-        // setIsSidebarCollapsed(false);
+        // Re-expand sidebar when modal closes
+        // setIsSidebarCollapsed(false); 
     };
+
 
     // Pass this to Navbar
     const handleNavigation = (path) => {
@@ -2427,7 +2428,7 @@ const Report = () => {
                                         <CategoryCard
                                             key={category.category}
                                             category={category}
-                                            // onViewDetails={() => handleViewMore("category-details", category, `${category.category} - Detailed Analysis`)} 
+                                        // onViewDetails={() => handleViewMore("category-details", category, `${category.category} - Detailed Analysis`)} 
                                         />
                                     ))}
                                 </div>
@@ -2586,7 +2587,11 @@ const Report = () => {
     };
 
     return (
-        <Navbar onNavigation={handleNavigation}>
+        <Navbar
+            onNavigation={handleNavigation}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={setIsSidebarCollapsed} // Add this
+        >
             <ToastContainer position="top-center" autoClose={3000} />
             <div className="report-container">
                 {/* Premium Header */}

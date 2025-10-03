@@ -3103,23 +3103,31 @@ export const CategoryPerformanceChart = ({ data }) => {
 
 
 // Fixed Trending Filter Component - Showing TODAY data by default
-export const TrendingFilter = ({ categories, selectedCategory, dateFilter, customDateRange, onFilterChange, onExport }) => {
+// Fixed Trending Filter Component
+export const TrendingFilter = ({
+    categories,
+    selectedCategory,
+    dateFilter,
+    customDateRange,
+    onFilterChange,
+    onExport
+}) => {
     const [filters, setFilters] = useState({
         category: selectedCategory || 'all',
-        dateFilter: dateFilter || 'today', // CHANGED: Default to 'today' as requested
+        dateFilter: dateFilter || 'today',
         startDate: customDateRange?.startDate || '',
         endDate: customDateRange?.endDate || '',
-        limit: 10
+        limit: 10 // Default value
     });
 
-    // Update local state when props change
+    // Update local state when props change - FIXED: Added limit to the dependency
     useEffect(() => {
         setFilters({
             category: selectedCategory || 'all',
             dateFilter: dateFilter || 'today',
             startDate: customDateRange?.startDate || '',
             endDate: customDateRange?.endDate || '',
-            limit: filters.limit || 10 // ← Preserve existing limit
+            limit: filters.limit // Preserve the current limit
         });
     }, [selectedCategory, dateFilter, customDateRange]);
 
@@ -3146,7 +3154,7 @@ export const TrendingFilter = ({ categories, selectedCategory, dateFilter, custo
         const filterParams = {
             category: newFilters.category,
             filter: newFilters.dateFilter,
-            limit: newFilters.limit // THIS WAS MISSING
+            limit: newFilters.limit
         };
 
         // Only include custom dates if using custom filter

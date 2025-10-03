@@ -19,18 +19,39 @@ import logo from "../../Assets/logo/jass_logo_new.png"
 // CSS
 import "./Navbar.css";
 
-const Navbar = ({ children , onNavigation , isCollapsed = false }) => {
+const Navbar = ({ children, onNavigation, isCollapsed = false, onToggleCollapse }) => {
   const [toggle, setToggle] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
   const navigate = useNavigate();
 
-
+  // Sync with parent's collapsed state
   useEffect(() => {
-        if (isCollapsed !== undefined) {
-            setToggle(isCollapsed);
-        }
-    }, [isCollapsed]);
+    console.log('Navbar: isCollapsed prop changed to:', isCollapsed); // Debug
+    setToggle(isCollapsed);
+  }, [isCollapsed]);
+
+  // Handle internal toggle changes
+  const handleToggle = (newToggleState) => {
+    setToggle(newToggleState);
+    // Notify parent about toggle state change
+    if (onToggleCollapse) {
+      onToggleCollapse(newToggleState);
+    }
+  };
+
+  // Update the toggle handlers to use the new function
+  const handleHamburgerClick = () => {
+    handleToggle(!toggle);
+  };
+
+  const handleCrossClick = () => {
+    handleToggle(true);
+  };
+
+  const handleMenuIconHiddenClick = () => {
+    handleToggle(false);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -57,30 +78,20 @@ const Navbar = ({ children , onNavigation , isCollapsed = false }) => {
     { icon: <PiBasket />, title: "Invoice", path: "/", permission: "invoice" },
     { icon: <HiOutlineHome />, title: "Dashboard", path: "/dashboard", permission: "dashboard" },
     { icon: <TbUsers />, title: "Customer", path: "/customer", permission: "customer" },
-    // { icon: <CiShoppingBasket />, title: "Vendor", path: "/vendor", permission: "vendor" },
     { icon: <LuFile />, title: "Products", path: "/items", permission: "products" },
     { icon: <TbUsers />, title: "Admin", path: "/admin", permission: "admin" },
     { icon: <MdDiscount />, title: "Discount", path: "/productdiscount", permission: "discount" },
-    // { icon: <TbLayoutGridAdd />, title: "Purchase Order", path: "/purchase-order", permission: "purchase" },
-    // { icon: <BsBell />, title: "GRN", path: "/grn", permission: "grn" },
-    // { icon: <PiLightbulbThin />, title: "BOM", path: "/bom", permission: "bom" },
-    // { icon: <LuCircleDot />, title: "Work Order", path: "/work-order", permission: "workorder" },
     { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },
     { icon: <TbMessages />, title: "Product Disposal", path: "/defective", permission: "disposal" },
-    { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" }, 
+    { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
   ];
 
   // Filter menu items based on user permissions
   const getFilteredMenu = () => {
-    // If user has admin permission, show all menu items
     if (userPermissions.includes("admin")) {
       return allMenuData;
     }
-
-    // Otherwise, filter menu items based on user's permissions
-    return allMenuData.filter(item =>
-      userPermissions.includes(item.permission)
-    );
+    return allMenuData.filter(item => userPermissions.includes(item.permission));
   };
 
   const filteredMenuData = getFilteredMenu();
@@ -93,15 +104,14 @@ const Navbar = ({ children , onNavigation , isCollapsed = false }) => {
             {toggle ? (
               <GiHamburgerMenu
                 className="menuIconHidden"
-                onClick={() => setToggle(false)}
+                onClick={handleMenuIconHiddenClick}
               />
             ) : (
               <>
-                {/* Show logo instead of text */}
                 <img src={logo} alt="Logo" className="sidebar-logo" />
                 <RxCross1
                   className="menuIconHidden"
-                  onClick={() => setToggle(true)}
+                  onClick={handleCrossClick}
                 />
               </>
             )}
@@ -143,7 +153,7 @@ const Navbar = ({ children , onNavigation , isCollapsed = false }) => {
           <div>
             <GiHamburgerMenu
               className="menuIcon"
-              onClick={() => setToggle(!toggle)}
+              onClick={handleHamburgerClick}
             />
           </div>
           <div>
@@ -153,7 +163,6 @@ const Navbar = ({ children , onNavigation , isCollapsed = false }) => {
               </button>
             ) : (
               <div className="profile">
-                {/* profile icon instead of image */}
                 <div className="profile-icon" title="Account">
                   <FiUser />
                 </div>
