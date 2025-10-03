@@ -35,7 +35,11 @@ import {
     DailySalesSummary,
     DailySalesFilter,
     DisposedProductsSection,
-    DisposedProductCard
+    DisposedProductCard,
+    ProductDetailsModal,
+    ExpiryDetailsModal,
+    AllProductsModal,
+    DisposedDetailsModal
 } from "./ReportsComponents";
 import "./Report.scss";
 import "react-toastify/dist/ReactToastify.css";
@@ -74,6 +78,16 @@ const Report = () => {
         startDate: '',
         endDate: ''
     });
+
+    const [modalState, setModalState] = useState({
+        isOpen: false,
+        type: null,
+        data: null,
+        title: ''
+    });
+
+
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const navigate = useNavigate();
 
@@ -2198,13 +2212,26 @@ const Report = () => {
         setModalType(type);
         setModalData(data);
         setModalTitle(title);
+        // Collapse sidebar when modal opens
+        setIsSidebarCollapsed(true);
     };
 
     const closeModal = () => {
         setModalData(null);
         setModalType("");
         setModalTitle("");
+        // Optionally: Re-expand sidebar when modal closes
+        // setIsSidebarCollapsed(false);
     };
+
+    // Pass this to Navbar
+    const handleNavigation = (path) => {
+        // If navigating while modal is open, close modal first
+        if (modalData) {
+            closeModal();
+        }
+        navigate(path);
+    }
 
     const renderReportContent = () => {
         if (loading || inventoryLoading || categoryLoading || trendingLoading || dailySalesLoading) {
@@ -2302,27 +2329,27 @@ const Report = () => {
                             onFilterChange={handleInventoryFilterChange}
                             categories={inventoryData?.filters?.categories || []}
                             onExport={() => handleExportInventoryData(inventoryData)}
-                            currentFilters={inventoryFilters} // Pass current filter state
+                            currentFilters={inventoryFilters}
                         />
 
                         {inventoryData && (
                             <>
                                 <ExpirySummary data={inventoryData.summary} />
 
-                                {/* Current Inventory Section */}
+                                {/* Current Inventory Section - UPDATED */}
                                 <div className="inventory-section">
                                     <h3 className="section-title">Current Inventory</h3>
                                     <div className="inventory-grid">
-                                        {inventoryData.inventory.slice(0, 6).map((product, index) => (
+                                        {inventoryData.inventory.slice(0, 3).map((product, index) => (
                                             <ProductCard
                                                 key={product.inventoryId}
                                                 product={product}
-                                                onViewMore={() => handleViewMore("inventory-details", product, product.productName)}
+                                                onViewMore={() => handleViewMore("product-details", product, product.productName)}
                                             />
                                         ))}
                                     </div>
 
-                                    {inventoryData.inventory.length > 6 && (
+                                    {inventoryData.inventory.length > 3 && (
                                         <div className="view-more-section">
                                             <button
                                                 className="view-all-btn"
@@ -2334,13 +2361,13 @@ const Report = () => {
                                     )}
                                 </div>
 
-                                {/* Expired & Near Expiry Section */}
+                                {/* Expired & Near Expiry Section - UPDATED */}
                                 <div className="expired-section">
                                     <h3 className="section-title">Expired & Near Expiry Products</h3>
                                     <div className="expired-grid">
                                         {inventoryData.inventory
                                             .filter(product => product.expiryStats.expiredBatches > 0 || product.expiryStats.nearExpiryBatches > 0)
-                                            .slice(0, 4)
+                                            .slice(0, 3)
                                             .map(product => (
                                                 <ProductCard
                                                     key={product.inventoryId}
@@ -2351,9 +2378,24 @@ const Report = () => {
                                             ))
                                         }
                                     </div>
+
+                                    {/* ADD VIEW ALL BUTTON FOR EXPIRED PRODUCTS */}
+                                    {inventoryData.inventory.filter(p => p.expiryStats.expiredBatches > 0 || p.expiryStats.nearExpiryBatches > 0).length > 3 && (
+                                        <div className="view-more-section">
+                                            <button
+                                                className="view-all-btn"
+                                                onClick={() => handleViewMore("all-expired",
+                                                    inventoryData.inventory.filter(p => p.expiryStats.expiredBatches > 0 || p.expiryStats.nearExpiryBatches > 0),
+                                                    "All Expired & Near Expiry Products"  // Make sure this title is set
+                                                )}
+                                            >
+                                                View All Expired Products ({inventoryData.inventory.filter(p => p.expiryStats.expiredBatches > 0 || p.expiryStats.nearExpiryBatches > 0).length})
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Disposed Products Section - NEW */}
+                                {/* Disposed Products Section - UPDATED */}
                                 <DisposedProductsSection
                                     data={inventoryData}
                                     onViewMore={handleViewMore}
@@ -2385,7 +2427,7 @@ const Report = () => {
                                         <CategoryCard
                                             key={category.category}
                                             category={category}
-                                            onViewDetails={() => handleViewMore("category-details", category, `${category.category} - Detailed Analysis`)}
+                                            // onViewDetails={() => handleViewMore("category-details", category, `${category.category} - Detailed Analysis`)} 
                                         />
                                     ))}
                                 </div>
@@ -2394,8 +2436,7 @@ const Report = () => {
                                     <div className="view-more-section">
                                         <button
                                             className="view-all-btn"
-                                            onClick={() => handleViewMore("all-categories", categoryData.categories, "All Categories Analysis")}
-                                        >
+                                            onClick={() => handleViewMore("all-categories", categoryData.categories, "All Categories Analysis")}                                        >
                                             View All Categories ({categoryData.categories.length})
                                         </button>
                                     </div>
@@ -2436,7 +2477,7 @@ const Report = () => {
 
                                 {/* SHOW ONLY 5 PRODUCTS IN CARDS */}
                                 <div className="trending-products-grid">
-                                    {trendingData.trendingProducts.slice(0, 5).map((product, index) => (
+                                    {trendingData.trendingProducts.slice(0, 3).map((product, index) => (
                                         <TrendingProductCard
                                             key={product.productId}
                                             product={product}
@@ -2473,6 +2514,7 @@ const Report = () => {
 
             // Add this case to the renderReportContent function in Report.jsx
             // Add this case to the renderReportContent function in Report.jsx
+            // In the daily-sale case section, update the sales-overview part:
             case "daily-sale":
                 return (
                     <div className="daily-sales-report">
@@ -2481,7 +2523,7 @@ const Report = () => {
                             selectedCategory={dailySalesData?.filters?.selectedCategory || 'all'}
                             selectedDate={dailySalesData?.filters?.selectedDate || new Date().toISOString().split('T')[0]}
                             onFilterChange={handleDailySalesFilterChange}
-                            onExport={() => handleExportDailySalesData(dailySalesData)} // Add this prop
+                            onExport={() => handleExportDailySalesData(dailySalesData)}
                         />
 
                         {dailySalesData && (
@@ -2491,14 +2533,33 @@ const Report = () => {
                                 <div className="sales-overview">
                                     <div className="sales-cards">
                                         <div className="sales-list">
-                                            <h3>Today's Sales</h3>
-                                            {dailySalesData.sales.slice(0, 5).map((sale, index) => (
+                                            <div className="section-header">
+                                                <h3>Today's Sales</h3>
+                                                <span className="invoice-count">
+                                                    {dailySalesData.sales.length} invoices
+                                                </span>
+                                            </div>
+
+                                            {/* SHOW ONLY 3 INVOICES */}
+                                            {dailySalesData.sales.slice(0, 3).map((sale, index) => (
                                                 <SalesCard
                                                     key={sale.invoiceNumber}
                                                     sale={sale}
                                                     onViewDetails={() => handleViewMore("sale-details", sale, `Sale Details - ${sale.invoiceNumber}`)}
                                                 />
                                             ))}
+
+                                            {/* SHOW VIEW ALL BUTTON IF MORE THAN 3 INVOICES */}
+                                            {dailySalesData.sales.length > 3 && (
+                                                <div className="view-more-section">
+                                                    <button
+                                                        className="view-all-btn"
+                                                        // In the daily-sale case, update the handleViewMore call:
+                                                        onClick={() => handleViewMore("all-sales", dailySalesData.sales, `All Invoices - ${dailySalesData.date}`)}                                                    >
+                                                        View All {dailySalesData.sales.length} Invoices
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="sales-charts">
@@ -2507,17 +2568,6 @@ const Report = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                {dailySalesData.sales.length > 5 && (
-                                    <div className="view-more-section">
-                                        <button
-                                            className="view-all-btn"
-                                            onClick={() => handleViewMore("all-sales", dailySalesData.sales, `All Sales - ${dailySalesData.date}`)}
-                                        >
-                                            View All {dailySalesData.sales.length} Sales
-                                        </button>
-                                    </div>
-                                )}
 
                                 <div className="products-section">
                                     <TopProductsList data={dailySalesData.topProducts} />
@@ -2528,16 +2578,7 @@ const Report = () => {
                     </div>
                 );
 
-            // case "sale-amount":
-            //     return (
-            //         <div className="sale-amount-report">
-            //             <div className="coming-soon">
-            //                 <div className="coming-soon-icon">💰</div>
-            //                 <h3>Sale Amount Report</h3>
-            //                 <p>Detailed analysis of sale amounts with customer segmentation and payment method insights.</p>
-            //             </div>
-            //         </div>
-            //     );
+
 
             default:
                 return <div>Select a report type</div>;
@@ -2545,11 +2586,11 @@ const Report = () => {
     };
 
     return (
-        <Navbar>
+        <Navbar onNavigation={handleNavigation}>
             <ToastContainer position="top-center" autoClose={3000} />
             <div className="report-container">
                 {/* Premium Header */}
-                <div className="report-header premium-header">
+                {/* <div className="report-header premium-header">
                     <div className="header-content">
                         <h1 className="premium-title">Business Intelligence Dashboard</h1>
                         <p className="premium-subtitle">Advanced analytics and insights for your Perfume business</p>
@@ -2557,7 +2598,7 @@ const Report = () => {
                     <div className="header-decoration">
                         <div className="decoration-line"></div>
                     </div>
-                </div>
+                </div> */}
 
                 {/* Horizontal Report Navigation */}
                 <div className="report-navigation premium-nav compact">
@@ -2574,13 +2615,18 @@ const Report = () => {
                 </div>
 
                 {/* Date Filter */}
-                <div className="filter-section premium-filter">
-                    <DateFilter
-                        currentFilter={dateFilter}
-                        customDateRange={customDateRange}
-                        onFilterChange={handleDateFilterChange}
-                    />
-                </div>
+                {/* Date Filter - ONLY SHOW FOR SALES & PURCHASE SECTION */}
+                {activeReport === "sales-purchase" && (
+                    <div className="filter-section premium-filter">
+                        <DateFilter
+                            currentFilter={dateFilter}
+                            customDateRange={customDateRange}
+                            onFilterChange={handleDateFilterChange}
+                        />
+                    </div>
+                )}
+
+
 
                 {/* Report Content */}
                 <div className="report-content premium-content">
@@ -2588,6 +2634,66 @@ const Report = () => {
                 </div>
 
                 {/* Modal for detailed view */}
+                {/* {modalData && (
+                    <>
+                        <ReportModal
+                            type={modalType}
+                            data={modalData}
+                            title={modalTitle}
+                            dateFilter={dateFilter}
+                            customDateRange={customDateRange}
+                            onClose={closeModal}
+                        />
+
+                        
+                        {modalType === "product-details" && (
+                            <ProductDetailsModal
+                                product={modalData}
+                                onClose={closeModal}
+                                title={modalTitle}
+                            />
+                        )}
+                        {modalType === "expiry-details" && (
+                            <ExpiryDetailsModal
+                                product={modalData}
+                                onClose={closeModal}
+                                title={modalTitle}
+                            />
+                        )}
+                        {modalType === "all-inventory" && (
+                            <AllProductsModal
+                                products={modalData}
+                                onClose={closeModal}
+                                title={modalTitle}
+                                type="inventory"
+                            />
+                        )}
+                        {modalType === "all-expired" && (
+                            <AllProductsModal
+                                products={modalData}
+                                onClose={closeModal}
+                                title={modalTitle}
+                                type="expired"
+                            />
+                        )}
+                        {modalType === "all-disposed" && (
+                            <AllProductsModal
+                                products={modalData}
+                                onClose={closeModal}
+                                title={modalTitle}
+                                type="disposed"
+                            />
+                        )}
+                        {modalType === "disposed-details" && (
+                            <DisposedDetailsModal
+                                product={modalData}
+                                onClose={closeModal}
+                                title={modalTitle}
+                            />
+                        )}
+                    </>
+                )} */}
+
                 {modalData && (
                     <ReportModal
                         type={modalType}
@@ -2598,6 +2704,7 @@ const Report = () => {
                         onClose={closeModal}
                     />
                 )}
+
             </div>
         </Navbar>
     );

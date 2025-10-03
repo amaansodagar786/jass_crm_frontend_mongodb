@@ -19,11 +19,18 @@ import logo from "../../Assets/logo/jass_logo_new.png"
 // CSS
 import "./Navbar.css";
 
-const Navbar = ({ children , onNavigation }) => {
+const Navbar = ({ children , onNavigation , isCollapsed = false }) => {
   const [toggle, setToggle] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
   const navigate = useNavigate();
+
+
+  useEffect(() => {
+        if (isCollapsed !== undefined) {
+            setToggle(isCollapsed);
+        }
+    }, [isCollapsed]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");

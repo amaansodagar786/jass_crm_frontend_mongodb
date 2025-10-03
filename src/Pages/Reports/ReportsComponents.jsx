@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+
+
 // DateFilter Component
 export const DateFilter = ({ currentFilter, customDateRange, onFilterChange }) => {
     const [showCustom, setShowCustom] = useState(currentFilter === 'custom');
@@ -402,9 +404,13 @@ export const DataTable = ({ title, data, type, onViewMore, columns, showViewAll 
 };
 
 // ReportModal Component
+
 export const ReportModal = ({ type, data, title, dateFilter, customDateRange, onClose }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [selectedRowData, setSelectedRowData] = useState(null);
+    const [viewMode, setViewMode] = useState('list'); // 'list' or 'batch-details'
     const rowsPerPage = 10;
 
     // Add safe dateFilter handling
@@ -422,6 +428,10 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
     };
 
     const getModalTitle = () => {
+        if (viewMode === 'batch-details') {
+            return selectedProduct ? `${selectedProduct.productName} - Batch Details` : 'Batch Details';
+        }
+
         return title || (() => {
             switch (type) {
                 case 'sales-trend': return 'Sales Trend Analysis';
@@ -432,8 +442,11 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                 case 'recent-purchases': return 'Recent Purchases - Complete List';
                 case 'sale-details': return 'Sale Details';
                 case 'all-sales': return 'All Sales';
-                case 'category-details': return 'Category Details'; // ADD THIS
-                case 'all-categories': return 'All Categories'; // ADD THIS
+                case 'category-details': return 'Category Details';
+                case 'all-categories': return 'All Categories';
+                case 'all-inventory': return 'All Inventory Products';
+                case 'all-expired': return 'All Expired & Near Expiry Products';
+                case 'all-disposed': return 'All Disposed Products';
                 default: return 'Report Details';
             }
         })();
@@ -445,751 +458,216 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
         ? data.slice(startIndex, startIndex + rowsPerPage)
         : data;
 
-    const renderTrendAnalysis = () => {
-        if (!data || data.length === 0) return <div>No data available</div>;
-
-        // Add safe checks for data properties
-        const totalValue = data.reduce((sum, item) => sum + ((item.sales || item.purchaseValue || 0)), 0);
-        const totalItems = data.reduce((sum, item) => sum + ((item.orders || item.quantity || item.transactions || 0)), 0);
-        const averageValue = data.length > 0 ? totalValue / data.length : 0;
-        const peakValue = data.length > 0 ? Math.max(...data.map(item => (item.sales || item.purchaseValue || 0))) : 0;
-
-        return (
-            <div className="modal-trend-analysis">
-                <div className="trend-stats">
-                    <div className="stat-card">
-                        <div className="stat-label">Total {type.includes('sales') ? 'Sales' : 'Purchase Value'}</div>
-                        <div className="stat-value">₹{totalValue.toLocaleString('en-IN')}</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="stat-label">Total {type.includes('sales') ? 'Orders' : type.includes('purchase') ? 'Transactions' : 'Items'}</div>
-                        <div className="stat-value">{totalItems.toLocaleString('en-IN')}</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="stat-label">Average Daily Value</div>
-                        <div className="stat-value">₹{averageValue.toLocaleString('en-IN')}</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="stat-label">Peak Value</div>
-                        <div className="stat-value">₹{peakValue.toLocaleString('en-IN')}</div>
-                    </div>
-                </div>
-
-                <div className="trend-table">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>{type.includes('sales') ? 'Sales' : 'Purchase Value'}</th>
-                                <th>{type.includes('sales') ? 'Orders' : type.includes('purchase') ? 'Transactions' : 'Quantity'}</th>
-                                <th>Day</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map((item, index) => (
-                                <tr key={index}>
-                                    <td>{item.date ? new Date(item.date).toLocaleDateString('en-IN') : 'N/A'}</td>
-                                    <td>₹{((item.sales || item.purchaseValue || 0)).toLocaleString('en-IN')}</td>
-                                    <td>{((item.orders || item.quantity || item.transactions || 0)).toLocaleString('en-IN')}</td>
-                                    <td>{item.date ? new Date(item.date).toLocaleDateString('en-IN', { weekday: 'long' }) : 'N/A'}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
+    // NEW: Function to handle row click for batch details
+    const handleRowClick = (product, rowData = null) => {
+        setSelectedProduct(product);
+        setSelectedRowData(rowData);
+        setViewMode('batch-details');
     };
 
-    const renderFullDataView = () => {
-        if (!data || data.length === 0) return <div>No data available</div>;
-
-        return (
-            <div className="modal-full-data">
-                <div className="data-summary">
-                    <div className="summary-text">
-                        Showing <span className="highlight">{data.length}</span> records total
-                    </div>
-                </div>
-
-                <div className="full-data-table">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                {Object.keys(data[0]).map(key => (
-                                    <th key={key}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {currentData.map((item, index) => (
-                                <tr key={startIndex + index}>
-                                    {Object.entries(item).map(([key, value], colIndex) => (
-                                        <td key={colIndex}>
-                                            {typeof value === 'number'
-                                                ? (key.toLowerCase().includes('price') ||
-                                                    key.toLowerCase().includes('amount') ||
-                                                    key.toLowerCase().includes('value') ||
-                                                    key.toLowerCase().includes('revenue') ||
-                                                    key.toLowerCase().includes('total'))
-                                                    ? `₹${value.toLocaleString('en-IN')}`
-                                                    : value.toLocaleString('en-IN')
-                                                : (key.toLowerCase().includes('date') && !isNaN(Date.parse(value)))
-                                                    ? new Date(value).toLocaleDateString('en-IN')
-                                                    : value
-                                            }
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {totalPages > 1 && (
-                    <div className="table-pagination">
-                        <div className="pagination-info">
-                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, data.length)} of {data.length} records
-                        </div>
-                        <div className="pagination-controls">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                            >
-                                Previous
-                            </button>
-
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                const pageNum = i + 1;
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={currentPage === pageNum ? 'active' : ''}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                );
-                            })}
-
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
+    // NEW: Function to go back to list view
+    const handleBackToList = () => {
+        setViewMode('list');
+        setSelectedProduct(null);
+        setSelectedRowData(null);
     };
 
-    const renderModalContent = () => {
-        if (!data) return <div>No data available</div>;
+    // NEW: Render batch details view
+    const renderBatchDetailsView = () => {
+        if (!selectedProduct) return <div>No product selected</div>;
 
-        // ADD THESE WRAPPERS AROUND EACH RETURN
-        switch (type) {
-            case 'all-inventory':
-                return (
-                    <div className="modal-full-data"> {/* ADD THIS */}
-                        {renderAllInventoryTable()}
-                    </div>
-                );
-
-            case 'inventory-details':
-                return (
-                    <div className="modal-full-data"> {/* ADD THIS */}
-                        {renderInventoryDetails()}
-                    </div>
-                );
-
-            case 'sales-trend':
-            case 'purchase-trend':
-                return (
-                    <div className="modal-trend-analysis"> {/* ADD THIS */}
-                        {renderTrendAnalysis()}
-                    </div>
-                );
-
-            case 'top-products':
-            case 'payment-methods':
-            case 'category-purchases':
-            case 'recent-purchases':
-            case 'all-trending': // ADD THIS if you have this type
-            case 'trending-details': // ADD THIS if you have this type
-                return (
-                    <div className="modal-full-data"> {/* ADD THIS WRAPPER */}
-                        {renderFullDataView()}
-                    </div>
-                );
-
-            case 'sale-details':
-                return (
-                    <div className="sale-details-modal"> {/* ADD THIS */}
-                        {renderSaleDetails()}
-                    </div>
-                );
-
-            case 'all-sales':
-                return (
-                    <div className="modal-full-data"> {/* ADD THIS */}
-                        {renderAllSales()}
-                    </div>
-                );
-
-            case 'category-details':
-                return (
-                    <div className="category-details-modal"> {/* ADD THIS */}
-                        {renderCategoryDetails()}
-                    </div>
-                );
-
-            case 'all-categories':
-                return (
-                    <div className="modal-full-data"> {/* ADD THIS */}
-                        {renderAllCategories()}
-                    </div>
-                );
-
-            case 'disposed-details':
-                return (
-                    <div className="disposal-details-modal"> {/* ADD THIS */}
-                        {renderDisposalDetails()}
-                    </div>
-                );
-
-            case 'all-disposed':
-                return (
-                    <div className="all-disposed-modal"> {/* ADD THIS */}
-                        {renderAllDisposedProducts()}
-                    </div>
-                );
-
-            default:
-                return (
-                    <div className="modal-full-data"> {/* ADD THIS */}
-                        <pre>{JSON.stringify(data, null, 2)}</pre>
-                    </div>
-                );
-        }
-    };
-
-
-
-    // ADD THESE NEW FUNCTIONS FOR CATEGORY DETAILS
-    const renderCategoryDetails = () => {
-        // data is a single category object here
-        const category = data;
+        const product = selectedProduct;
+        const allBatches = product.allBatches || product.batches || [];
+        const expiredBatches = allBatches.filter(batch => batch.isExpired || batch.expiryStatus === 'expired');
+        const nearExpiryBatches = allBatches.filter(batch => batch.isNearExpiry || batch.expiryStatus === 'near-expiry');
+        const goodBatches = allBatches.filter(batch => !batch.isExpired && !batch.isNearExpiry && batch.expiryStatus === 'good');
+        const disposedBatches = product.disposedBatches || [];
 
         return (
-            <div className="category-details-modal">
-                <div className="category-header-details">
-                    <h3>{category.category}</h3>
-                    <div className="product-count">{category.stock.totalProducts} products</div>
+            <div className="batch-details-view">
+                <div className="batch-details-header">
+                    <button className="back-button" onClick={handleBackToList}>
+                        ← Back to List
+                    </button>
+                    <h3>{product.productName} - Batch Details</h3>
+                    <div className="product-info-summary">
+                        <span>Category: {product.category}</span>
+                        <span>Current Stock: {product.totalQuantity}</span>
+                        <span>Status: {product.status}</span>
+                    </div>
                 </div>
 
-                <div className="category-info-sections">
-                    <div className="info-section">
-                        <h4>Sales Performance</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Total Sales:</span>
-                                <span className="value">₹{category.sales.totalSales?.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Total Orders:</span>
-                                <span className="value">{category.sales.totalOrders}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Growth:</span>
-                                <span className="value growth">↑ {category.sales.growth}%</span>
+                <div className="batch-sections">
+                    {/* Active Batches */}
+                    {allBatches.length > 0 && (
+                        <div className="batch-section">
+                            <h4>Active Batches ({allBatches.length})</h4>
+                            <div className="batches-table">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Manufacture Date</th>
+                                            <th>Expiry Date</th>
+                                            <th>Days to Expiry</th>
+                                            <th>Status</th>
+                                            <th>Batch Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allBatches.map((batch, index) => (
+                                            <tr key={index} className={batch.expiryStatus || (batch.isExpired ? 'expired' : batch.isNearExpiry ? 'near-expiry' : 'good')}>
+                                                <td className="batch-number">{batch.batchNumber}</td>
+                                                <td>{batch.quantity}</td>
+                                                <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
+                                                <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                                <td>{batch.daysToExpiry}</td>
+                                                <td>
+                                                    <span className={`status-badge ${batch.expiryStatus || (batch.isExpired ? 'expired' : batch.isNearExpiry ? 'near-expiry' : 'good')}`}>
+                                                        {batch.expiryStatus === 'expired' ? 'Expired' :
+                                                            batch.expiryStatus === 'near-expiry' ? `Near Expiry (${batch.daysToExpiry} days)` : 'Good'}
+                                                    </span>
+                                                </td>
+                                                <td>₹{((batch.quantity || 0) * (product.price || 0)).toLocaleString('en-IN')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                    </div>
+                    )}
 
-                    <div className="info-section">
-                        <h4>Purchase Analysis</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Purchase Value:</span>
-                                <span className="value">₹{category.purchases.totalPurchaseValue?.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Growth:</span>
-                                <span className="value growth">↑ {category.purchases.growth}%</span>
+                    {/* Expired Batches Summary */}
+                    {expiredBatches.length > 0 && (
+                        <div className="batch-section expired">
+                            <h4 className="expired-title">🚨 Expired Batches ({expiredBatches.length})</h4>
+                            <div className="batches-table">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Expiry Date</th>
+                                            <th>Days Expired</th>
+                                            <th>Batch Value</th>
+                                            <th>Action Required</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {expiredBatches.map((batch, index) => (
+                                            <tr key={index} className="expired-row">
+                                                <td className="batch-number">{batch.batchNumber}</td>
+                                                <td className="expired-quantity">{batch.quantity}</td>
+                                                <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                                <td className="days-expired">{Math.abs(batch.daysToExpiry)} days ago</td>
+                                                <td className="financial-impact">₹{((batch.quantity || 0) * (product.price || 0)).toLocaleString('en-IN')}</td>
+                                                <td>
+                                                    <span className="action-required">IMMEDIATE DISPOSAL</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                    </div>
+                    )}
 
-                    <div className="info-section">
-                        <h4>Stock Information</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Stock Value:</span>
-                                <span className="value">₹{category.stock.totalValue?.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">In Stock:</span>
-                                <span className="value in-stock">{category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Low Stock:</span>
-                                <span className="value low-stock">{category.stock.lowStockProducts}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Out of Stock:</span>
-                                <span className="value out-of-stock">{category.stock.outOfStockProducts}</span>
+                    {/* Near Expiry Batches Summary */}
+                    {nearExpiryBatches.length > 0 && (
+                        <div className="batch-section near-expiry">
+                            <h4 className="near-expiry-title">⚠️ Near Expiry Batches ({nearExpiryBatches.length})</h4>
+                            <div className="batches-table">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Expiry Date</th>
+                                            <th>Days to Expiry</th>
+                                            <th>Batch Value</th>
+                                            <th>Priority</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {nearExpiryBatches.map((batch, index) => (
+                                            <tr key={index} className="near-expiry-row">
+                                                <td className="batch-number">{batch.batchNumber}</td>
+                                                <td className="near-expiry-quantity">{batch.quantity}</td>
+                                                <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                                <td className="days-to-expiry">{batch.daysToExpiry} days</td>
+                                                <td className="financial-impact">₹{((batch.quantity || 0) * (product.price || 0)).toLocaleString('en-IN')}</td>
+                                                <td>
+                                                    <span className={`priority-badge ${batch.daysToExpiry <= 7 ? 'high' : 'medium'}`}>
+                                                        {batch.daysToExpiry <= 7 ? 'HIGH PRIORITY' : 'MEDIUM PRIORITY'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
+                    )}
+
+                    {/* Disposed Batches */}
+                    {disposedBatches.length > 0 && (
+                        <div className="batch-section disposed">
+                            <h4 className="disposed-title">🗑️ Disposed Batches ({disposedBatches.length})</h4>
+                            <div className="batches-table">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Disposal Date</th>
+                                            <th>Disposal Reason</th>
+                                            <th>Financial Impact</th>
+                                            <th>Disposal ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {disposedBatches.map((batch, index) => (
+                                            <tr key={index} className="disposed-row">
+                                                <td className="batch-number">{batch.batchNumber}</td>
+                                                <td className="disposed-quantity">{batch.quantity}</td>
+                                                <td>{new Date(batch.disposalDate).toLocaleDateString('en-IN')}</td>
+                                                <td className="disposal-reason">{batch.disposalReason || 'Expired'}</td>
+                                                <td className="financial-impact">₹{((batch.quantity || 0) * (product.price || 0)).toLocaleString('en-IN')}</td>
+                                                <td className="disposal-id">{batch.disposalId || 'N/A'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Batch Summary Statistics */}
+                <div className="batch-summary-stats">
+                    <div className="stat-card total-batches">
+                        <span className="stat-label">Total Batches</span>
+                        <span className="stat-value">{allBatches.length + disposedBatches.length}</span>
+                    </div>
+                    <div className="stat-card expired-batches">
+                        <span className="stat-label">Expired</span>
+                        <span className="stat-value">{expiredBatches.length}</span>
+                    </div>
+                    <div className="stat-card near-expiry-batches">
+                        <span className="stat-label">Near Expiry</span>
+                        <span className="stat-value">{nearExpiryBatches.length}</span>
+                    </div>
+                    <div className="stat-card disposed-batches">
+                        <span className="stat-label">Disposed</span>
+                        <span className="stat-value">{disposedBatches.length}</span>
                     </div>
                 </div>
             </div>
         );
     };
 
-    // === ADD THESE NEW FUNCTIONS AFTER ALL EXISTING RENDER FUNCTIONS ===
-
-    // Add disposal details rendering function
-    const renderDisposalDetails = () => {
-        const product = data; // data is a single product here
-
-        return (
-            <div className="disposal-details-modal">
-                <div className="product-header-details">
-                    <h3>{product.productName}</h3>
-                    <span className="status-badge large disposed">Disposed</span>
-                </div>
-
-                <div className="disposal-info-sections">
-                    <div className="info-section">
-                        <h4>Product Information</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Category:</span>
-                                <span className="value">{product.category}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Current Status:</span>
-                                <span className="value">{product.status}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Price:</span>
-                                <span className="value">₹{product.price}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="info-section">
-                        <h4>Disposal Summary</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Total Disposed Batches:</span>
-                                <span className="value">{product.disposedBatches?.length || 0}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Total Disposed Quantity:</span>
-                                <span className="value disposed-quantity">
-                                    {product.disposedBatches?.reduce((sum, batch) => sum + (batch.quantity || 0), 0) || 0} units
-                                </span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Financial Impact:</span>
-                                <span className="value financial-impact">
-                                    ₹{(product.disposedBatches?.reduce((sum, batch) => sum + ((batch.quantity || 0) * product.price), 0) || 0).toLocaleString('en-IN')}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {product.disposedBatches && product.disposedBatches.length > 0 && (
-                    <div className="disposal-batch-section">
-                        <h4>Disposal Batch Details</h4>
-                        <div className="disposed-batches-grid">
-                            {product.disposedBatches.map((batch, index) => (
-                                <div key={index} className="disposed-batch-card">
-                                    <div className="batch-header">
-                                        <span className="batch-number">{batch.batchNumber}</span>
-                                        <span className="disposal-status">Disposed</span>
-                                    </div>
-                                    <div className="batch-details">
-                                        <div className="detail-item">
-                                            <span className="label">Quantity:</span>
-                                            <span className="value disposed-quantity">{batch.quantity} units</span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <span className="label">Disposal Date:</span>
-                                            <span className="value">
-                                                {new Date(batch.disposalDate).toLocaleDateString('en-IN')}
-                                            </span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <span className="label">Financial Impact:</span>
-                                            <span className="value financial-impact">
-                                                ₹{((batch.quantity || 0) * product.price).toLocaleString('en-IN')}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {batch.disposalReason && (
-                                        <div className="disposal-reason">
-                                            <div className="reason-label">Disposal Reason:</div>
-                                            <div className="reason-text">{batch.disposalReason}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    // Add all disposed products rendering function
-    const renderAllDisposedProducts = () => {
-        // data is an array of disposed products here
-        if (!data || data.length === 0) return <div>No disposed products found</div>;
-
-        return (
-            <div className="all-disposed-modal">
-                <div className="modal-header-section">
-                    <h3>All Disposed Products</h3>
-                    <div className="total-disposed-badge">
-                        {data.length} Products Disposed
-                    </div>
-                </div>
-
-                <div className="disposed-products-grid">
-                    {currentData.map((product, index) => {
-                        const totalDisposed = product.disposedBatches?.reduce((sum, batch) => sum + (batch.quantity || 0), 0) || 0;
-                        const financialImpact = product.disposedBatches?.reduce((sum, batch) => sum + ((batch.quantity || 0) * product.price), 0) || 0;
-                        const lastDisposal = product.disposedBatches?.length > 0
-                            ? new Date(Math.max(...product.disposedBatches.map(b => new Date(b.disposalDate))))
-                            : null;
-
-                        return (
-                            <div key={startIndex + index} className="disposed-product-summary-card">
-                                <div className="product-header">
-                                    <h4 className="product-name">{product.productName}</h4>
-                                    <span className="disposal-count">
-                                        {product.disposedBatches?.length || 0} batches
-                                    </span>
-                                </div>
-                                <div className="product-category">{product.category}</div>
-
-                                <div className="disposal-stats">
-                                    <div className="stat">
-                                        <span className="stat-value">{totalDisposed}</span>
-                                        <span className="stat-label">Units</span>
-                                    </div>
-                                    <div className="stat">
-                                        <span className="stat-value">₹{(financialImpact / 1000).toFixed(1)}K</span>
-                                        <span className="stat-label">Value</span>
-                                    </div>
-                                </div>
-
-                                {lastDisposal && (
-                                    <div className="last-disposal">
-                                        Last disposed: <span className="date">{lastDisposal.toLocaleDateString('en-IN')}</span>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {totalPages > 1 && (
-                    <div className="table-pagination">
-                        <div className="pagination-info">
-                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, data.length)} of {data.length} products
-                        </div>
-                        <div className="pagination-controls">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                            >
-                                Previous
-                            </button>
-
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                const pageNum = i + 1;
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={currentPage === pageNum ? 'active' : ''}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                );
-                            })}
-
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    // === END OF NEW FUNCTIONS ===
-
-
-    const renderAllCategories = () => {
-        // data is an array of categories here
-        if (!data || data.length === 0) return <div>No category data available</div>;
-
-        return (
-            <div className="modal-full-data">
-                <div className="data-summary">
-                    <div className="summary-text">
-                        Showing <span className="highlight">{data.length}</span> categories
-                    </div>
-                </div>
-
-                <div className="full-data-table">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th>Products</th>
-                                <th>Total Sales</th>
-                                <th>Total Orders</th>
-                                <th>Purchase Value</th>
-                                <th>Stock Value</th>
-                                <th>In Stock</th>
-                                <th>Low Stock</th>
-                                <th>Out of Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {currentData.map((category, index) => (
-                                <tr key={startIndex + index}>
-                                    <td className="category-name">{category.category}</td>
-                                    <td>{category.stock.totalProducts}</td>
-                                    <td>₹{category.sales.totalSales?.toLocaleString('en-IN')}</td>
-                                    <td>{category.sales.totalOrders}</td>
-                                    <td>₹{category.purchases.totalPurchaseValue?.toLocaleString('en-IN')}</td>
-                                    <td>₹{category.stock.totalValue?.toLocaleString('en-IN')}</td>
-                                    <td className="in-stock">{category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts}</td>
-                                    <td className="low-stock">{category.stock.lowStockProducts}</td>
-                                    <td className="out-of-stock">{category.stock.outOfStockProducts}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {totalPages > 1 && (
-                    <div className="table-pagination">
-                        <div className="pagination-info">
-                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, data.length)} of {data.length} categories
-                        </div>
-                        <div className="pagination-controls">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                            >
-                                Previous
-                            </button>
-
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                const pageNum = i + 1;
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={currentPage === pageNum ? 'active' : ''}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                );
-                            })}
-
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-
-    const renderSaleDetails = () => {
-        // data is a single sale object here
-        const sale = data;
-
-        return (
-            <div className="sale-details-modal">
-                <div className="sale-header-details">
-                    <h3>Invoice: {sale.invoiceNumber}</h3>
-                    <span className={`payment-badge ${sale.paymentType.toLowerCase()}`}>
-                        {sale.paymentType.toUpperCase()}
-                    </span>
-                </div>
-
-                <div className="sale-info-sections">
-                    <div className="info-section">
-                        <h4>Customer Information</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Customer Name:</span>
-                                <span className="value">{sale.customer.name}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Date & Time:</span>
-                                <span className="value">{new Date(sale.date).toLocaleString('en-IN')}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="info-section">
-                        <h4>Sale Summary</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Subtotal:</span>
-                                <span className="value">₹{sale.subtotal?.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Tax:</span>
-                                <span className="value">₹{sale.tax?.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Discount:</span>
-                                <span className="value">₹{sale.discount?.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Total Amount:</span>
-                                <span className="value highlight">₹{sale.total?.toLocaleString('en-IN')}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="info-section">
-                        <h4>Items ({sale.items.length})</h4>
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Product Name</th>
-                                    <th>Quantity</th>
-                                    <th>Unit Price</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sale.items.map((item, index) => (
-                                    <tr key={index}>
-                                        <td className="product-name">{item.name}</td>
-                                        <td className="quantity">{item.quantity}</td>
-                                        <td>₹{item.price?.toLocaleString('en-IN')}</td>
-                                        <td>₹{(item.quantity * item.price)?.toLocaleString('en-IN')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    const renderAllSales = () => {
-        // data is an array of sales here
-        if (!data || data.length === 0) return <div>No sales data available</div>;
-
-        return (
-            <div className="modal-full-data">
-                <div className="data-summary">
-                    <div className="summary-text">
-                        Showing <span className="highlight">{data.length}</span> sales records
-                    </div>
-                </div>
-
-                <div className="full-data-table">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Invoice Number</th>
-                                <th>Customer</th>
-                                <th>Date & Time</th>
-                                <th>Items</th>
-                                <th>Payment Type</th>
-                                <th>Tax</th>
-                                <th>Discount</th>
-                                <th>Total Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {currentData.map((sale, index) => (
-                                <tr key={startIndex + index}>
-                                    <td className="invoice-number">{sale.invoiceNumber}</td>
-                                    <td>{sale.customer.name}</td>
-                                    <td>{new Date(sale.date).toLocaleString('en-IN')}</td>
-                                    <td>{sale.items.length} items</td>
-                                    <td>
-                                        <span className={`payment-badge small ${sale.paymentType.toLowerCase()}`}>
-                                            {sale.paymentType.toUpperCase()}
-                                        </span>
-                                    </td>
-                                    <td>₹{sale.tax?.toLocaleString('en-IN')}</td>
-                                    <td>₹{sale.discount?.toLocaleString('en-IN')}</td>
-                                    <td className="amount">₹{sale.total?.toLocaleString('en-IN')}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {totalPages > 1 && (
-                    <div className="table-pagination">
-                        <div className="pagination-info">
-                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, data.length)} of {data.length} sales
-                        </div>
-                        <div className="pagination-controls">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                            >
-                                Previous
-                            </button>
-
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                const pageNum = i + 1;
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={currentPage === pageNum ? 'active' : ''}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                );
-                            })}
-
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
+    // UPDATED: All Inventory Table with clickable rows
     const renderAllInventoryTable = () => {
         // Filter data based on search term
         const filteredData = data.filter(product =>
@@ -1204,7 +682,7 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
 
         return (
             <div className="modal-full-data">
-                {/* ADD SEARCH BAR */}
+                {/* SEARCH BAR */}
                 <div className="search-section">
                     <input
                         type="text"
@@ -1212,7 +690,7 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                         value={searchTerm}
                         onChange={(e) => {
                             setSearchTerm(e.target.value);
-                            setCurrentPage(1); // Reset to first page when searching
+                            setCurrentPage(1);
                         }}
                         className="search-input"
                     />
@@ -1223,11 +701,12 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
 
                 <div className="data-summary">
                     <div className="summary-text">
-                        Showing <span className="highlight">{filteredData.length}</span> products matching your search
+                        Showing <span className="highlight">{filteredData.length}</span> products
+                        <span className="click-hint"> ← Click any row to view batch details</span>
                     </div>
                 </div>
 
-                <div className="full-data-table">
+                <div className="full-data-table clickable-rows">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -1237,6 +716,7 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                                 <th>Current Stock</th>
                                 <th>Price</th>
                                 <th>Total Value</th>
+                                <th>Total Batches</th>
                                 <th>Expired Batches</th>
                                 <th>Near Expiry</th>
                                 <th>Disposed</th>
@@ -1244,17 +724,22 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                         </thead>
                         <tbody>
                             {currentData.map((product, index) => (
-                                <tr key={startIndex + index}>
+                                <tr
+                                    key={startIndex + index}
+                                    className="clickable-row"
+                                    onClick={() => handleRowClick(product)}
+                                >
                                     <td className="product-name">{product.productName}</td>
                                     <td>{product.category}</td>
                                     <td>
-                                        <span className={`status-badge ${product.status.toLowerCase().replace(' ', '-')}`}>
+                                        <span className={`status-badge ${product.status?.toLowerCase().replace(' ', '-')}`}>
                                             {product.status}
                                         </span>
                                     </td>
                                     <td className="quantity">{product.totalQuantity}</td>
                                     <td>₹{product.price}</td>
                                     <td className="value">₹{(product.totalQuantity * product.price).toLocaleString('en-IN')}</td>
+                                    <td>{product.allBatches?.length || product.batches?.length || 0}</td>
                                     <td className={product.expiryStats.expiredBatches > 0 ? 'expired-count' : ''}>
                                         {product.expiryStats.expiredBatches}
                                     </td>
@@ -1309,12 +794,615 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
         );
     };
 
-    const renderInventoryDetails = () => {
+    // UPDATED: All Expired Products with clickable rows and batch display
+    const renderAllExpiredProducts = () => {
+        // Filter expired and near-expiry products
+        const expiredProducts = data.filter(product =>
+            product.expiryStats.expiredBatches > 0 || product.expiryStats.nearExpiryBatches > 0
+        );
+
+        if (expiredProducts.length === 0) {
+            return <div className="table-empty">No expired or near-expiry products found</div>;
+        }
+
+        // Filter data based on search term
+        const filteredData = expiredProducts.filter(product =>
+            product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.status.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const currentData = filteredData.slice(startIndex, startIndex + rowsPerPage);
+
         return (
             <div className="modal-full-data">
+                {/* SEARCH BAR */}
+                <div className="search-section">
+                    <input
+                        type="text"
+                        placeholder="Search expired/near-expiry products by name, category or status..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="search-input"
+                    />
+                    <div className="search-results">
+                        Showing {filteredData.length} of {expiredProducts.length} expired/near-expiry products
+                    </div>
+                </div>
+
+                <div className="data-summary">
+                    <div className="summary-text">
+                        Showing <span className="highlight">{filteredData.length}</span> expired/near-expiry products
+                        <span style={{ marginLeft: '10px', color: '#e53e3e', fontWeight: '600' }}>
+                            ({data.filter(p => p.expiryStats.expiredBatches > 0).length} expired,
+                            {data.filter(p => p.expiryStats.nearExpiryBatches > 0).length} near expiry)
+                        </span>
+                        <span className="click-hint"> ← Click any row to view batch details</span>
+                    </div>
+                </div>
+
+                <div className="full-data-table clickable-rows">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Category</th>
+                                <th>Stock Status</th>
+                                <th>Current Stock</th>
+                                <th>Price</th>
+                                <th>Total Value</th>
+                                <th>Expired Batches</th>
+                                <th>Near Expiry Batches</th>
+                                <th>Expired Quantity</th>
+                                <th>Near Expiry Quantity</th>
+                                <th>Urgency Level</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {currentData.map((product, index) => {
+                                const isExpired = product.expiryStats.expiredBatches > 0;
+                                const isNearExpiry = product.expiryStats.nearExpiryBatches > 0;
+                                const urgencyLevel = isExpired ? 'CRITICAL' : isNearExpiry ? 'HIGH' : 'MEDIUM';
+
+                                return (
+                                    <tr
+                                        key={startIndex + index}
+                                        className={`clickable-row ${isExpired ? 'disposed-row' : ''}`}
+                                        onClick={() => handleRowClick(product)}
+                                    >
+                                        <td className="product-name">{product.productName}</td>
+                                        <td>{product.category}</td>
+                                        <td>
+                                            <span className={`status-badge ${product.status.toLowerCase().replace(' ', '-')}`}>
+                                                {product.status}
+                                            </span>
+                                        </td>
+                                        <td className="quantity">{product.totalQuantity}</td>
+                                        <td>₹{product.price}</td>
+                                        <td className="value">₹{(product.totalQuantity * product.price).toLocaleString('en-IN')}</td>
+                                        <td className={product.expiryStats.expiredBatches > 0 ? 'expired-count' : ''}>
+                                            {product.expiryStats.expiredBatches}
+                                        </td>
+                                        <td className={product.expiryStats.nearExpiryBatches > 0 ? 'near-expiry-count' : ''}>
+                                            {product.expiryStats.nearExpiryBatches}
+                                        </td>
+                                        <td className="expired-count">
+                                            {product.expiryStats.totalExpiredQuantity}
+                                        </td>
+                                        <td className="near-expiry-count">
+                                            {product.expiryStats.totalNearExpiryQuantity}
+                                        </td>
+                                        <td>
+                                            <span className={`status-badge ${urgencyLevel === 'CRITICAL' ? 'expired' :
+                                                urgencyLevel === 'HIGH' ? 'near-expiry' : 'good'
+                                                }`}>
+                                                {urgencyLevel}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {totalPages > 1 && (
+                    <div className="table-pagination">
+                        <div className="pagination-info">
+                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, filteredData.length)} of {filteredData.length} products
+                        </div>
+                        <div className="pagination-controls">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                Previous
+                            </button>
+
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                const pageNum = i + 1;
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={currentPage === pageNum ? 'active' : ''}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // UPDATED: All Disposed Products with clickable rows and batch display
+    const renderAllDisposedProducts = () => {
+        // data is an array of disposed products here
+        if (!data || data.length === 0) return <div>No disposed products found</div>;
+
+        // Filter data based on search term
+        const filteredData = data.filter(product =>
+            product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.category.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const currentData = filteredData.slice(startIndex, startIndex + rowsPerPage);
+
+        return (
+            <div className="all-disposed-modal">
+                <div className="modal-header-section">
+                    <h3>All Disposed Products</h3>
+                    <div className="total-disposed-badge">
+                        {data.length} Products Disposed
+                    </div>
+                </div>
+
+                {/* SEARCH BAR */}
+                <div className="search-section">
+                    <input
+                        type="text"
+                        placeholder="Search disposed products by name or category..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="search-input"
+                    />
+                    <div className="search-results">
+                        Showing {filteredData.length} of {data.length} disposed products
+                    </div>
+                </div>
+
+                <div className="click-hint" style={{ textAlign: 'center', margin: '10px 0', color: '#666', fontStyle: 'italic' }}>
+                    Click any product card to view detailed disposal batch information
+                </div>
+
+                <div className="disposed-products-grid clickable-cards">
+                    {currentData.map((product, index) => {
+                        const totalDisposed = product.disposedBatches?.reduce((sum, batch) => sum + (batch.quantity || 0), 0) || 0;
+                        const financialImpact = product.disposedBatches?.reduce((sum, batch) => sum + ((batch.quantity || 0) * product.price), 0) || 0;
+                        const lastDisposal = product.disposedBatches?.length > 0
+                            ? new Date(Math.max(...product.disposedBatches.map(b => new Date(b.disposalDate))))
+                            : null;
+
+                        return (
+                            <div
+                                key={startIndex + index}
+                                className="disposed-product-summary-card clickable-card"
+                                onClick={() => handleRowClick(product)}
+                            >
+                                <div className="product-header">
+                                    <h4 className="product-name">{product.productName}</h4>
+                                    <span className="disposal-count">
+                                        {product.disposedBatches?.length || 0} batches
+                                    </span>
+                                </div>
+                                <div className="product-category">{product.category}</div>
+
+                                <div className="disposal-stats">
+                                    <div className="stat">
+                                        <span className="stat-value">{totalDisposed}</span>
+                                        <span className="stat-label">Units</span>
+                                    </div>
+                                    <div className="stat">
+                                        <span className="stat-value">₹{(financialImpact / 1000).toFixed(1)}K</span>
+                                        <span className="stat-label">Value</span>
+                                    </div>
+                                </div>
+
+                                {lastDisposal && (
+                                    <div className="last-disposal">
+                                        Last disposed: <span className="date">{lastDisposal.toLocaleDateString('en-IN')}</span>
+                                    </div>
+                                )}
+
+                                {/* Show first 2 batch numbers for quick reference */}
+                                {product.disposedBatches?.slice(0, 2).map((batch, idx) => (
+                                    <div key={idx} className="batch-preview">
+                                        <span className="batch-preview-number">{batch.batchNumber}</span>
+                                        <span className="batch-preview-qty">{batch.quantity} units</span>
+                                    </div>
+                                ))}
+                                {product.disposedBatches?.length > 2 && (
+                                    <div className="more-batches-preview">
+                                        +{product.disposedBatches.length - 2} more batches
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {totalPages > 1 && (
+                    <div className="table-pagination">
+                        <div className="pagination-info">
+                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, filteredData.length)} of {filteredData.length} products
+                        </div>
+                        <div className="pagination-controls">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                Previous
+                            </button>
+
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                const pageNum = i + 1;
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={currentPage === pageNum ? 'active' : ''}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderModalContent = () => {
+        if (viewMode === 'batch-details') {
+            return renderBatchDetailsView();
+        }
+
+        if (viewMode === 'sale-details') {
+            return renderInvoiceDetailsView();
+        }
+
+        if (!data) return <div>No data available</div>;
+
+        switch (type) {
+            case 'all-inventory':
+                return renderAllInventoryTable();
+
+            case 'all-expired':
+                return renderAllExpiredProducts();
+
+            case 'all-disposed':
+                return renderAllDisposedProducts();
+
+            case 'sales-trend':
+            case 'purchase-trend':
+                return renderTrendAnalysis();
+
+            case 'top-products':
+            case 'payment-methods':
+            case 'category-purchases':
+            case 'recent-purchases':
+            case 'all-trending':
+            case 'trending-details':
+                return renderFullDataView();
+
+            case 'sale-details':
+                return renderSaleDetails();
+
+            case 'all-sales':
+                return renderAllSalesTableView();
+
+            case 'category-details':
+                return renderCategoryDetails();
+
+            case 'all-categories':
+                return renderAllCategories();
+
+            case 'disposed-details':
+                return renderDisposalDetails();
+
+            case 'product-details':
+                return renderProductDetails();
+
+            default:
+                return (
+                    <div className="modal-full-data">
+                        <pre>{JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                );
+        }
+    };
+
+
+    const renderFullDataView = () => {
+        if (!data || !Array.isArray(data)) {
+            return <div className="table-empty">No data available</div>;
+        }
+
+        const filteredData = data.filter(item =>
+            Object.values(item).some(value =>
+                String(value).toLowerCase().includes(searchTerm.toLowerCase())
+            )
+        );
+
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const currentData = filteredData.slice(startIndex, startIndex + rowsPerPage);
+
+        return (
+            <div className="modal-full-data">
+                {/* Search Section */}
+                <div className="search-section">
+                    <input
+                        type="text"
+                        placeholder="Search data..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="search-input"
+                    />
+                    <div className="search-results">
+                        Showing {filteredData.length} of {data.length} records
+                    </div>
+                </div>
+
+                <div className="data-summary">
+                    <div className="summary-text">
+                        Showing <span className="highlight">{filteredData.length}</span> records
+                        {searchTerm && (
+                            <span> for "<strong>{searchTerm}</strong>"</span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="full-data-table">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                {Object.keys(data[0] || {}).map((key, index) => (
+                                    <th key={index}>
+                                        {key.charAt(0).toUpperCase() + key.slice(1)}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {currentData.map((row, rowIndex) => (
+                                <tr key={rowIndex}>
+                                    {Object.values(row).map((value, colIndex) => (
+                                        <td key={colIndex}>
+                                            {typeof value === 'number'
+                                                ? value.toLocaleString('en-IN')
+                                                : String(value)
+                                            }
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {totalPages > 1 && (
+                    <div className="table-pagination">
+                        <div className="pagination-info">
+                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, filteredData.length)} of {filteredData.length} records
+                        </div>
+                        <div className="pagination-controls">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                Previous
+                            </button>
+
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                const pageNum = i + 1;
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={currentPage === pageNum ? 'active' : ''}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderTrendAnalysis = () => {
+        if (!data || !Array.isArray(data)) {
+            return <div className="table-empty">No trend data available</div>;
+        }
+
+        return (
+            <div className="modal-trend-analysis">
+                <div className="trend-stats">
+                    <div className="stat-card">
+                        <div className="stat-label">Total Records</div>
+                        <div className="stat-value">{data.length}</div>
+                    </div>
+                    {/* <div className="stat-card">
+                        <div className="stat-label">Date Range</div>
+                        <div className="stat-value">
+                            {data.length > 0 ? `${new Date(data[0].date).toLocaleDateString()} - ${new Date(data[data.length - 1].date).toLocaleDateString()}` : 'N/A'}
+                        </div>
+                    </div> */}
+                </div>
+
+                <div className="trend-table">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                {Object.keys(data[0] || {}).map((key, index) => (
+                                    <th key={index}>
+                                        {key.charAt(0).toUpperCase() + key.slice(1)}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((row, index) => (
+                                <tr key={index}>
+                                    {Object.entries(row).map(([key, value], colIndex) => ( // ✅ Changed to Object.entries to get both key and value
+                                        <td key={colIndex}>
+                                            {typeof value === 'number'
+                                                ? key.toLowerCase().includes('sales') || key.toLowerCase().includes('revenue') || key.toLowerCase().includes('amount')
+                                                    ? `₹${value.toLocaleString('en-IN')}`
+                                                    : value.toLocaleString('en-IN')
+                                                : String(value)
+                                            }
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+
+    const renderAllSalesTableView = () => {
+        if (!data || !Array.isArray(data)) return <div>No sales data available</div>;
+
+        const displayTitle = title || `All Invoices (${data.length})`;
+
+        return (
+            <div className="modal-full-data">
+                <div className="data-summary">
+                    <div className="summary-text">
+                        Showing <span className="highlight">{data.length}</span> invoices for {displayTitle}
+                    </div>
+                </div>
+
+                <div className="full-data-table">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Invoice No.</th>
+                                <th>Customer</th>
+                                <th>Time</th>
+                                <th>Payment Method</th>
+                                <th>Items</th>
+                                {/* <th>Subtotal</th>  */}
+                                <th>Tax</th>
+                                <th>Discount</th>
+                                <th>Total</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((sale, index) => (
+                                <tr key={sale.invoiceNumber || index}>
+                                    <td className="invoice-number">{sale.invoiceNumber}</td>
+                                    <td>
+                                        <div className="customer-info">
+                                            <div className="customer-name">{sale.customer?.name || 'N/A'}</div>
+                                            {sale.customer?.phone && (
+                                                <div className="customer-phone">{sale.customer.phone}</div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td>{sale.date ? new Date(sale.date).toLocaleTimeString('en-IN') : 'N/A'}</td>
+                                    <td>
+                                        <span className={`payment-badge ${sale.paymentType?.toLowerCase() || 'cash'}`}>
+                                            {sale.paymentType?.toUpperCase() || 'CASH'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div className="items-count">
+                                            {sale.items?.length || 0} items
+                                        </div>
+                                        <div className="items-preview">
+                                            {sale.items?.slice(0, 2).map(item => item.name).join(', ') || 'No items'}
+                                            {sale.items?.length > 2 && ` +${sale.items.length - 2} more`}
+                                        </div>
+                                    </td>
+                                    {/* <td className="amount">₹{sale.subtotal?.toLocaleString('en-IN') || '0'}</td> */}
+                                    <td className="tax">₹{sale.tax || '0'}</td>
+                                    <td className="discount">₹{sale.discount || '0'}</td>
+                                    <td className="total-amount">₹{sale.total?.toLocaleString('en-IN') || '0'}</td>
+                                    <td>
+                                        <button
+                                            className="view-details-btn small"
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevent row click
+                                                handleViewInvoice(sale);
+                                            }}
+                                        >
+                                            View
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    const renderProductDetails = () => {
+        if (!data) return <div>No product data available</div>;
+
+        return (
+            <div className="product-details-modal">
                 <div className="product-header-details">
-                    <h3>{data.productName}</h3>
-                    <span className={`status-badge large ${data.status.toLowerCase().replace(' ', '-')}`}>
+                    <h3>{data.productName || data.name}</h3>
+                    <span className={`status-badge large ${data.status?.toLowerCase().replace(' ', '-')}`}>
                         {data.status}
                     </span>
                 </div>
@@ -1324,30 +1412,20 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                         <h4>Basic Information</h4>
                         <div className="info-grid">
                             <div className="info-item">
+                                <span className="label">Product Name:</span>
+                                <span className="value">{data.productName || data.name}</span>
+                            </div>
+                            <div className="info-item">
                                 <span className="label">Category:</span>
                                 <span className="value">{data.category}</span>
                             </div>
                             <div className="info-item">
-                                <span className="label">HSN Code:</span>
-                                <span className="value">{data.hsnCode}</span>
+                                <span className="label">Current Stock:</span>
+                                <span className="value quantity">{data.totalQuantity}</span>
                             </div>
                             <div className="info-item">
                                 <span className="label">Price:</span>
                                 <span className="value">₹{data.price}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="label">Tax Slab:</span>
-                                <span className="value">{data.taxSlab}%</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="info-section">
-                        <h4>Stock Information</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Current Stock:</span>
-                                <span className="value quantity">{data.totalQuantity} units</span>
                             </div>
                             <div className="info-item">
                                 <span className="label">Total Value:</span>
@@ -1357,74 +1435,505 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                     </div>
 
                     <div className="info-section">
-                        <h4>Expiry Overview</h4>
+                        <h4>Sales Performance</h4>
                         <div className="info-grid">
                             <div className="info-item">
-                                <span className="label">Expired Batches:</span>
-                                <span className="value expired-count">{data.expiryStats.expiredBatches}</span>
+                                <span className="label">Total Revenue:</span>
+                                <span className="value">₹{data.totalRevenue?.toLocaleString('en-IN')}</span>
                             </div>
                             <div className="info-item">
-                                <span className="label">Near Expiry Batches:</span>
-                                <span className="value near-expiry-count">{data.expiryStats.nearExpiryBatches}</span>
+                                <span className="label">Quantity Sold:</span>
+                                <span className="value">{data.totalQuantitySold || data.totalQuantity}</span>
                             </div>
                             <div className="info-item">
-                                <span className="label">Disposed Batches:</span>
-                                <span className="value disposed-count">{data.expiryStats.disposedBatchesCount}</span>
+                                <span className="label">Total Orders:</span>
+                                <span className="value">{data.totalOrders}</span>
+                            </div>
+                            <div className="info-item">
+                                <span className="label">Sale Frequency:</span>
+                                <span className="value">{data.saleFrequency?.toFixed(1)}/day</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {(data.batches.length > 0 || data.disposedBatches.length > 0) && (
+                {/* Batch Details Section */}
+                {(data.allBatches || data.batches) && (
                     <div className="batch-section">
-                        <h4>Batch Details</h4>
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Batch Number</th>
-                                    <th>Quantity</th>
-                                    <th>Manufacture Date</th>
-                                    <th>Expiry Date</th>
-                                    <th>Status</th>
-                                    <th>Days to Expiry</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.batches.map((batch, index) => (
-                                    <tr key={`active-${index}`}>
-                                        <td>{batch.batchNumber}</td>
-                                        <td>{batch.quantity}</td>
-                                        <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
-                                        <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
-                                        <td>
-                                            <span className={`status-badge small ${batch.expiryStatus}`}>
-                                                {batch.expiryStatus === 'expired' ? 'Expired' :
-                                                    batch.expiryStatus === 'near-expiry' ? 'Near Expiry' : 'Good'}
-                                            </span>
-                                        </td>
-                                        <td>{batch.daysToExpiry}</td>
+                        <h4>Batch Details ({(data.allBatches || data.batches).length})</h4>
+                        <div className="batch-table">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Batch Number</th>
+                                        <th>Quantity</th>
+                                        <th>Manufacture Date</th>
+                                        <th>Expiry Date</th>
+                                        <th>Days to Expiry</th>
+                                        <th>Status</th>
                                     </tr>
-                                ))}
-                                {data.disposedBatches.map((batch, index) => (
-                                    <tr key={`disposed-${index}`} className="disposed-row">
-                                        <td>{batch.batchNumber}</td>
-                                        <td>{batch.quantity}</td>
-                                        <td>{batch.manufactureDate ? new Date(batch.manufactureDate).toLocaleDateString('en-IN') : 'N/A'}</td>
-                                        <td>{batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('en-IN') : 'N/A'}</td>
-                                        <td>
-                                            <span className="status-badge small disposed">Disposed</span>
-                                        </td>
-                                        <td>Disposed on {new Date(batch.disposalDate).toLocaleDateString('en-IN')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {(data.allBatches || data.batches).slice(0, 10).map((batch, index) => (
+                                        <tr key={index} className={batch.expiryStatus || (batch.isExpired ? 'expired' : batch.isNearExpiry ? 'near-expiry' : 'good')}>
+                                            <td className="batch-number">{batch.batchNumber}</td>
+                                            <td>{batch.quantity}</td>
+                                            <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
+                                            <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                            <td>{batch.daysToExpiry}</td>
+                                            <td>
+                                                <span className={`status-badge ${batch.expiryStatus || (batch.isExpired ? 'expired' : batch.isNearExpiry ? 'near-expiry' : 'good')}`}>
+                                                    {batch.expiryStatus === 'expired' ? 'Expired' :
+                                                        batch.expiryStatus === 'near-expiry' ? `Near Expiry` : 'Good'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {(data.allBatches || data.batches).length > 10 && (
+                                <div className="more-batches-message">
+                                    Showing 10 of {(data.allBatches || data.batches).length} batches
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Expiry Stats */}
+                {data.expiryStats && (
+                    <div className="expiry-stats-section">
+                        <h4>Expiry Analysis</h4>
+                        <div className="stats-grid">
+                            <div className="stat-card">
+                                <span className="stat-label">Total Batches</span>
+                                <span className="stat-value">{data.expiryStats.totalBatches}</span>
+                            </div>
+                            <div className="stat-card expired">
+                                <span className="stat-label">Expired Batches</span>
+                                <span className="stat-value">{data.expiryStats.expiredBatches}</span>
+                            </div>
+                            <div className="stat-card near-expiry">
+                                <span className="stat-label">Near Expiry</span>
+                                <span className="stat-value">{data.expiryStats.nearExpiryBatches}</span>
+                            </div>
+                            <div className="stat-card disposed">
+                                <span className="stat-label">Disposed</span>
+                                <span className="stat-value">{data.expiryStats.disposedBatchesCount || 0}</span>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
         );
     };
 
+
+    const renderSaleDetails = () => {
+        const sale = selectedRowData || data;
+        if (!sale) return <div className="invoice-empty">No sale data available</div>;
+
+        // Calculate tax breakdown if available
+        const taxBreakdown = sale.items?.reduce((acc, item) => {
+            const taxRate = item.taxRate || 18; // Default tax rate if not provided
+            const taxAmount = item.tax || (item.totalAmount * taxRate / 100);
+
+            if (!acc[taxRate]) {
+                acc[taxRate] = { rate: taxRate, amount: 0 };
+            }
+            acc[taxRate].amount += taxAmount;
+            return acc;
+        }, {});
+
+        return (
+            <div className="sale-details-modal">
+                <div className="sale-details-header">
+                    <div className="invoice-info">
+                        <h3>Invoice: {sale.invoiceNumber}</h3>
+                        <div className="invoice-date">
+                            {new Date(sale.date).toLocaleDateString('en-IN')} at {new Date(sale.date).toLocaleTimeString('en-IN')}
+                        </div>
+                    </div>
+                    <div className="customer-info">
+                        <h4>Customer Details</h4>
+                        <div className="customer-details">
+                            <div><strong>Name:</strong> {sale.customer?.name || 'N/A'}</div>
+                            <div><strong>Phone:</strong> {sale.customer?.phone || 'N/A'}</div>
+                            {sale.customer?.email && <div><strong>Email:</strong> {sale.customer.email}</div>}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="sale-items-section">
+                    <h4>Items Sold ({sale.items?.length || 0})</h4>
+                    <table className="sale-items-table">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Category</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Total Amount</th>
+                                <th>Tax</th>
+                                <th>Discount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sale.items?.map((item, index) => (
+                                <tr key={index} className={index % 2 === 0 ? 'product-item-highlight' : ''}>
+                                    <td>{item.name}</td>
+                                    <td>{item.category}</td>
+                                    <td>{item.quantity}</td>
+                                    <td>₹{item.price}</td>
+                                    <td>₹{item.totalAmount}</td>
+                                    <td>₹{item.tax || 0}</td>
+                                    <td>₹{item.discount || 0}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    {/* Tax Breakdown */}
+                    {taxBreakdown && Object.keys(taxBreakdown).length > 0 && (
+                        <div className="tax-breakdown">
+                            <h5>Tax Breakdown</h5>
+                            {Object.values(taxBreakdown).map((tax, index) => (
+                                <div key={index} className="tax-row">
+                                    <span className="tax-label">GST @ {tax.rate}%</span>
+                                    <span className="tax-amount">₹{tax.amount.toFixed(2)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Items Total Summary */}
+                    <div className="items-total">
+                        <div className="items-total-row">
+                            <span>Subtotal:</span>
+                            <span>₹{sale.subtotal?.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="items-total-row">
+                            <span>Total Tax:</span>
+                            <span>₹{sale.tax || 0}</span>
+                        </div>
+                        <div className="items-total-row">
+                            <span>Total Discount:</span>
+                            <span>₹{sale.discount || 0}</span>
+                        </div>
+                        <div className="items-total-row grand-total">
+                            <span>Grand Total:</span>
+                            <span>₹{sale.total?.toLocaleString('en-IN')}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="sale-summary">
+                    <div className="summary-row">
+                        <span>Payment Method:</span>
+                        <span className={`payment-badge ${sale.paymentType?.toLowerCase() || 'cash'}`}>
+                            {sale.paymentType?.toUpperCase() || 'CASH'}
+                        </span>
+                    </div>
+                    <div className="summary-row">
+                        <span>Payment Status:</span>
+                        <span className="status-indicator completed">Completed</span>
+                    </div>
+                    {sale.invoiceNotes && (
+                        <div className="summary-row">
+                            <span>Notes:</span>
+                            <span>{sale.invoiceNotes}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // NEW: Handle individual invoice view
+    const handleViewInvoice = (invoice) => {
+        setSelectedRowData(invoice);
+        setViewMode('sale-details');
+    };
+
+    // NEW: Back to list view from invoice details
+    const handleBackToInvoices = () => {
+        setViewMode('list');
+        setSelectedRowData(null);
+    };
+
+    // NEW: Render individual invoice details view
+    const renderInvoiceDetailsView = () => {
+        return (
+            <div className="invoice-details-view">
+                <div className="invoice-details-header">
+                    <button className="back-button" onClick={handleBackToInvoices}>
+                        ← Back to Invoices
+                    </button>
+                    <h3>Invoice Details - {selectedRowData?.invoiceNumber}</h3>
+                </div>
+                {renderSaleDetails()}
+            </div>
+        );
+    };
+
+    // Add these functions to the ReportModal component:
+
+    const renderCategoryDetails = () => {
+        if (!selectedRowData) return <div>No category data available</div>;
+
+        const category = selectedRowData;
+
+        return (
+            <div className="category-details">
+                <h3>{category.category} - Detailed Analysis</h3>
+
+                <div className="category-stats-grid">
+                    <div className="stat-card">
+                        <h4>Sales Performance</h4>
+                        <div className="stat-value">₹{category.sales?.totalSales?.toLocaleString('en-IN') || '0'}</div>
+                        <div className="stat-label">Total Sales</div>
+                        <div className="stat-sub">Growth: {category.sales?.growth || 0}%</div>
+                    </div>
+
+                    <div className="stat-card">
+                        <h4>Purchase Analysis</h4>
+                        <div className="stat-value">₹{category.purchases?.totalPurchaseValue?.toLocaleString('en-IN') || '0'}</div>
+                        <div className="stat-label">Total Purchases</div>
+                        <div className="stat-sub">Growth: {category.purchases?.growth || 0}%</div>
+                    </div>
+
+                    <div className="stat-card">
+                        <h4>Stock Status</h4>
+                        <div className="stat-value">{category.stock?.totalProducts || 0}</div>
+                        <div className="stat-label">Total Products</div>
+                        <div className="stat-sub">
+                            In Stock: {category.stock?.totalProducts - category.stock?.lowStockProducts - category.stock?.outOfStockProducts || 0}
+                        </div>
+                    </div>
+
+                    <div className="stat-card">
+                        <h4>Inventory Value</h4>
+                        <div className="stat-value">₹{category.stock?.totalValue?.toLocaleString('en-IN') || '0'}</div>
+                        <div className="stat-label">Stock Value</div>
+                        <div className="stat-sub">Average: ₹{((category.stock?.totalValue || 0) / (category.stock?.totalProducts || 1)).toFixed(2)}</div>
+                    </div>
+                </div>
+
+                {/* Detailed Tables */}
+                <div className="category-tables">
+                    <div className="table-section">
+                        <h4>Sales Breakdown</h4>
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Value</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Total Orders</td>
+                                    <td>{category.sales?.totalOrders || 0}</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>Total Quantity Sold</td>
+                                    <td>{category.sales?.totalQuantity || 0}</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>Average Order Value</td>
+                                    <td>₹{category.sales?.averageOrderValue?.toFixed(2) || '0.00'}</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>Total Tax</td>
+                                    <td>₹{category.sales?.totalTax?.toLocaleString('en-IN') || '0'}</td>
+                                    <td>-</td>
+                                </tr>
+                                <tr>
+                                    <td>Total Discount</td>
+                                    <td>₹{category.sales?.totalDiscount?.toLocaleString('en-IN') || '0'}</td>
+                                    <td>-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="table-section">
+                        <h4>Stock Breakdown</h4>
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>In Stock</td>
+                                    <td>{category.stock?.totalProducts - category.stock?.lowStockProducts - category.stock?.outOfStockProducts || 0}</td>
+                                    <td>{(((category.stock?.totalProducts - category.stock?.lowStockProducts - category.stock?.outOfStockProducts) / category.stock?.totalProducts) * 100 || 0).toFixed(1)}%</td>
+                                </tr>
+                                <tr>
+                                    <td>Low Stock</td>
+                                    <td>{category.stock?.lowStockProducts || 0}</td>
+                                    <td>{(((category.stock?.lowStockProducts || 0) / category.stock?.totalProducts) * 100 || 0).toFixed(1)}%</td>
+                                </tr>
+                                <tr>
+                                    <td>Out of Stock</td>
+                                    <td>{category.stock?.outOfStockProducts || 0}</td>
+                                    <td>{(((category.stock?.outOfStockProducts || 0) / category.stock?.totalProducts) * 100 || 0).toFixed(1)}%</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Total Products</strong></td>
+                                    <td><strong>{category.stock?.totalProducts || 0}</strong></td>
+                                    <td><strong>100%</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderAllCategories = () => {
+        if (!data || !Array.isArray(data)) {
+            return <div className="table-empty">No category data available</div>;
+        }
+
+        // Filter data based on search term
+        const filteredData = data.filter(category =>
+            category.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            JSON.stringify(category.sales).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            JSON.stringify(category.purchases).toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const currentData = filteredData.slice(startIndex, startIndex + rowsPerPage);
+
+        return (
+            <div className="modal-full-data">
+                {/* Search Section */}
+                <div className="search-section">
+                    <input
+                        type="text"
+                        placeholder="Search categories..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="search-input"
+                    />
+                    <div className="search-results">
+                        Showing {filteredData.length} of {data.length} categories
+                    </div>
+                </div>
+
+                <div className="data-summary">
+                    <div className="summary-text">
+                        Showing <span className="highlight">{filteredData.length}</span> categories
+                    </div>
+                </div>
+
+                <div className="full-data-table">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Category Name</th>
+                                <th>Total Products</th>
+                                <th>Sales Revenue</th>
+                                <th>Purchase Value</th>
+                                <th>Stock Value</th>
+                                <th>Total Orders</th>
+                                <th>Sales Growth</th>
+                                <th>Purchase Growth</th>
+                                <th>In Stock</th>
+                                <th>Low Stock</th>
+                                <th>Out of Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {currentData.map((category, index) => (
+                                <tr key={category.category || index}>
+                                    <td className="category-name">{category.category}</td>
+                                    <td>{category.stock?.totalProducts || 0}</td>
+                                    <td className="sales-amount">₹{category.sales?.totalSales?.toLocaleString('en-IN') || '0'}</td>
+                                    <td className="purchase-amount">₹{category.purchases?.totalPurchaseValue?.toLocaleString('en-IN') || '0'}</td>
+                                    <td className="stock-value">₹{category.stock?.totalValue?.toLocaleString('en-IN') || '0'}</td>
+                                    <td>{category.sales?.totalOrders || 0}</td>
+                                    <td className={category.sales?.growth > 0 ? 'positive' : 'negative'}>
+                                        {category.sales?.growth || 0}%
+                                    </td>
+                                    <td className={category.purchases?.growth > 0 ? 'positive' : 'negative'}>
+                                        {category.purchases?.growth || 0}%
+                                    </td>
+                                    <td className="in-stock">{category.stock?.totalProducts - category.stock?.lowStockProducts - category.stock?.outOfStockProducts || 0}</td>
+                                    <td className="low-stock">{category.stock?.lowStockProducts || 0}</td>
+                                    <td className="out-of-stock">{category.stock?.outOfStockProducts || 0}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {totalPages > 1 && (
+                    <div className="table-pagination">
+                        <div className="pagination-info">
+                            Showing {startIndex + 1}-{Math.min(startIndex + rowsPerPage, filteredData.length)} of {filteredData.length} categories
+                        </div>
+                        <div className="pagination-controls">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                Previous
+                            </button>
+
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                const pageNum = i + 1;
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={currentPage === pageNum ? 'active' : ''}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderDisposalDetails = () => {
+        if (!selectedRowData) return <div>No disposal data available</div>;
+
+        return (
+            <div className="disposal-details">
+                <h3>{selectedRowData.productName} - Disposal History</h3>
+                <div className="disposal-stats">
+                    <p>Total Disposed Batches: {selectedRowData.disposedBatches?.length || 0}</p>
+                    <p>Total Disposed Quantity: {selectedRowData.expiryStats?.totalDisposedExpired || 0}</p>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="report-modal">
@@ -1434,7 +1943,6 @@ export const ReportModal = ({ type, data, title, dateFilter, customDateRange, on
                     <button className="close-btn" onClick={onClose}>×</button>
                 </div>
                 <div className="modal-body">
-                    {/* FIXED: Use the safe period display function */}
                     <div className="modal-filter-info">
                         <strong>Period:</strong> {getPeriodDisplay()}
                     </div>
@@ -1514,7 +2022,6 @@ export const InventoryFilter = ({
         return date instanceof Date && !isNaN(date);
     };
 
-    // ... rest of the component remains the same
     return (
         <div className="inventory-filter">
             <div className="filter-header">
@@ -1573,14 +2080,14 @@ export const InventoryFilter = ({
                     </select>
                 </div>
 
-                <div className="filter-group">
+                {/* <div className="filter-group">
                     <label>Show Batch Details</label>
                     <input
                         type="checkbox"
                         checked={filters.showBatches}
                         onChange={(e) => handleFilterChange('showBatches', e.target.checked)}
                     />
-                </div>
+                </div> */}
             </div>
 
             <div className="filter-row">
@@ -1655,7 +2162,7 @@ export const DisposedProductsSection = ({ data, onViewMore }) => {
             </div>
 
             <div className="disposed-grid">
-                {disposedProducts.slice(0, 4).map((product, index) => (
+                {disposedProducts.slice(0, 3).map((product, index) => (
                     <DisposedProductCard
                         key={product.inventoryId || `disposed-${index}`}
                         product={product}
@@ -1664,7 +2171,7 @@ export const DisposedProductsSection = ({ data, onViewMore }) => {
                 ))}
             </div>
 
-            {disposedProducts.length > 4 && (
+            {disposedProducts.length > 3 && (
                 <div className="view-more-section">
                     <button
                         className="view-all-btn"
@@ -1705,21 +2212,21 @@ export const DisposedProductCard = ({ product, onViewMore }) => {
                     <span>Disposal Batches:</span>
                     <span>{product.disposedBatches?.length || 0}</span>
                 </div>
-                {lastDisposalDate && (
+                {/* {lastDisposalDate && (
                     <div className="detail-row">
                         <span>Last Disposal:</span>
                         <span>{lastDisposalDate.toLocaleDateString('en-IN')}</span>
                     </div>
-                )}
-                <div className="detail-row">
+                )} */}
+                {/* <div className="detail-row">
                     <span>Current Status:</span>
                     <span className={`status ${product.status?.toLowerCase().replace(' ', '-')}`}>
                         {product.status}
                     </span>
-                </div>
+                </div> */}
             </div>
 
-            <div className="disposal-reasons">
+            {/* <div className="disposal-reasons">
                 <h5>Disposal Reasons:</h5>
                 {product.disposedBatches?.slice(0, 2).map((batch, index) => (
                     <div key={index} className="reason-item">
@@ -1735,11 +2242,11 @@ export const DisposedProductCard = ({ product, onViewMore }) => {
                         +{product.disposedBatches.length - 2} more disposal records
                     </div>
                 )}
-            </div>
+            </div> */}
 
-            <button className="view-details-btn" onClick={onViewMore}>
+            {/* <button className="view-details-btn" onClick={onViewMore}>
                 View Disposal Details
-            </button>
+            </button> */}
         </div>
     );
 };
@@ -1901,6 +2408,373 @@ export const ExpirySummary = ({ data }) => {
         </div>
     );
 };
+
+
+// Product Details Modal
+export const ProductDetailsModal = ({ product, onClose, title }) => {
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <h2>{title}</h2>
+                    <button className="close-btn" onClick={onClose}>×</button>
+                </div>
+
+                <div className="modal-body">
+                    <div className="product-info-section">
+                        <h3>Product Information</h3>
+                        <div className="info-grid">
+                            <div className="info-item">
+                                <label>Product Name:</label>
+                                <span>{product.productName}</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Category:</label>
+                                <span>{product.category}</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Current Stock:</label>
+                                <span className="quantity">{product.totalQuantity} units</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Price:</label>
+                                <span>₹{product.price}</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Total Value:</label>
+                                <span>₹{(product.totalQuantity * product.price).toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Status:</label>
+                                <span className={`status ${product.status?.toLowerCase().replace(' ', '-')}`}>
+                                    {product.status}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="batches-section">
+                        <h3>All Batches ({product.allBatches?.length || 0})</h3>
+                        <div className="batches-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Batch Number</th>
+                                        <th>Quantity</th>
+                                        <th>Manufacture Date</th>
+                                        <th>Expiry Date</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {product.allBatches?.map((batch, index) => (
+                                        <tr key={index}>
+                                            <td>{batch.batchNumber}</td>
+                                            <td>{batch.quantity}</td>
+                                            <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
+                                            <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                            <td>
+                                                <span className={`batch-status ${batch.expiryStatus}`}>
+                                                    {batch.expiryStatus === 'expired' ? 'Expired' :
+                                                        batch.expiryStatus === 'near-expiry' ? `Expires in ${batch.daysToExpiry} days` : 'Good'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Expiry Details Modal
+export const ExpiryDetailsModal = ({ product, onClose, title }) => {
+    const expiredBatches = product.allBatches?.filter(b => b.isExpired) || [];
+    const nearExpiryBatches = product.allBatches?.filter(b => b.isNearExpiry) || [];
+    const goodBatches = product.allBatches?.filter(b => !b.isExpired && !b.isNearExpiry) || [];
+
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <h2>{title}</h2>
+                    <button className="close-btn" onClick={onClose}>×</button>
+                </div>
+
+                <div className="modal-body">
+                    <div className="expiry-stats-overview">
+                        <h3>Expiry Summary</h3>
+                        <div className="stats-grid">
+                            <div className="stat-card expired">
+                                <span className="stat-number">{expiredBatches.length}</span>
+                                <span className="stat-label">Expired Batches</span>
+                            </div>
+                            <div className="stat-card near-expiry">
+                                <span className="stat-number">{nearExpiryBatches.length}</span>
+                                <span className="stat-label">Near Expiry Batches</span>
+                            </div>
+                            <div className="stat-card good">
+                                <span className="stat-number">{goodBatches.length}</span>
+                                <span className="stat-label">Good Batches</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {expiredBatches.length > 0 && (
+                        <div className="batch-section">
+                            <h4>Expired Batches</h4>
+                            <div className="batches-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Manufacture Date</th>
+                                            <th>Expiry Date</th>
+                                            <th>Days Expired</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {expiredBatches.map((batch, index) => (
+                                            <tr key={index} className="expired-row">
+                                                <td>{batch.batchNumber}</td>
+                                                <td>{batch.quantity}</td>
+                                                <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
+                                                <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                                <td>
+                                                    <span className="status expired">
+                                                        {Math.abs(batch.daysToExpiry)} days ago
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {nearExpiryBatches.length > 0 && (
+                        <div className="batch-section">
+                            <h4>Near Expiry Batches (Next 30 days)</h4>
+                            <div className="batches-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Batch Number</th>
+                                            <th>Quantity</th>
+                                            <th>Manufacture Date</th>
+                                            <th>Expiry Date</th>
+                                            <th>Days to Expiry</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {nearExpiryBatches.map((batch, index) => (
+                                            <tr key={index} className="near-expiry-row">
+                                                <td>{batch.batchNumber}</td>
+                                                <td>{batch.quantity}</td>
+                                                <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
+                                                <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                                <td>
+                                                    <span className="status near-expiry">
+                                                        {batch.daysToExpiry} days
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// All Products Modal (for View All functionality)
+export const AllProductsModal = ({ products, onClose, title, type }) => {
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content large-modal">
+                <div className="modal-header">
+                    <h2>{title} - Total: {products.length}</h2>
+                    <button className="close-btn" onClick={onClose}>×</button>
+                </div>
+
+                <div className="modal-body">
+                    <div className="products-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Category</th>
+                                    <th>Current Stock</th>
+                                    <th>Price</th>
+                                    <th>Total Value</th>
+                                    <th>Status</th>
+                                    {type === 'expired' && (
+                                        <>
+                                            <th>Expired Batches</th>
+                                            <th>Near Expiry Batches</th>
+                                            <th>Total Expired Qty</th>
+                                        </>
+                                    )}
+                                    {type === 'disposed' && (
+                                        <>
+                                            <th>Disposed Batches</th>
+                                            <th>Total Disposed Qty</th>
+                                            <th>Last Disposal</th>
+                                        </>
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {products.map((product, index) => (
+                                    <tr key={product.inventoryId}>
+                                        <td>{product.productName}</td>
+                                        <td>{product.category}</td>
+                                        <td>{product.totalQuantity}</td>
+                                        <td>₹{product.price}</td>
+                                        <td>₹{(product.totalQuantity * product.price).toLocaleString('en-IN')}</td>
+                                        <td>
+                                            <span className={`status ${product.status?.toLowerCase().replace(' ', '-')}`}>
+                                                {product.status}
+                                            </span>
+                                        </td>
+                                        {type === 'expired' && (
+                                            <>
+                                                <td>
+                                                    <span className="expired-count">
+                                                        {product.expiryStats.expiredBatches}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className="near-expiry-count">
+                                                        {product.expiryStats.nearExpiryBatches}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className="expired-quantity">
+                                                        {product.expiryStats.totalExpiredQuantity}
+                                                    </span>
+                                                </td>
+                                            </>
+                                        )}
+                                        {type === 'disposed' && (
+                                            <>
+                                                <td>
+                                                    <span className="disposed-count">
+                                                        {product.disposedBatches?.length || 0}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className="disposed-quantity">
+                                                        {product.expiryStats.totalDisposedExpired || 0}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {product.disposedBatches?.length > 0 ?
+                                                        new Date(Math.max(...product.disposedBatches.map(b => new Date(b.disposalDate)))).toLocaleDateString('en-IN')
+                                                        : '-'
+                                                    }
+                                                </td>
+                                            </>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Disposed Details Modal
+export const DisposedDetailsModal = ({ product, onClose, title }) => {
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <h2>{title}</h2>
+                    <button className="close-btn" onClick={onClose}>×</button>
+                </div>
+
+                <div className="modal-body">
+                    <div className="product-info-section">
+                        <h3>Product Information</h3>
+                        <div className="info-grid">
+                            <div className="info-item">
+                                <label>Product Name:</label>
+                                <span>{product.productName}</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Category:</label>
+                                <span>{product.category}</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Current Stock:</label>
+                                <span className="quantity">{product.totalQuantity} units</span>
+                            </div>
+                            <div className="info-item">
+                                <label>Total Disposed:</label>
+                                <span className="quantity disposed">
+                                    {product.expiryStats.totalDisposedExpired || 0} units
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="disposed-batches-section">
+                        <h3>Disposal History ({product.disposedBatches?.length || 0} batches)</h3>
+                        <div className="batches-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Batch Number</th>
+                                        <th>Quantity</th>
+                                        <th>Manufacture Date</th>
+                                        <th>Expiry Date</th>
+                                        <th>Disposal Date</th>
+                                        <th>Reason</th>
+                                        <th>Disposal ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {product.disposedBatches?.map((batch, index) => (
+                                        <tr key={index} className="disposed-row">
+                                            <td>{batch.batchNumber}</td>
+                                            <td>{batch.quantity}</td>
+                                            <td>{new Date(batch.manufactureDate).toLocaleDateString('en-IN')}</td>
+                                            <td>{new Date(batch.expiryDate).toLocaleDateString('en-IN')}</td>
+                                            <td>{new Date(batch.disposalDate).toLocaleDateString('en-IN')}</td>
+                                            <td>
+                                                <span className="disposal-reason">
+                                                    {batch.disposalReason || 'Expired'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <small>{batch.disposalId}</small>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // Category Filter Component
 export const CategoryFilter = ({
@@ -2491,7 +3365,7 @@ export const TrendingProductCard = ({ product, rank, onViewDetails }) => {
 
 // Chart Components for Trending Products
 export const TopProductsChart = ({ data }) => {
-    const displayData = data.slice(0, 6); // Show only top 8
+    const displayData = data.slice(0, 5); // Show only top 8
 
     return (
         <div className="chart-container">
@@ -2707,17 +3581,18 @@ export const DailySalesSummary = ({ data }) => {
 };
 
 // Sales Card Component
+// Sales Card Component - FIXED
 export const SalesCard = ({ sale, onViewDetails }) => {
     return (
-        <div className="sales-card" onClick={onViewDetails}>
+        <div className="sales-card" onClick={() => onViewDetails("sale-details", sale, `Sale Details - ${sale.invoiceNumber}`)}>
             <div className="sale-header">
                 <div className="sale-info">
                     <h4 className="invoice-number">{sale.invoiceNumber}</h4>
-                    <div className="customer-name">{sale.customer.name}</div>
+                    <div className="customer-name">{sale.customer?.name || 'N/A'}</div>
                 </div>
                 <div className="sale-amount">
                     <div className="amount">₹{sale.total?.toLocaleString('en-IN')}</div>
-                    <div className="payment-type">{sale.paymentType.toUpperCase()}</div>
+                    <div className="payment-type">{sale.paymentType?.toUpperCase() || 'CASH'}</div>
                 </div>
             </div>
 
@@ -2728,27 +3603,27 @@ export const SalesCard = ({ sale, onViewDetails }) => {
                 </div>
                 <div className="detail-item">
                     <span className="label">Items:</span>
-                    <span className="value">{sale.items.length} products</span>
+                    <span className="value">{sale.items?.length || 0} products</span>
                 </div>
                 <div className="detail-item">
                     <span className="label">Tax:</span>
-                    <span className="value">₹{sale.tax}</span>
+                    <span className="value">₹{sale.tax || 0}</span>
                 </div>
                 <div className="detail-item">
                     <span className="label">Discount:</span>
-                    <span className="value">₹{sale.discount}</span>
+                    <span className="value">₹{sale.discount || 0}</span>
                 </div>
             </div>
 
             <div className="sale-products">
                 <div className="products-preview">
-                    {sale.items.slice(0, 3).map((item, index) => (
+                    {sale.items?.slice(0, 3).map((item, index) => (
                         <div key={index} className="product-tag">
                             <span className="product-name">{item.name}</span>
                             <span className="product-qty">x{item.quantity}</span>
                         </div>
                     ))}
-                    {sale.items.length > 3 && (
+                    {sale.items?.length > 3 && (
                         <div className="more-products">+{sale.items.length - 3} more</div>
                     )}
                 </div>
