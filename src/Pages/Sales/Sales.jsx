@@ -1202,7 +1202,7 @@ const Sales = () => {
                       <tr>
                         <th width="5%">Sr No</th>
                         <th width="20%">Product Name</th>
-                        <th width="10%">HSN</th>
+                        <th width="10%">Item Code</th>
                         <th width="10%">Category</th>
                         <th width="10%">Batch No</th>
                         <th width="8%">Qty</th>
@@ -1519,7 +1519,7 @@ const Sales = () => {
       />
       <div className="main">
         <div className="page-header">
-          <h2>Tax Invoices</h2>
+          {/* <h2>Tax Invoices</h2>  */}
           <div className="right-section">
 
             <div className="category-filter">
@@ -1595,7 +1595,7 @@ const Sales = () => {
                       <label>Search Products</label>
                       <input
                         type="text"
-                        placeholder="Search by name, HSN, barcode or price..."
+                        placeholder="Search by name, Item Code, barcode or price..."
                         value={itemSearchTerm}
                         onChange={(e) => setItemSearchTerm(e.target.value)}
                       />
@@ -1643,7 +1643,7 @@ const Sales = () => {
                                   )}
                                 </div>
                                 <div>
-                                  HSN: {product.hsnCode || "N/A"} |
+                                  Item Code: {product.hsnCode || "N/A"} |
                                   Price: ₹{product.price || 0} |
                                   Tax: {product.taxSlab || 18}% |
                                   Category: {product.category}
@@ -1726,7 +1726,7 @@ const Sales = () => {
                               <th width="5%">Sr No</th>
                               <th width="15%">Batch No</th>
                               <th width="20%">Product Name</th>
-                              <th width="10%">HSN</th>
+                              <th width="10%">Item Code</th>
                               <th width="8%">Qty</th>
                               <th width="12%">Price</th>
                               <th width="10%">Discount %</th>

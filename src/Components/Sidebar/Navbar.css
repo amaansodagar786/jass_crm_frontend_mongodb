@@ -48,7 +48,8 @@
 }
 
 .sidebar-logo {
-  max-width: 150px; /* control logo size */
+  max-width: 150px;
+  /* control logo size */
   height: auto;
   object-fit: contain;
 }
@@ -119,14 +120,17 @@
 #sidebar:not(.hide) .side-menu li a.active {
   background: #dfeafb;
   color: var(--active-text);
-  margin-left: 10px; /* Added space from left edge */
+  margin-left: 10px;
+  /* Added space from left edge */
   padding-left: 24px;
   font-weight: 600;
   box-shadow: 4px 0 10px rgba(0, 0, 0, 0.06);
-  border-radius: 25px 0 0 25px; /* left pill */
+  border-radius: 25px 0 0 25px;
+  /* left pill */
   position: relative;
   z-index: 1;
-  width: calc(100% - 10px); /* Adjust width to account for margin */
+  width: calc(100% - 10px);
+  /* Adjust width to account for margin */
 }
 
 /* Right side curve blend effect - only for expanded sidebar */
@@ -396,5 +400,101 @@
   #sidebar.hide .sidebar-logout-btn span,
   #sidebar .sidebar-logout-btn span {
     display: inline;
+  }
+}
+
+/* Navbar Page Title Styles */
+.nav-main {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #2d2f87;
+  margin: 0;
+  padding: 8px 0;
+  position: relative;
+  transition: all 0.3s ease;
+  letter-spacing: 0.3px;
+  font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  text-transform: none;
+}
+
+/* Text gradient effect */
+.page-title {
+  background: linear-gradient(135deg, #2d2f87 0%, #5a3ec8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Fallback for browsers that don't support background-clip:text */
+@supports not (background-clip: text) {
+  .page-title {
+    background: none;
+    -webkit-text-fill-color: initial;
+    color: #2d2f87;
+  }
+}
+
+/* Hover effect */
+.page-title:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #5a3ec8 0%, #8b7ad6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animation for page title when route changes */
+@keyframes slideInTitle {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-title {
+  animation: slideInTitle 0.5s ease-out;
+}
+
+/* Responsive styles */
+@media screen and (max-width: 1024px) {
+  .page-title {
+    font-size: 20px;
+    letter-spacing: 0.2px;
+  }
+
+  .nav-main {
+    gap: 20px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .page-title {
+    font-size: 18px;
+    letter-spacing: 0.1px;
+  }
+
+  .nav-main {
+    gap: 15px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .page-title {
+    font-size: 16px;
+  }
+
+  .nav-main {
+    gap: 12px;
   }
 }

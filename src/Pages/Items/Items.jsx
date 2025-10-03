@@ -555,7 +555,7 @@ const Items = () => {
       {
         "Product Name": "Example Product",
         "Barcode": "1234567890123",
-        "HSN Code": "123456",
+        "Item Code": "123456",
         "Tax Slab": "18",
         "Price": "29.99",
         "Category": "Electronics"
@@ -597,7 +597,7 @@ const Items = () => {
         const productName = item['Product Name']?.toString().trim() || null;
         const category = item['Category']?.toString().trim()?.toLowerCase() || null;
         const barcode = item['Barcode'] ? item['Barcode'].toString().trim() : `TEMP_${Date.now()}_${index}`;
-        const hsnCode = item['HSN Code']?.toString().trim() || '00';
+        const hsnCode = item['Item Code']?.toString().trim() || '00';
         const taxSlab = item['Tax Slab'] ? Number(item['Tax Slab']) : 0;
         const price = item['Price'] ? Number(item['Price']) : 0;
 
@@ -1027,7 +1027,7 @@ const Items = () => {
               <h4>Instructions:</h4>
               <ul>
                 <li>Download the template file to ensure proper formatting</li>
-                <li>Your Excel file should include these columns: Product Name, Category, Barcode, HSN Code, Tax Slab, Price</li>
+                <li>Your Excel file should include these columns: Product Name, Category, Barcode, Item Code, Tax Slab, Price</li>
                 <li>Ensure all required fields are filled (Product Name and Category are required)</li>
                 <li>Tax Slab should be a number (e.g., 5, 18)</li>
                 <li>Price should be numeric values</li>
@@ -1134,7 +1134,7 @@ const Items = () => {
       <ToastContainer position="top-center" autoClose={3000} />
       <div className="main">
         <div className="page-header">
-          <h2>Product List {hasUnsavedChanges && <span className="unsaved-badge">Unsaved Changes</span>}</h2>
+          {/* <h2>Product List {hasUnsavedChanges && <span className="unsaved-badge">Unsaved Changes</span>}</h2>  */}
           <div className="right-section">
             <div className="search-container">
               <FaSearch className="search-icon" />
@@ -1209,7 +1209,7 @@ const Items = () => {
                     <ErrorMessage name="barcode" component="div" className="error" />
                   </div>
                   <div className="form-field">
-                    <label><FaHashtag /> HSN Code *</label>
+                    <label><FaHashtag /> Item Code *</label>
                     <Field name="hsnCode" type="text" />
                     <ErrorMessage name="hsnCode" component="div" className="error" />
                   </div>
@@ -1259,7 +1259,7 @@ const Items = () => {
                     <th>Product Name</th>
                     <th>Category</th>
                     <th>Barcode</th>
-                    <th>HSN Code</th>
+                    <th>Item Code</th>
                     <th>Tax Slab</th>
                     <th>Price</th>
                     <th>Action</th>

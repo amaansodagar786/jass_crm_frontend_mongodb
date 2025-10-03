@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
+import { useNavigate, NavLink, useLocation } from "react-router-dom";
 
 // Icon imports
 import { BiLogOut, BiLayout, BiLogIn } from "react-icons/bi";
@@ -11,36 +11,42 @@ import { HiOutlineHome } from "react-icons/hi";
 import { BsBell } from "react-icons/bs";
 import { GiHamburgerMenu } from "react-icons/gi";
 import { RxCross1 } from "react-icons/rx";
-import { FiUser } from "react-icons/fi"; // profile icon
+import { FiUser } from "react-icons/fi";
 import { MdDiscount } from "react-icons/md";
+import { FaSearch, FaFileExcel, FaPlus } from "react-icons/fa";
 
-// import logo from "../../Assets/logo/jass_logo.jpg"
-import logo from "../../Assets/logo/jass_logo_new.png"
-// CSS
+import logo from "../../Assets/logo/jass_logo_new.png";
 import "./Navbar.css";
 
-const Navbar = ({ children, onNavigation, isCollapsed = false, onToggleCollapse }) => {
+const Navbar = ({
+  children,
+  onNavigation,
+  isCollapsed = false,
+  onToggleCollapse,
+  // New prop for page-specific dashboard
+  pageDashboard = null
+}) => {
   const [toggle, setToggle] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
+
 
   // Sync with parent's collapsed state
   useEffect(() => {
-    console.log('Navbar: isCollapsed prop changed to:', isCollapsed); // Debug
+    console.log('Navbar: isCollapsed prop changed to:', isCollapsed);
     setToggle(isCollapsed);
   }, [isCollapsed]);
 
   // Handle internal toggle changes
   const handleToggle = (newToggleState) => {
     setToggle(newToggleState);
-    // Notify parent about toggle state change
     if (onToggleCollapse) {
       onToggleCollapse(newToggleState);
     }
   };
 
-  // Update the toggle handlers to use the new function
   const handleHamburgerClick = () => {
     handleToggle(!toggle);
   };
@@ -72,6 +78,34 @@ const Navbar = ({ children, onNavigation, isCollapsed = false, onToggleCollapse 
     setUserPermissions([]);
     navigate("/login");
   };
+
+  const getPageTitle = () => {
+    const route = location.pathname;
+    switch (route) {
+      case '/customer':
+        return 'Customer Dashboard';
+      case '/items':
+        return 'Products Management';
+      case '/inventory':
+        return 'Inventory Management';
+      case '/dashboard':
+        return 'Dashboard';
+      case '/admin':
+        return 'Admin Management Dashboard';
+      case '/productdiscount':
+        return 'Discount Dashboard';
+      case '/defective':
+        return 'Product Disposal Dashboard';
+      case '/report':
+        return 'Business Reports And Analytics';
+      case '/':
+        return 'Invoice Dashboard';
+      default:
+        return '';
+    }
+  };
+
+  const pageTitle = getPageTitle();
 
   // Define all possible menu items with their required permissions
   const allMenuData = [
@@ -150,12 +184,20 @@ const Navbar = ({ children, onNavigation, isCollapsed = false, onToggleCollapse 
 
       <div id="content">
         <nav>
-          <div>
+          <div className="nav-main">
             <GiHamburgerMenu
               className="menuIcon"
               onClick={handleHamburgerClick}
             />
+
+            {/* Page-specific dashboard controls */}
+            {pageTitle && (
+              <div className="page-title">
+                {pageTitle}
+              </div>
+            )}
           </div>
+
           <div>
             {!isLoggedIn ? (
               <button className="icon-button" onClick={handleLogin} title="Login">

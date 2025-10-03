@@ -780,7 +780,7 @@ const Customer = () => {
       <ToastContainer position="top-center" autoClose={3000} />
       <div className="main">
         <div className="page-header">
-          <h2>Customer List</h2>
+          {/* <h2>Customer List</h2>  */}
           <div className="right-section">
             <div className="search-container">
               <FaSearch className="search-icon" />

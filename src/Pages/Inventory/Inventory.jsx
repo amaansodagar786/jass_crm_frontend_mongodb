@@ -679,8 +679,8 @@ const Inventory = () => {
 
             <div className="inventory-page">
                 <div className="page-header">
-                    <h2>Inventory</h2>
-                    <div className="right-section">
+                    {/* <h2>Inventory</h2>  */}
+                    <div className="right-section inventory-header-right">
                         <div className="filter-container">
                             <div className="filter-with-icon">
                                 <FaFilter className="filter-icon" />
@@ -722,6 +722,13 @@ const Inventory = () => {
                             {/* <button className="export-all-btn" onClick={handleExport}>
                                 <FaFileExport /> Export PDF
                             </button> */}
+
+                            <button className="export-btn" onClick={exportToExcel}>
+                            <FaFileExport /> Export
+                        </button>
+                        <button className="export-with-batches-btn" onClick={exportWithBatches}>
+                            <FaFileExport /> Export with Batches
+                        </button>
                         </div>
                     </div>
                 </div>
@@ -729,12 +736,12 @@ const Inventory = () => {
                 {/* Export Buttons Row */}
                 <div className="export-buttons-row">
                     <div className="export-buttons-container">
-                        <button className="export-btn" onClick={exportToExcel}>
+                        {/* <button className="export-btn" onClick={exportToExcel}>
                             <FaFileExport /> Export
                         </button>
                         <button className="export-with-batches-btn" onClick={exportWithBatches}>
                             <FaFileExport /> Export with Batches
-                        </button>
+                        </button> */}
                     </div>
                 </div>
 

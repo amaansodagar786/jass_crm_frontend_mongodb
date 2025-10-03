@@ -198,7 +198,7 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
                 <th>Sr No</th>
                 <th>Barcode</th>
                 <th>Product Name</th>
-                <th>HSN</th>
+                <th>Item Code</th>
                 <th>Qty</th>
                 <th>Price (Incl. Tax)</th>
                 <th>Disc %</th>

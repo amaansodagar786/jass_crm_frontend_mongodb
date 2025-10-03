@@ -9,6 +9,7 @@ import GRN from "../Pages/GRN/GRN";
 import Bom from "../Pages/Bom/Bom";
 import Sales from "../Pages/Sales/Sales";
 import Inventory from "../Pages/Inventory/Inventory";
+
 import Register from "../Pages/Authentication/Register/Register";
 import Login from "../Pages/Authentication/Login/Login";
 import ProtectedRoute from "../Components/Protected/ProtectedRoute";
@@ -19,6 +20,9 @@ import DiscountProduct from "../Pages/DiscountProduct/DiscountProduct";
 import Report from "../Pages/Reports/Report";
 import SmartRedirect from "./SmartRedirect"; // ADD THIS
 import Footer from "../Components/Footer/Footer";
+
+
+import HotelInvoice from "../Pages/Hotel/HotelInvoice"; // ADD THIS
 
 const Router = () => {
   return (
@@ -33,6 +37,7 @@ const Router = () => {
             {/* Public Routes */}
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/hotel" element={<HotelInvoice/>} />
 
             {/* Smart Root Route - Redirects based on permissions */}
             <Route path="/" element={

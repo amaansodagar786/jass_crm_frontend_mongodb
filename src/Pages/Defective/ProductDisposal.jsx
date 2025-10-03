@@ -530,10 +530,10 @@ const ProductDisposal = () => {
             />
 
             <div className="product-disposal-page">
-                <div className="page-header">
+                {/* <div className="page-header">
                     <h2>Product Disposal Management</h2>
                     <div className="subtitle">Manage defective and expired products with complete audit trail</div>
-                </div>
+                </div> */}
 
                 {/* Product Selection Section */}
                 <div className="selection-section">

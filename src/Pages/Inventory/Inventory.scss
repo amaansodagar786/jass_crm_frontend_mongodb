@@ -7,12 +7,19 @@
     max-width: 1300px;
     padding: 0 20px 8px 20px;
 
+    .inventory-header-right
+    {
+margin-top: 10px !important;
+margin-bottom: 10px !important;
+    }
+
     .right-section {
       display: flex;
       align-items: center;
       gap: 15px;
       flex-wrap: wrap;
       justify-content: flex-end;
+
     }
 
     .filter-container {
@@ -359,6 +366,15 @@
 
     &:hover {
       background: linear-gradient(to right, #388e3c, #4caf50);
+    }
+  }
+
+  .export-with-batches-btn {
+    background: linear-gradient(to right, #2196f3, #42a5f5);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(to right, #1976d2, #2196f3);
     }
   }
 }
@@ -805,179 +821,180 @@
 
 // Batch Disposal Styles
 .batch-main-row {
-    td {
-        vertical-align: middle;
-    }
+  td {
+    vertical-align: middle;
+  }
 }
 
 .quantity-badge {
-    background: #e8f5e8;
-    color: #388e3c;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    
-    &.zero {
-        background: #ffebee;
-        color: #d32f2f;
-    }
+  background: #e8f5e8;
+  color: #388e3c;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+
+  &.zero {
+    background: #ffebee;
+    color: #d32f2f;
+  }
 }
 
 .disposed-badge {
-    background: #fff3e0;
-    color: #f57c00;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
+  background: #fff3e0;
+  color: #f57c00;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .no-disposal {
-    color: #999;
-    font-style: italic;
+  color: #999;
+  font-style: italic;
 }
 
 .expired-date {
-    color: #f57c00;
-    font-weight: 600;
+  color: #f57c00;
+  font-weight: 600;
 }
 
 .view-disposal-btn {
-    background: #7366ff;
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.3s;
+  background: #7366ff;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.3s;
 
-    &:hover {
-        background: #5f53cc;
-    }
+  &:hover {
+    background: #5f53cc;
+  }
 }
 
 .no-disposal-history {
-    color: #999;
-    font-size: 12px;
-    font-style: italic;
+  color: #999;
+  font-size: 12px;
+  font-style: italic;
 }
 
 // Disposal Details Styles
 .disposal-details-row {
-    background-color: #f9f9f9;
-    
-    td {
-        padding: 0 !important;
-        border-bottom: 1px solid #ddd;
-    }
+  background-color: #f9f9f9;
+
+  td {
+    padding: 0 !important;
+    border-bottom: 1px solid #ddd;
+  }
 }
 
 .disposal-details-container {
-    padding: 20px;
-    background: white;
-    margin: 10px;
-    border-radius: 8px;
-    border: 1px solid #eee;
+  padding: 20px;
+  background: white;
+  margin: 10px;
+  border-radius: 8px;
+  border: 1px solid #eee;
 
-    h5 {
-        margin: 0 0 15px 0;
-        color: #3f3f91;
-        font-size: 14px;
-        font-weight: 600;
-    }
+  h5 {
+    margin: 0 0 15px 0;
+    color: #3f3f91;
+    font-size: 14px;
+    font-weight: 600;
+  }
 }
 
 .disposal-details-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 15px;
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
 
-    th, td {
-        padding: 10px 12px;
-        border: 1px solid #eee;
-        font-size: 12px;
-        text-align: left;
+  th,
+  td {
+    padding: 10px 12px;
+    border: 1px solid #eee;
+    font-size: 12px;
+    text-align: left;
+  }
+
+  th {
+    background: #f0f4ff;
+    font-weight: 600;
+    color: #3f3f91;
+  }
+
+  .disposal-row {
+    &.defective {
+      background: #fff5f5;
     }
 
-    th {
-        background: #f0f4ff;
-        font-weight: 600;
-        color: #3f3f91;
+    &.expired {
+      background: #fffaf0;
+    }
+  }
+
+  .disposal-type-badge {
+    padding: 3px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+
+    &.defective {
+      background: #ffebee;
+      color: #d32f2f;
     }
 
-    .disposal-row {
-        &.defective {
-            background: #fff5f5;
-        }
-        
-        &.expired {
-            background: #fffaf0;
-        }
+    &.expired {
+      background: #fff3e0;
+      color: #f57c00;
     }
+  }
 
-    .disposal-type-badge {
-        padding: 3px 6px;
-        border-radius: 8px;
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
+  .quantity-removed {
+    color: #d32f2f;
+    font-weight: 600;
+    font-size: 11px;
+  }
 
-        &.defective {
-            background: #ffebee;
-            color: #d32f2f;
-        }
+  .disposal-reason {
+    max-width: 200px;
+    word-wrap: break-word;
+  }
 
-        &.expired {
-            background: #fff3e0;
-            color: #f57c00;
-        }
-    }
-
-    .quantity-removed {
-        color: #d32f2f;
-        font-weight: 600;
-        font-size: 11px;
-    }
-
-    .disposal-reason {
-        max-width: 200px;
-        word-wrap: break-word;
-    }
-
-    .disposal-id {
-        font-family: 'Courier New', monospace;
-        font-size: 10px;
-        color: #666;
-    }
+  .disposal-id {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: #666;
+  }
 }
 
 .disposal-summary {
-    display: flex;
-    gap: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
+  display: flex;
+  gap: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
 
-    .summary-item {
-        font-size: 13px;
-        
-        strong {
-            color: #333;
-        }
+  .summary-item {
+    font-size: 13px;
+
+    strong {
+      color: #333;
     }
+  }
 }
 
 // Batch number cell styling
 .batch-number-cell {
-    font-weight: 600;
-    color: #333;
+  font-weight: 600;
+  color: #333;
 }
 
 .disposal-info-cell {
-    text-align: center;
+  text-align: center;
 }
 
 
@@ -993,8 +1010,8 @@
 .export-buttons-container {
   display: flex;
   gap: 12px;
- 
-  
+
+
   .export-btn,
   .export-with-batches-btn {
     display: flex;
@@ -1010,7 +1027,7 @@
   }
 
   .export-btn {
-    
+
     background: linear-gradient(to right, #4caf50, #66bb6a);
     color: white;
 
@@ -1039,7 +1056,7 @@
   .export-buttons-container {
     flex-direction: column;
     width: 100%;
-    
+
     button {
       width: 100%;
       justify-content: center;
