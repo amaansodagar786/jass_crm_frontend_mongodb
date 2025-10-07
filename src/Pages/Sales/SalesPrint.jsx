@@ -120,20 +120,27 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
     <div id="sales-pdf">
       <div className="invoice-container">
 
-        {/* Top Logo and Address - Centered layout */}
+        {/* Top Logo and Address - Company name left top, GST right top, logo & address centered */}
         <div className="invoice-header">
-          <div className="company-address">
+          <div className="company-top-info">
+            <div className="company-name-left">
+              <p><strong>SFP SONS (INDIA) PRIVATE LIMITED</strong></p>
+            </div>
+            <div className="gst-number-right">
+              <p>24AAICS9235N1ZS</p>
+            </div>
+          </div>
+
+          <div className="logo-address-center">
             <div className="invoice-logo">
               <img src={logo} alt="Company Logo" />
             </div>
-            <div className="address-details">
-              <p>C/9, Laxmi Kunj Society, Part-2, Beside Shree Ayyappa</p>
-              <p>Temple, New Sama Road, Vadodara - 390024, Gujarat</p>
+            <div className="company-address">
+              <div className="address-details">
+                <p>C/9, Laxmi Kunj Society, Part-2, Beside Shree Ayyappa</p>
+                <p>Temple, New Sama Road, Vadodara - 390024, Gujarat</p>
+              </div>
             </div>
-          </div>
-          <div className="company-info">
-            <p><strong>SFP SONS (INDIA) PRIVATE LIMITED</strong></p>
-            <p>24AAICS9235N1ZS</p>
           </div>
         </div>
 

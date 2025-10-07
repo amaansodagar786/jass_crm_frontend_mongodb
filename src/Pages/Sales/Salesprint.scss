@@ -21,35 +21,72 @@
     // min-height: 267mm; 
   }
 
-  /* Header with Logo and Address - Centered */
+  /* Header with Company name left top, GST right top, logo & address centered */
   .invoice-header {
     display: flex;
-    justify-content: flex-end; // keep company-info on right
-    align-items: flex-start;
-    position: relative; // required for absolute centering
-    margin-bottom: 5px;
+    flex-direction: column;
+    margin-bottom: 0px;
     border-bottom: 2px solid #333;
-    /* Increase top & bottom padding so header is taller and border sits below the centered block */
-    padding: 20px 0 28px; // top 20px, right 0, bottom 28px - adjust bottom to fit your logo+address
+    padding: 10px 0 10px 0;
+    position: relative;
+    min-height: 100px;
+
+    .company-top-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+      position: absolute;
+      top: 10px;
+      left: 0;
+      right: 0;
+    }
+
+    .company-name-left {
+      text-align: left;
+
+      p {
+        margin: 2px 0;
+        font-weight: bold;
+        font-size: 10px;
+        line-height: 1.3;
+      }
+    }
+
+    .gst-number-right {
+      text-align: right;
+
+      p {
+        margin: 2px 0;
+        font-weight: bold;
+        font-size: 10px;
+        line-height: 1.3;
+      }
+    }
+
+    .logo-address-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      margin-top: 35px;
+      /* Space for top row */
+    }
+
+    .invoice-logo {
+      margin-bottom: 6px;
+
+      img {
+        max-width: 130px;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+      }
+    }
 
     .company-address {
-      position: absolute; // keep it centered horizontally (removed from normal flow)
-      left: 50%;
-      transform: translateX(-50%);
-      top: 10px; // vertical offset from top - tune this if needed
       text-align: center;
-      z-index: 2; // ensure it sits above other stuff if needed
-
-      .invoice-logo {
-        margin-bottom: 6px;
-
-        img {
-          max-width: 130px;
-          height: auto;
-          display: block;
-          margin: 0 auto;
-        }
-      }
 
       .address-details {
         margin: 0;
@@ -60,33 +97,6 @@
           line-height: 1.3;
         }
       }
-    }
-
-    .company-info {
-      text-align: right;
-      align-self: flex-start; // keep company info aligned to the top of the header
-      margin-right: 8px; // little spacing from the right edge
-      z-index: 1;
-
-      p {
-        margin: 2px 0;
-        font-weight: bold;
-        font-size: 12px;
-      }
-    }
-  }
-
-
-
-  /* Company Info - Centered below logo */
-  .company-info-centered {
-    text-align: center;
-    margin-bottom: 10px;
-
-    p {
-      margin: 2px 0;
-      font-weight: bold;
-      font-size: 12px;
     }
   }
 
@@ -270,10 +280,11 @@
         margin: 0;
         font-family: inherit;
         font-size: 10px;
-        white-space: pre-wrap; 
+        white-space: pre-wrap;
         word-wrap: break-word;
         line-height: 1.3;
       }
+
       p {
         margin: 0;
         font-family: inherit;
