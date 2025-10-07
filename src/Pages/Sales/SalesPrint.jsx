@@ -132,8 +132,8 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
             </div>
           </div>
           <div className="company-info">
-            <p><strong>Patel Enterprise</strong></p>
-            <p>24AAAFP0763BAZV</p>
+            <p><strong>SFP SONS (INDIA) PRIVATE LIMITED</strong></p>
+            <p>24AAICS9235N1ZS</p>
           </div>
         </div>
 

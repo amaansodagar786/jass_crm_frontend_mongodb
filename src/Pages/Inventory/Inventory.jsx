@@ -713,12 +713,12 @@ const Inventory = () => {
                             >
                                 <FaPlus /> Add Qty
                             </button>
-                            {/* <button
+                            <button
                                 className="bulk-upload-btn"
                                 onClick={() => setShowBulkUploadModal(true)}
                             >
                                 <FaUpload /> Bulk Upload 
-                            </button> */}
+                            </button>
                             {/* <button className="export-all-btn" onClick={handleExport}>
                                 <FaFileExport /> Export PDF
                             </button> */}
