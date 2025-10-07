@@ -793,12 +793,12 @@ const Customer = () => {
             </div>
             <div className="action-buttons-group">
 
-              <button
+              {/* <button
                 className="bulk-import-btn"
                 onClick={() => setShowBulkImport(true)}
               >
                 <FaFileExcel /> Bulk Import
-              </button>
+              </button> */}
               <button className="export-all-btn" onClick={exportAllAsExcel}>
                 <FaFileExcel /> Export All
               </button>

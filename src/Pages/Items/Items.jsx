@@ -1261,9 +1261,9 @@ const Items = () => {
               <button className="export-all-btn" onClick={exportAllAsExcel}>
                 <FaFileExcel /> Export
               </button>
-              <button className="bulk-upload-btn" onClick={() => setShowBulkUpload(true)}>
+              {/* <button className="bulk-upload-btn" onClick={() => setShowBulkUpload(true)}>
                 <FaUpload /> Bulk
-              </button>
+              </button> */}
               <button className="add-btn" onClick={() => setShowForm(!showForm)}>
                 <FaPlus /> {showForm ? "Close" : "Add"}
               </button>

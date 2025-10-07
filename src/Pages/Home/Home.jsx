@@ -108,7 +108,23 @@ const Home = () => {
     return expiringItems.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   };
 
-  // Enhanced processChartData function to handle different data structures
+  // DEBUG: Log sales data to see what we're working with
+  useEffect(() => {
+    if (salesData.length > 0) {
+      console.log("📊 SALES DATA DEBUG:", {
+        totalInvoices: salesData.length,
+        firstInvoice: salesData[0],
+        sampleDates: salesData.slice(0, 3).map(inv => ({
+          date: inv.date,
+          total: inv.total,
+          invoiceNumber: inv.invoiceNumber
+        })),
+        allDates: salesData.map(inv => inv.date)
+      });
+    }
+  }, [salesData]);
+
+  // FIXED processChartData function
   const processChartData = (data, type) => {
     if (!Array.isArray(data)) {
       console.error(`Expected array for ${type} data, got:`, typeof data);
@@ -117,11 +133,19 @@ const Home = () => {
 
     if (data.length === 0) {
       console.warn(`No data available for ${type} chart`);
-      return generateEmptyChartData(); // Return empty data for last 6 months
+      return generateEmptyChartData();
     }
 
-    const dateField = type === "sales" ? "invoiceDate" : "date";
+    // FIX: Use correct field names from your schema
+    const dateField = type === "sales" ? "date" : "date"; // Both use 'date' field
     const valueField = "total";
+
+    console.log(`🔄 Processing ${type} data:`, {
+      dataLength: data.length,
+      dateField: dateField,
+      valueField: valueField,
+      sampleItem: data[0]
+    });
 
     const monthlyData = data.reduce((acc, item) => {
       if (!item[dateField]) {
@@ -129,14 +153,25 @@ const Home = () => {
         return acc;
       }
 
-      const date = new Date(item[dateField]);
-      const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      try {
+        const date = new Date(item[dateField]);
+        if (isNaN(date.getTime())) {
+          console.warn(`Invalid date format: ${item[dateField]}`, item);
+          return acc;
+        }
 
-      if (!acc[monthYear]) {
-        acc[monthYear] = { date: monthYear, value: 0, count: 0 };
+        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const itemValue = item[valueField] || 0;
+
+        if (!acc[monthYear]) {
+          acc[monthYear] = { date: monthYear, value: 0, count: 0 };
+        }
+        acc[monthYear].value += itemValue;
+        acc[monthYear].count += 1;
+
+      } catch (error) {
+        console.warn(`Error processing date ${item[dateField]}:`, error);
       }
-      acc[monthYear].value += item[valueField] || 0;
-      acc[monthYear].count += 1;
       return acc;
     }, {});
 
@@ -144,6 +179,7 @@ const Home = () => {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(-6);
 
+    console.log(`📈 ${type} Chart Data:`, chartData);
     return chartData.length > 0 ? chartData : generateEmptyChartData();
   };
 
@@ -151,7 +187,7 @@ const Home = () => {
   const generateEmptyChartData = () => {
     const today = new Date();
     const emptyData = [];
-    
+
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(today.getMonth() - i);
@@ -162,19 +198,22 @@ const Home = () => {
         count: 0
       });
     }
-    
+
+    console.log("📊 Generated empty chart data:", emptyData);
     return emptyData;
   };
 
   // Calculate total sales amount
   const getTotalSales = () => {
-    return salesData.reduce((sum, sale) => sum + (sale?.total || 0), 0);
+    const total = salesData.reduce((sum, sale) => sum + (sale?.total || 0), 0);
+    console.log("💰 Total Sales Calculation:", { total, invoiceCount: salesData.length });
+    return total;
   };
 
-  // Calculate total purchase amount - since we don't have purchase data, we'll calculate from inventory batches
+  // Calculate total purchase amount from inventory batches
   const getTotalPurchases = () => {
     let totalPurchases = 0;
-    
+
     inventoryData.forEach(item => {
       if (item.batches && Array.isArray(item.batches)) {
         item.batches.forEach(batch => {
@@ -187,7 +226,8 @@ const Home = () => {
         });
       }
     });
-    
+
+    console.log("🛒 Total Purchases Calculation:", { totalPurchases });
     return totalPurchases;
   };
 
@@ -207,7 +247,6 @@ const Home = () => {
       try {
         console.log("Starting data fetch...");
 
-        // Fetch sales and inventory data
         const urls = [
           `${import.meta.env.VITE_API_URL}/invoices/get-invoices`,
           `${import.meta.env.VITE_API_URL}/inventory/get-inventory`,
@@ -234,24 +273,20 @@ const Home = () => {
         const sales = salesResponse.success ? salesResponse.data : [];
         const inventory = inventoryResponse.success ? inventoryResponse.data : [];
 
-        console.log("Extracted data:", {
+        console.log("🎯 Extracted data:", {
           sales: sales.length,
           inventory: inventory.length,
+          salesSample: sales.length > 0 ? sales[0] : 'No sales data'
         });
 
         setSalesData(Array.isArray(sales) ? sales : []);
         setInventoryData(Array.isArray(inventory) ? inventory : []);
-        
-        // For purchase data, we'll use inventory data since we don't have separate purchase API
-        // This assumes inventory batches represent purchases
         setPurchaseData(Array.isArray(inventory) ? inventory : []);
-        
-        // Set empty arrays for other data
+
         setBomData([]);
         setWorkOrders([]);
         setPurchaseOrders([]);
 
-        // Calculate expiring items
         if (Array.isArray(inventory)) {
           const expiring = getExpiringItems(inventory);
           setExpiringItems(expiring);
@@ -280,19 +315,29 @@ const Home = () => {
       if (item.batches && Array.isArray(item.batches)) {
         item.batches.forEach(batch => {
           if (batch.addedAt) {
-            const date = new Date(batch.addedAt);
-            const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            
-            if (!monthlyData[monthYear]) {
-              monthlyData[monthYear] = { date: monthYear, value: 0, count: 0 };
+            try {
+              const date = new Date(batch.addedAt);
+              if (isNaN(date.getTime())) {
+                console.warn(`Invalid batch date: ${batch.addedAt}`);
+                return;
+              }
+
+              const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+              if (!monthlyData[monthYear]) {
+                monthlyData[monthYear] = { date: monthYear, value: 0, count: 0 };
+              }
+
+              // Calculate batch value
+              const batchValue = batch.price ? (batch.price * batch.quantity) :
+                item.price ? (item.price * batch.quantity) : 0;
+
+              monthlyData[monthYear].value += batchValue;
+              monthlyData[monthYear].count += 1;
+
+            } catch (error) {
+              console.warn(`Error processing batch date ${batch.addedAt}:`, error);
             }
-            
-            // Calculate batch value
-            const batchValue = batch.price ? (batch.price * batch.quantity) : 
-                              item.price ? (item.price * batch.quantity) : 0;
-            
-            monthlyData[monthYear].value += batchValue;
-            monthlyData[monthYear].count += 1;
           }
         });
       }
@@ -302,6 +347,7 @@ const Home = () => {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(-6);
 
+    console.log("🛒 Purchase Chart Data:", chartData);
     return chartData.length > 0 ? chartData : generateEmptyChartData();
   };
 
@@ -310,7 +356,7 @@ const Home = () => {
     (acc, item) => {
       const stock = item.totalQuantity || 0;
       const minQty = item.minimumQty || 0;
-      
+
       if (stock <= 0) acc.outOfStock++;
       else if (stock <= minQty) acc.lowStock++;
       else acc.inStock++;
@@ -349,8 +395,17 @@ const Home = () => {
   const totalSales = getTotalSales();
   const totalPurchases = getTotalPurchases();
   const purchaseCount = getPurchaseCount();
+
+  // Process chart data
   const salesChartData = processChartData(salesData, "sales");
   const purchaseChartData = processPurchaseChartData(inventoryData);
+
+  console.log("🎯 FINAL CHART DATA:", {
+    salesChartData,
+    purchaseChartData,
+    salesDataLength: salesData.length,
+    inventoryDataLength: inventoryData.length
+  });
 
   return (
     <div>
@@ -398,7 +453,7 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Key Metrics - Updated with actual data */}
+          {/* Key Metrics */}
           <div className="metrics-grid">
             <div className="metric-card sales-metric">
               <FiDollarSign className="metric-icon" />
@@ -429,7 +484,7 @@ const Home = () => {
               </div>
             </div>
 
-            {/* <div className="metric-card production-metric">
+            <div className="metric-card production-metric">
               <FiTruck className="metric-icon" />
               <div>
                 <h3>Work Orders</h3>
@@ -438,10 +493,10 @@ const Home = () => {
                   {workOrders.filter(wo => !salesData.some(sale => sale.workOrderNumber === wo.workOrderNumber)).length} pending sales
                 </small>
               </div>
-            </div> */}
+            </div>
           </div>
 
-          {/* Charts Section - Updated with proper data */}
+          {/* Charts Section */}
           <div className="charts-section">
             <div className="chart-container">
               <div className="chart-header">
@@ -541,7 +596,6 @@ const Home = () => {
           </div>
         </div>
       </Navbar>
-
       {/* Modals remain the same */}
       {showExpiryModal && (
         <div className="modal-overlay" onClick={() => {
@@ -576,7 +630,7 @@ const Home = () => {
                     <div className="item-details">
                       <span className="item-stock">Qty: {item.quantity}</span>
                       <span className="item-expiry">
-                        Expires: {new Date(item.expiryDate).toLocaleDateString()} 
+                        Expires: {new Date(item.expiryDate).toLocaleDateString()}
                         ({item.daysUntilExpiry} days)
                       </span>
                     </div>

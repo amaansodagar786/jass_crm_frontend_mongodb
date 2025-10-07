@@ -320,75 +320,75 @@ const Inventory = () => {
     };
 
     const handleAddQtySubmit = async (e) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    if (!selectedProduct) {
-        toast.error("Please select a product");
-        return;
-    }
+        if (!selectedProduct) {
+            toast.error("Please select a product");
+            return;
+        }
 
-    if (!productPrice) {
-        toast.error("Please enter purchase price per unit");
-        return;
-    }
+        if (!productPrice) {
+            toast.error("Please enter purchase price per unit");
+            return;
+        }
 
-    // Validate batches
-    const validBatches = batches.filter(batch =>
-        batch.batchNumber && batch.quantity && batch.manufactureDate
-    );
+        // Validate batches
+        const validBatches = batches.filter(batch =>
+            batch.batchNumber && batch.quantity && batch.manufactureDate
+        );
 
-    if (validBatches.length === 0) {
-        toast.error("Please add at least one valid batch");
-        return;
-    }
+        if (validBatches.length === 0) {
+            toast.error("Please add at least one valid batch");
+            return;
+        }
 
-    try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
-            productId: selectedProduct.productId,
-            price: parseFloat(productPrice),
-            batches: validBatches.map(batch => {
-                // Extract only YYYY-MM from the month input
-                // The input type="month" returns format like "2024-04"
-                const yearMonth = batch.manufactureDate.substring(0, 7); // Get YYYY-MM
-                
-                return {
-                    batchNumber: batch.batchNumber,
-                    quantity: parseInt(batch.quantity),
-                    manufactureDate: yearMonth // Send only YYYY-MM format
+        try {
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
+                productId: selectedProduct.productId,
+                price: parseFloat(productPrice),
+                batches: validBatches.map(batch => {
+                    // Extract only YYYY-MM from the month input
+                    // The input type="month" returns format like "2024-04"
+                    const yearMonth = batch.manufactureDate.substring(0, 7); // Get YYYY-MM
+
+                    return {
+                        batchNumber: batch.batchNumber,
+                        quantity: parseInt(batch.quantity),
+                        manufactureDate: yearMonth // Send only YYYY-MM format
+                    }
+                })
+            });
+
+            // ✅ FIX: Check if operation was successful (even with some warnings)
+            if (response.data.success) {
+                // Check if there are any errors in the response
+                if (response.data.errors && response.data.errors.length > 0) {
+                    // Show warning but still consider it success
+                    toast.warning(`Batches processed with some warnings: ${response.data.message}`);
+                } else {
+                    toast.success(response.data.message || "Batches processed successfully!");
                 }
-            })
-        });
 
-        // ✅ FIX: Check if operation was successful (even with some warnings)
-        if (response.data.success) {
-            // Check if there are any errors in the response
-            if (response.data.errors && response.data.errors.length > 0) {
-                // Show warning but still consider it success
-                toast.warning(`Batches processed with some warnings: ${response.data.message}`);
+                setShowAddQtyModal(false);
+                resetAddQtyForm();
+                fetchData();
             } else {
-                toast.success(response.data.message || "Batches processed successfully!");
+                // ❌ Actual failure
+                toast.error(response.data.message || "Failed to add batches");
             }
+        } catch (error) {
+            console.error("Error adding batches:", error);
 
-            setShowAddQtyModal(false);
-            resetAddQtyForm();
-            fetchData();
-        } else {
-            // ❌ Actual failure
-            toast.error(response.data.message || "Failed to add batches");
+            // ✅ FIX: Better error handling
+            if (error.response?.data?.message) {
+                toast.error("Error adding batches: " + error.response.data.message);
+            } else if (error.response?.data?.errors?.length > 0) {
+                toast.error("Error adding batches: " + error.response.data.errors[0].message);
+            } else {
+                toast.error("Error adding batches: " + (error.response?.data?.message || error.message));
+            }
         }
-    } catch (error) {
-        console.error("Error adding batches:", error);
-
-        // ✅ FIX: Better error handling
-        if (error.response?.data?.message) {
-            toast.error("Error adding batches: " + error.response.data.message);
-        } else if (error.response?.data?.errors?.length > 0) {
-            toast.error("Error adding batches: " + error.response.data.errors[0].message);
-        } else {
-            toast.error("Error adding batches: " + (error.response?.data?.message || error.message));
-        }
-    }
-};
+    };
 
     const resetAddQtyForm = () => {
         setSelectedProduct(null);
@@ -713,22 +713,22 @@ const Inventory = () => {
                             >
                                 <FaPlus /> Add Qty
                             </button>
-                            <button
+                            {/* <button
                                 className="bulk-upload-btn"
                                 onClick={() => setShowBulkUploadModal(true)}
                             >
-                                <FaUpload /> Bulk Upload
-                            </button>
+                                <FaUpload /> Bulk Upload 
+                            </button> */}
                             {/* <button className="export-all-btn" onClick={handleExport}>
                                 <FaFileExport /> Export PDF
                             </button> */}
 
                             <button className="export-btn" onClick={exportToExcel}>
-                            <FaFileExport /> Export
-                        </button>
-                        <button className="export-with-batches-btn" onClick={exportWithBatches}>
-                            <FaFileExport /> Export with Batches
-                        </button>
+                                <FaFileExport /> Export
+                            </button>
+                            <button className="export-with-batches-btn" onClick={exportWithBatches}>
+                                <FaFileExport /> Export with Batches
+                            </button>
                         </div>
                     </div>
                 </div>
