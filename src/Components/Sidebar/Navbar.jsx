@@ -3,7 +3,7 @@ import { useNavigate, NavLink, useLocation } from "react-router-dom";
 
 // Icon imports
 import { BiLogOut, BiLayout, BiLogIn } from "react-icons/bi";
-import { TbLayoutGridAdd, TbMessages, TbUsers } from "react-icons/tb";
+import { TbLayoutGridAdd, TbMessages, TbUsers , TbReportAnalytics , TbTrash  } from "react-icons/tb";
 import { LuCircleDot, LuFile } from "react-icons/lu";
 import { PiBasket, PiLightbulbThin } from "react-icons/pi";
 import { CiShoppingBasket } from "react-icons/ci";
@@ -116,8 +116,8 @@ const Navbar = ({
     { icon: <TbUsers />, title: "Admin", path: "/admin", permission: "admin" },
     { icon: <MdDiscount />, title: "Discount", path: "/productdiscount", permission: "discount" },
     { icon: <BiLayout />, title: "Inventory", path: "/inventory", permission: "inventory" },
-    { icon: <TbMessages />, title: "Product Disposal", path: "/defective", permission: "disposal" },
-    { icon: <TbMessages />, title: "Report", path: "/report", permission: "report" },
+    { icon: <TbTrash  />, title: "Product Disposal", path: "/defective", permission: "disposal" },
+    { icon: <TbReportAnalytics  />, title: "Report", path: "/report", permission: "report" },
   ];
 
   // Filter menu items based on user permissions

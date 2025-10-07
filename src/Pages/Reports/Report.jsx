@@ -100,9 +100,12 @@ const Report = () => {
         // { id: "sale-amount", name: "Sale Amount", icon: "💰" } 
     ];
 
-
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     // Professional Inventory & Expiry Export Handler
+    // Professional Inventory & Expiry Export Handler - Clean Data Only
     const handleExportInventoryData = (inventoryData) => {
         if (!inventoryData || !inventoryData.inventory) {
             toast.error("No inventory data available to export");
@@ -112,34 +115,25 @@ const Report = () => {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ==================== SHEET 1: INVENTORY EXECUTIVE SUMMARY ====================
-        const executiveSummary = [
-            ['INVENTORY & EXPIRY MANAGEMENT REPORT - EXECUTIVE SUMMARY'],
+        // ==================== SHEET 1: INVENTORY SUMMARY ====================
+        const inventorySummary = [
+            ['INVENTORY REPORT SUMMARY'],
             [''],
             ['Report Generated', new Date().toLocaleString('en-IN')],
-            ['Total Products Analyzed', inventoryData.summary.totalProducts],
+            ['Total Products', inventoryData.summary.totalProducts],
             ['Total Inventory Value', `₹${inventoryData.summary.totalValue?.toLocaleString('en-IN')}`],
             ['Total Stock Quantity', inventoryData.summary.totalQuantity],
-            [''],
-            ['STOCK STATUS DISTRIBUTION'],
             ['In Stock Products', inventoryData.summary.inStock],
             ['Low Stock Products', inventoryData.summary.lowStock],
             ['Out of Stock Products', inventoryData.summary.outOfStock],
-            [''],
-            ['EXPIRY RISK ASSESSMENT'],
             ['Expired Batches', inventoryData.summary.totalExpiredBatches],
-            ['Near Expiry Batches (30 days)', inventoryData.summary.totalNearExpiryBatches],
-            ['Total Expired Quantity', inventoryData.summary.totalExpiredQuantity],
-            ['Total Near Expiry Quantity', inventoryData.summary.totalNearExpiryQuantity],
-            ['Total Disposed Quantity', inventoryData.summary.totalDisposedExpired],
-            [''],
-            ['INVENTORY HEALTH SCORE', calculateInventoryHealthScore(inventoryData.summary)]
+            ['Near Expiry Batches', inventoryData.summary.totalNearExpiryBatches]
         ];
 
-        const wsSummary = XLSX.utils.aoa_to_sheet(executiveSummary);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+        const wsSummary = XLSX.utils.aoa_to_sheet(inventorySummary);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Inventory Summary');
 
-        // ==================== SHEET 2: PRODUCT INVENTORY DETAILS ====================
+        // ==================== SHEET 2: PRODUCT INVENTORY DATA ====================
         const inventoryDetails = inventoryData.inventory.map(product => ({
             'Product ID': product.productId,
             'Product Name': product.productName,
@@ -155,16 +149,13 @@ const Report = () => {
             'Near Expiry Batches': product.expiryStats.nearExpiryBatches,
             'Expired Quantity': product.expiryStats.totalExpiredQuantity,
             'Near Expiry Quantity': product.expiryStats.totalNearExpiryQuantity,
-            'Disposed Quantity': product.expiryStats.disposedQuantity,
-            'Inventory Health': getProductHealthStatus(product),
-            'Urgent Action Required': getUrgentAction(product),
-            'Last Updated': new Date(product.updatedAt).toLocaleDateString('en-IN')
+            'Disposed Quantity': product.expiryStats.disposedQuantity
         }));
 
         const wsInventory = XLSX.utils.json_to_sheet(inventoryDetails);
         XLSX.utils.book_append_sheet(wb, wsInventory, 'Product Inventory');
 
-        // ==================== SHEET 3: BATCH EXPIRY DETAILS ====================
+        // ==================== SHEET 3: BATCH EXPIRY DATA ====================
         const batchData = [];
         inventoryData.inventory.forEach(product => {
             product.allBatches?.forEach(batch => {
@@ -177,10 +168,7 @@ const Report = () => {
                     'Days to Expiry': batch.daysToExpiry,
                     'Batch Quantity': batch.quantity,
                     'Batch Value (₹)': batch.quantity * product.price,
-                    'Expiry Status': batch.expiryStatus,
-                    'Status Priority': getExpiryPriority(batch),
-                    'Action Deadline': getActionDeadline(batch),
-                    'Stock Status': product.status
+                    'Expiry Status': batch.expiryStatus
                 });
             });
         });
@@ -188,7 +176,7 @@ const Report = () => {
         const wsBatches = XLSX.utils.json_to_sheet(batchData);
         XLSX.utils.book_append_sheet(wb, wsBatches, 'Batch Details');
 
-        // ==================== SHEET 4: DISPOSED PRODUCTS TRACKING ====================
+        // ==================== SHEET 4: DISPOSED PRODUCTS DATA ====================
         const disposedProducts = inventoryData.inventory.filter(product =>
             product.hasDisposedProducts || product.disposedBatches?.length > 0
         );
@@ -201,9 +189,6 @@ const Report = () => {
                 'Disposal Date': new Date(batch.disposalDate).toLocaleDateString('en-IN'),
                 'Disposed Quantity': batch.quantity,
                 'Disposal Reason': batch.disposalReason || 'Expired',
-                'Disposal ID': batch.disposalId,
-                'Original Expiry Date': batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('en-IN') : 'N/A',
-                'Product Current Status': product.status,
                 'Financial Impact (₹)': (batch.quantity * product.price).toLocaleString('en-IN')
             })) || []
         );
@@ -211,60 +196,24 @@ const Report = () => {
         const wsDisposed = XLSX.utils.json_to_sheet(disposedData);
         XLSX.utils.book_append_sheet(wb, wsDisposed, 'Disposal History');
 
-        // ==================== SHEET 5: RISK MANAGEMENT & ACTIONS ====================
-        const riskActionsHeaders = [
-            'Product Name',
-            'Category',
-            'Risk Level',
-            'Primary Issue',
-            'Immediate Action Required',
-            'Deadline',
-            'Responsible Department',
-            'Estimated Cost Impact',
-            'Prevention Strategy'
-        ];
-
-        const riskActionsData = inventoryData.inventory
-            .filter(product =>
-                product.expiryStats.expiredBatches > 0 ||
-                product.expiryStats.nearExpiryBatches > 0 ||
-                product.status === 'Low Stock' ||
-                product.status === 'Out of Stock'
-            )
-            .map(product => [
-                product.productName,
-                product.category,
-                getRiskLevel(product),
-                getPrimaryIssue(product),
-                getImmediateAction(product),
-                getActionDeadlineForProduct(product),
-                getResponsibleDepartment(product),
-                getCostImpact(product),
-                getPreventionStrategy(product)
-            ]);
-
-        const wsRisk = XLSX.utils.aoa_to_sheet([riskActionsHeaders, ...riskActionsData]);
-        XLSX.utils.book_append_sheet(wb, wsRisk, 'Risk Management');
-
-        // ==================== STYLING AND FORMATTING ====================
-        const sheets = [wsSummary, wsInventory, wsBatches, wsDisposed, wsRisk];
+        // Apply basic styling
+        const sheets = [wsSummary, wsInventory, wsBatches, wsDisposed];
         const colWidths = [
-            [25, 40], // Executive Summary
-            [15, 25, 15, 12, 12, 12, 15, 12, 15, 12, 15, 15, 15, 15, 15, 15, 20, 20, 15], // Product Inventory
-            [20, 15, 15, 15, 15, 12, 12, 15, 15, 15, 15, 15], // Batch Details
-            [20, 15, 15, 15, 12, 20, 15, 15, 15, 18], // Disposal History
-            [20, 15, 12, 20, 25, 12, 20, 18, 25] // Risk Management
+            [25, 40],
+            [15, 25, 15, 12, 12, 12, 15, 12, 15, 12, 15, 15, 15, 15, 15],
+            [20, 15, 15, 15, 15, 12, 12, 15, 15],
+            [20, 15, 15, 15, 12, 20, 15]
         ];
 
-        applyProfessionalStyling(sheets, colWidths);
+        applyBasicStyling(sheets, colWidths);
 
         // Generate filename
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `Inventory_Expiry_Report_${timestamp}.xlsx`;
+        const filename = `Inventory_Report_${timestamp}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Inventory and expiry report exported successfully!");
+        toast.success("Inventory report exported successfully!");
     };
 
     // Helper Functions for Inventory Export
@@ -355,6 +304,7 @@ const Report = () => {
 
 
     // Professional Sales Data Export Handler
+    // Professional Sales Data Export Handler - Clean Data Only
     const handleExportSalesData = (salesData, dateFilter, customDateRange) => {
         if (!salesData) {
             toast.error("No sales data available to export");
@@ -364,9 +314,9 @@ const Report = () => {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ==================== SHEET 1: SALES EXECUTIVE SUMMARY ====================
-        const executiveSummary = [
-            ['SALES PERFORMANCE REPORT - EXECUTIVE SUMMARY'],
+        // ==================== SHEET 1: SALES SUMMARY ====================
+        const salesSummary = [
+            ['SALES REPORT SUMMARY'],
             [''],
             ['Report Period', dateFilter ? `${dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)}` : 'Custom Period'],
             ['Date Range', dateFilter === 'custom' ?
@@ -375,47 +325,31 @@ const Report = () => {
             ],
             ['Report Generated', new Date().toLocaleString('en-IN')],
             [''],
-            ['KEY SALES PERFORMANCE INDICATORS'],
+            ['SALES PERFORMANCE'],
             ['Total Sales Revenue', `₹${salesData.summary?.totalSales?.toLocaleString('en-IN') || 0}`],
             ['Total Items Sold', salesData.summary?.totalItemsSold?.toLocaleString('en-IN') || 0],
             ['Total Orders Processed', salesData.summary?.invoiceCount?.toLocaleString('en-IN') || 0],
             ['Average Order Value', `₹${salesData.summary?.averageOrderValue?.toFixed(2) || 0}`],
             ['Tax Collected', `₹${salesData.summary?.totalTax?.toLocaleString('en-IN') || 0}`],
-            ['Discount Given', `₹${salesData.summary?.totalDiscount?.toLocaleString('en-IN') || 0}`],
-            ['Net Revenue (After Discount)', `₹${((salesData.summary?.totalSales || 0) - (salesData.summary?.totalDiscount || 0)).toLocaleString('en-IN')}`],
-            [''],
-            ['PAYMENT METHOD DISTRIBUTION'],
-            ...(salesData.paymentMethods?.map(method => [
-                method.method.toUpperCase(),
-                `${method.count} transactions`,
-                `${method.percentage}% of total`
-            ]) || [['No payment data available', '', '']]),
-            [''],
-            ['PERFORMANCE HIGHLIGHTS'],
-            ['Best Selling Product', salesData.topProducts?.[0]?.name || 'N/A'],
-            ['Total Products Sold', salesData.topProducts?.length || 0],
-            ['Revenue per Product', `₹${((salesData.summary?.totalSales || 0) / (salesData.topProducts?.length || 1)).toLocaleString('en-IN')}`]
+            ['Discount Given', `₹${salesData.summary?.totalDiscount?.toLocaleString('en-IN') || 0}`]
         ];
 
-        const wsSummary = XLSX.utils.aoa_to_sheet(executiveSummary);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+        const wsSummary = XLSX.utils.aoa_to_sheet(salesSummary);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Sales Summary');
 
-        // ==================== SHEET 2: SALES TREND ANALYSIS ====================
+        // ==================== SHEET 2: SALES TREND DATA ====================
         const salesTrendData = (salesData.trendData || []).map(day => ({
             'Date': new Date(day.date).toLocaleDateString('en-IN'),
-            'Day': new Date(day.date).toLocaleDateString('en-IN', { weekday: 'long' }),
             'Sales Revenue (₹)': day.sales || 0,
             'Number of Orders': day.orders || 0,
             'Items Sold': day.items || 0,
-            'Average Order Value (₹)': day.orders > 0 ? (day.sales / day.orders).toFixed(2) : 0,
-            'Daily Growth Rate': calculateDailyGrowth(salesData.trendData || [], day.date),
-            'Performance Rating': getDailyPerformance(day.sales || 0)
+            'Average Order Value (₹)': day.orders > 0 ? (day.sales / day.orders).toFixed(2) : 0
         }));
 
         const wsTrend = XLSX.utils.json_to_sheet(salesTrendData);
-        XLSX.utils.book_append_sheet(wb, wsTrend, 'Sales Trend Analysis');
+        XLSX.utils.book_append_sheet(wb, wsTrend, 'Sales Trend');
 
-        // ==================== SHEET 3: TOP PRODUCTS PERFORMANCE ====================
+        // ==================== SHEET 3: TOP PRODUCTS DATA ====================
         const topProductsData = (salesData.topProducts || []).map((product, index) => ({
             'Rank': index + 1,
             'Product Name': product.name,
@@ -423,72 +357,50 @@ const Report = () => {
             'Quantity Sold': product.totalQuantity,
             'Total Revenue (₹)': product.totalRevenue,
             'Average Price (₹)': product.totalQuantity > 0 ? (product.totalRevenue / product.totalQuantity).toFixed(2) : 0,
-            'Revenue Contribution': `${((product.totalRevenue / (salesData.summary?.totalSales || 1)) * 100).toFixed(2)}%`,
-            'Performance Score': calculateProductPerformance(product),
-            'Market Share': 'To be calculated with category data',
-            'Customer Demand Level': getDemandLevel(product.totalQuantity)
+            // 'Number of Orders': product.orderCount || 0 
         }));
 
         const wsProducts = XLSX.utils.json_to_sheet(topProductsData);
         XLSX.utils.book_append_sheet(wb, wsProducts, 'Top Products');
 
-        // ==================== SHEET 4: PAYMENT ANALYSIS ====================
+        // ==================== SHEET 4: PAYMENT METHODS DATA ====================
         const paymentAnalysisData = (salesData.paymentMethods || []).map(method => ({
             'Payment Method': method.method.toUpperCase(),
             'Transaction Count': method.count,
             'Percentage of Total': `${method.percentage}%`,
-            'Estimated Revenue': `₹${((method.count / (salesData.summary?.invoiceCount || 1)) * (salesData.summary?.totalSales || 0)).toLocaleString('en-IN')}`,
-            'Average Transaction Value': `₹${(((method.count / (salesData.summary?.invoiceCount || 1)) * (salesData.summary?.totalSales || 0)) / method.count).toFixed(2)}`,
-            'Customer Preference': getPreferenceLevel(parseFloat(method.percentage))
+            'Total Amount (₹)': `₹${((method.count / (salesData.summary?.invoiceCount || 1)) * (salesData.summary?.totalSales || 0)).toLocaleString('en-IN')}`
         }));
 
         const wsPayments = XLSX.utils.json_to_sheet(paymentAnalysisData);
-        XLSX.utils.book_append_sheet(wb, wsPayments, 'Payment Analysis');
+        XLSX.utils.book_append_sheet(wb, wsPayments, 'Payment Methods');
 
-        // ==================== SHEET 5: DAILY PERFORMANCE METRICS ====================
-        const dailyMetricsHeaders = [
-            'Metric',
-            'Value',
-            'Target',
-            'Achievement %',
-            'Status',
-            'Recommendation'
-        ];
-
-        const dailyMetricsData = [
-            ['Total Sales Revenue', `₹${salesData.summary?.totalSales?.toLocaleString('en-IN') || 0}`, 'Based on historical data', calculateAchievement(salesData.summary?.totalSales || 0, 'sales'), getStatus(salesData.summary?.totalSales || 0, 'sales'), getSalesRecommendation(salesData)],
-            ['Order Count', salesData.summary?.invoiceCount || 0, 'Based on historical data', calculateAchievement(salesData.summary?.invoiceCount || 0, 'orders'), getStatus(salesData.summary?.invoiceCount || 0, 'orders'), 'Focus on customer acquisition'],
-            ['Average Order Value', `₹${salesData.summary?.averageOrderValue?.toFixed(2) || 0}`, 'Industry benchmark', calculateAchievement(salesData.summary?.averageOrderValue || 0, 'aov'), getStatus(salesData.summary?.averageOrderValue || 0, 'aov'), 'Implement upselling strategies'],
-            ['Items per Order', ((salesData.summary?.totalItemsSold || 0) / (salesData.summary?.invoiceCount || 1)).toFixed(1), 'Industry standard', calculateAchievement(((salesData.summary?.totalItemsSold || 0) / (salesData.summary?.invoiceCount || 1)), 'items'), getStatus(((salesData.summary?.totalItemsSold || 0) / (salesData.summary?.invoiceCount || 1)), 'items'), 'Bundle products for better value']
-        ];
-
-        const wsMetrics = XLSX.utils.aoa_to_sheet([dailyMetricsHeaders, ...dailyMetricsData]);
-        XLSX.utils.book_append_sheet(wb, wsMetrics, 'Performance Metrics');
-
-        // ==================== STYLING AND FORMATTING ====================
-        const sheets = [wsSummary, wsTrend, wsProducts, wsPayments, wsMetrics];
+        // Apply basic styling
+        const sheets = [wsSummary, wsTrend, wsProducts, wsPayments];
         const colWidths = [
-            [25, 40], // Executive Summary
-            [12, 15, 15, 15, 15, 20, 15, 18], // Sales Trend
-            [8, 25, 20, 15, 15, 15, 15, 15, 18, 15], // Top Products
-            [18, 18, 18, 18, 25, 20], // Payment Analysis
-            [25, 20, 20, 15, 12, 30] // Performance Metrics
+            [25, 40],
+            [12, 15, 15, 15, 20],
+            [8, 25, 20, 15, 15, 15, 15],
+            [18, 18, 18, 18]
         ];
 
-        applyProfessionalStyling(sheets, colWidths);
+        applyBasicStyling(sheets, colWidths);
 
         // Generate filename
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `Sales_Performance_Report_${dateFilter}_${timestamp}.xlsx`;
+        const filename = `Sales_Report_${dateFilter}_${timestamp}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Sales performance report exported successfully!");
+        toast.success("Sales report exported successfully!");
     };
 
 
 
+
+
+
     // Professional Purchase Data Export Handler
+    // Professional Purchase Data Export Handler - Clean Data Only
     const handleExportPurchaseData = (purchaseData, dateFilter, customDateRange) => {
         if (!purchaseData) {
             toast.error("No purchase data available to export");
@@ -498,9 +410,9 @@ const Report = () => {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ==================== SHEET 1: PURCHASE EXECUTIVE SUMMARY ====================
-        const executiveSummary = [
-            ['PURCHASE & INVENTORY REPORT - EXECUTIVE SUMMARY'],
+        // ==================== SHEET 1: PURCHASE SUMMARY ====================
+        const purchaseSummary = [
+            ['PURCHASE REPORT SUMMARY'],
             [''],
             ['Report Period', dateFilter ? `${dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)}` : 'Custom Period'],
             ['Date Range', dateFilter === 'custom' ?
@@ -509,61 +421,40 @@ const Report = () => {
             ],
             ['Report Generated', new Date().toLocaleString('en-IN')],
             [''],
-            ['KEY PURCHASE PERFORMANCE INDICATORS'],
+            ['PURCHASE PERFORMANCE'],
             ['Total Purchase Value', `₹${purchaseData.summary?.totalPurchaseValue?.toLocaleString('en-IN') || 0}`],
             ['Total Quantity Purchased', purchaseData.summary?.totalQuantityPurchased?.toLocaleString('en-IN') || 0],
             ['Purchase Transactions', purchaseData.summary?.purchaseCount?.toLocaleString('en-IN') || 0],
             ['Average Purchase Price', `₹${purchaseData.summary?.averagePurchasePrice?.toFixed(2) || 0}`],
-            ['Unique Products Purchased', purchaseData.summary?.uniqueProducts?.toLocaleString('en-IN') || 0],
-            ['Average Transaction Value', `₹${((purchaseData.summary?.totalPurchaseValue || 0) / (purchaseData.summary?.purchaseCount || 1)).toFixed(2)}`],
-            [''],
-            ['CATEGORY BREAKDOWN HIGHLIGHTS'],
-            ...(purchaseData.categoryBreakdown?.slice(0, 5).map(cat => [
-                cat.category,
-                `₹${cat.totalValue?.toLocaleString('en-IN')}`,
-                `${cat.totalQuantity} units`,
-                `${((cat.totalValue / (purchaseData.summary?.totalPurchaseValue || 1)) * 100).toFixed(1)}%`
-            ]) || [['No category data available', '', '', '']]),
-            [''],
-            ['PROCUREMENT EFFICIENCY'],
-            ['Cost per Product', `₹${((purchaseData.summary?.totalPurchaseValue || 0) / (purchaseData.summary?.uniqueProducts || 1)).toFixed(2)}`],
-            ['Purchase Frequency', `${(purchaseData.summary?.purchaseCount || 0)} transactions`],
-            ['Inventory Investment Efficiency', calculateInventoryEfficiency(purchaseData)]
+            ['Unique Products Purchased', purchaseData.summary?.uniqueProducts?.toLocaleString('en-IN') || 0]
         ];
 
-        const wsSummary = XLSX.utils.aoa_to_sheet(executiveSummary);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+        const wsSummary = XLSX.utils.aoa_to_sheet(purchaseSummary);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Purchase Summary');
 
-        // ==================== SHEET 2: PURCHASE TREND ANALYSIS ====================
+        // ==================== SHEET 2: PURCHASE TREND DATA ====================
         const purchaseTrendData = (purchaseData.trendData || []).map(day => ({
             'Date': new Date(day.date).toLocaleDateString('en-IN'),
-            'Day': new Date(day.date).toLocaleDateString('en-IN', { weekday: 'long' }),
             'Purchase Value (₹)': day.purchaseValue || 0,
             'Quantity Purchased': day.quantity || 0,
             'Purchase Transactions': day.transactions || 0,
-            'Average Transaction Value (₹)': day.transactions > 0 ? (day.purchaseValue / day.transactions).toFixed(2) : 0,
-            'Cost per Unit (₹)': day.quantity > 0 ? (day.purchaseValue / day.quantity).toFixed(2) : 0,
-            'Procurement Efficiency': getProcurementEfficiency(day)
+            'Average Transaction Value (₹)': day.transactions > 0 ? (day.purchaseValue / day.transactions).toFixed(2) : 0
         }));
 
         const wsTrend = XLSX.utils.json_to_sheet(purchaseTrendData);
-        XLSX.utils.book_append_sheet(wb, wsTrend, 'Purchase Trend Analysis');
+        XLSX.utils.book_append_sheet(wb, wsTrend, 'Purchase Trend');
 
-        // ==================== SHEET 3: CATEGORY PURCHASE ANALYSIS ====================
+        // ==================== SHEET 3: CATEGORY PURCHASE DATA ====================
         const categoryAnalysisData = (purchaseData.categoryBreakdown || []).map(category => ({
             'Category Name': category.category,
             'Total Purchase Value (₹)': category.totalValue,
             'Quantity Purchased': category.totalQuantity,
             'Purchase Transactions': category.transactionCount,
-            'Average Transaction Value (₹)': (category.totalValue / category.transactionCount).toFixed(2),
-            'Cost per Unit (₹)': (category.totalValue / category.totalQuantity).toFixed(2),
-            'Category Share': `${((category.totalValue / (purchaseData.summary?.totalPurchaseValue || 1)) * 100).toFixed(2)}%`,
-            'Procurement Priority': getProcurementPriority(category),
-            'Inventory Recommendation': getInventoryRecommendation(category)
+            'Average Transaction Value (₹)': (category.totalValue / category.transactionCount).toFixed(2)
         }));
 
         const wsCategories = XLSX.utils.json_to_sheet(categoryAnalysisData);
-        XLSX.utils.book_append_sheet(wb, wsCategories, 'Category Analysis');
+        XLSX.utils.book_append_sheet(wb, wsCategories, 'Category Purchases');
 
         // ==================== SHEET 4: RECENT PURCHASES DETAIL ====================
         const recentPurchasesData = (purchaseData.recentPurchases || []).map(purchase => ({
@@ -574,55 +465,30 @@ const Report = () => {
             'Quantity': purchase.quantity,
             'Unit Price (₹)': purchase.price,
             'Total Value (₹)': purchase.totalValue,
-            'Purchase Date': new Date(purchase.date).toLocaleDateString('en-IN'),
-            'Purchase Time': new Date(purchase.date).toLocaleTimeString('en-IN'),
-            'Supplier Information': 'To be integrated',
-            'Purchase Type': 'Regular Purchase'
+            'Purchase Date': new Date(purchase.date).toLocaleDateString('en-IN')
         }));
 
         const wsRecent = XLSX.utils.json_to_sheet(recentPurchasesData);
         XLSX.utils.book_append_sheet(wb, wsRecent, 'Recent Purchases');
 
-        // ==================== SHEET 5: INVENTORY MANAGEMENT INSIGHTS ====================
-        const inventoryHeaders = [
-            'Metric Category',
-            'Current Value',
-            'Benchmark',
-            'Status',
-            'Action Required',
-            'Impact Level'
-        ];
-
-        const inventoryData = [
-            ['Total Inventory Investment', `₹${purchaseData.summary?.totalPurchaseValue?.toLocaleString('en-IN') || 0}`, 'Based on sales volume', 'Optimal', 'Monitor stock levels', 'High'],
-            ['Purchase Transaction Efficiency', `${purchaseData.summary?.purchaseCount || 0} transactions`, 'Industry standard', 'Good', 'Maintain current frequency', 'Medium'],
-            ['Average Purchase Price', `₹${purchaseData.summary?.averagePurchasePrice?.toFixed(2) || 0}`, 'Market rates', 'Competitive', 'Negotiate with suppliers', 'High'],
-            ['Category Concentration', `${purchaseData.categoryBreakdown?.length || 0} categories`, 'Diversified portfolio', 'Balanced', 'Explore new categories', 'Medium'],
-            ['Procurement Cycle', 'Daily tracking', 'Weekly assessment', 'Efficient', 'Continue monitoring', 'Low']
-        ];
-
-        const wsInventory = XLSX.utils.aoa_to_sheet([inventoryHeaders, ...inventoryData]);
-        XLSX.utils.book_append_sheet(wb, wsInventory, 'Inventory Insights');
-
-        // ==================== STYLING AND FORMATTING ====================
-        const sheets = [wsSummary, wsTrend, wsCategories, wsRecent, wsInventory];
+        // Apply basic styling
+        const sheets = [wsSummary, wsTrend, wsCategories, wsRecent];
         const colWidths = [
-            [25, 40], // Executive Summary
-            [12, 15, 18, 15, 20, 22, 15, 20], // Purchase Trend
-            [20, 18, 15, 18, 20, 15, 15, 18, 25], // Category Analysis
-            [15, 25, 15, 20, 12, 12, 15, 12, 12, 20, 18], // Recent Purchases
-            [25, 20, 20, 12, 20, 15] // Inventory Insights
+            [25, 40],
+            [12, 15, 18, 15, 20],
+            [20, 18, 15, 18, 20],
+            [15, 25, 15, 20, 12, 12, 15, 12]
         ];
 
-        applyProfessionalStyling(sheets, colWidths);
+        applyBasicStyling(sheets, colWidths);
 
         // Generate filename
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `Purchase_Analysis_Report_${dateFilter}_${timestamp}.xlsx`;
+        const filename = `Purchase_Report_${dateFilter}_${timestamp}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Purchase analysis report exported successfully!");
+        toast.success("Purchase report exported successfully!");
     };
 
 
@@ -736,6 +602,7 @@ const Report = () => {
 
     // Add this function to your Report.jsx component
     // Professional Category Analysis Export Handler
+    // Professional Category Analysis Export Handler - Clean Data Only
     const handleExportCategoryData = (categoryData) => {
         if (!categoryData || !categoryData.categories) {
             toast.error("No category data available to export");
@@ -745,71 +612,41 @@ const Report = () => {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ==================== SHEET 1: EXECUTIVE SUMMARY ====================
-        const executiveSummary = [
-            ['CATEGORY PERFORMANCE ANALYSIS REPORT'],
+        // ==================== SHEET 1: CATEGORY SUMMARY ====================
+        const categorySummary = [
+            ['CATEGORY ANALYSIS REPORT'],
             [''],
             ['Report Period', categoryData.dateRange?.filterType ? `${categoryData.dateRange.filterType.charAt(0).toUpperCase() + categoryData.dateRange.filterType.slice(1)}` : 'Custom Period'],
             ['Date Range', `${new Date(categoryData.dateRange?.start).toLocaleDateString('en-IN')} to ${new Date(categoryData.dateRange?.end).toLocaleDateString('en-IN')}`],
             ['Report Generated', new Date().toLocaleString('en-IN')],
-            ['Category Filter', categoryData.filters?.selectedCategory === 'all' ? 'All Categories' : categoryData.filters?.selectedCategory],
-            ['Total Categories Analyzed', categoryData.summary.totalCategories],
-            [''],
-            ['OVERALL BUSINESS PERFORMANCE'],
+            ['Total Categories', categoryData.summary.totalCategories],
             ['Total Sales Revenue', `₹${categoryData.summary.totalSales?.toLocaleString('en-IN')}`],
             ['Total Purchase Value', `₹${categoryData.summary.totalPurchases?.toLocaleString('en-IN')}`],
-            ['Total Stock Value', `₹${categoryData.summary.totalStockValue?.toLocaleString('en-IN')}`],
-            ['Total Orders Processed', categoryData.summary.totalOrders],
-            ['Total Products in System', categoryData.summary.totalProducts],
-            ['Gross Profit Margin', `${calculateGrossMargin(categoryData.summary.totalSales, categoryData.summary.totalPurchases)}%`],
-            ['Inventory Turnover Ratio', calculateInventoryTurnover(categoryData.summary.totalSales, categoryData.summary.totalStockValue)],
-            [''],
-            ['TOP PERFORMING CATEGORIES (BY REVENUE)'],
-            ...categoryData.categories.slice(0, 5).map((category, index) => [
-                `${index + 1}. ${category.category}`,
-                `₹${category.sales.totalSales?.toLocaleString('en-IN')}`,
-                `${((category.sales.totalSales / categoryData.summary.totalSales) * 100).toFixed(1)}% of total`,
-                `${category.sales.growth}% growth`
-            ]),
-            [''],
-            ['STOCK HEALTH OVERVIEW'],
-            ['Total In-Stock Products', calculateTotalInStock(categoryData.categories)],
-            ['Low Stock Products', calculateTotalLowStock(categoryData.categories)],
-            ['Out of Stock Products', calculateTotalOutOfStock(categoryData.categories)],
-            ['Stock Health Score', `${calculateStockHealthScore(categoryData.categories)}%`]
+            ['Total Stock Value', `₹${categoryData.summary.totalStockValue?.toLocaleString('en-IN')}`]
         ];
 
-        const wsSummary = XLSX.utils.aoa_to_sheet(executiveSummary);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+        const wsSummary = XLSX.utils.aoa_to_sheet(categorySummary);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Category Summary');
 
-        // ==================== SHEET 2: CATEGORY PERFORMANCE DASHBOARD ====================
+        // ==================== SHEET 2: CATEGORY PERFORMANCE DATA ====================
         const categoryPerformanceData = categoryData.categories.map((category, index) => ({
-            'Rank': index + 1,
             'Category Name': category.category,
             'Total Products': category.stock.totalProducts,
             'Sales Revenue (₹)': category.sales.totalSales,
             'Purchase Value (₹)': category.purchases.totalPurchaseValue,
-            'Gross Profit (₹)': (category.sales.totalSales - category.purchases.totalPurchaseValue),
-            'Profit Margin': `${calculateCategoryMargin(category.sales.totalSales, category.purchases.totalPurchaseValue)}%`,
             'Stock Value (₹)': category.stock.totalValue,
             'Total Orders': category.sales.totalOrders,
             'Average Order Value (₹)': category.sales.averageOrderValue?.toFixed(2),
             'Sales Growth Rate': `${category.sales.growth}%`,
-            'Purchase Growth Rate': `${category.purchases.growth}%`,
             'In-Stock Products': category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts,
             'Low Stock Products': category.stock.lowStockProducts,
-            'Out of Stock Products': category.stock.outOfStockProducts,
-            'Stock Availability': `${(((category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts) / category.stock.totalProducts) * 100).toFixed(1)}%`,
-            'Performance Rating': getCategoryPerformanceRating(category),
-            'Revenue Contribution': `${((category.sales.totalSales / categoryData.summary.totalSales) * 100).toFixed(2)}%`,
-            'Inventory Turnover': calculateCategoryTurnover(category.sales.totalSales, category.stock.totalValue),
-            'Recommendation': getCategoryRecommendation(category)
+            'Out of Stock Products': category.stock.outOfStockProducts
         }));
 
         const wsPerformance = XLSX.utils.json_to_sheet(categoryPerformanceData);
         XLSX.utils.book_append_sheet(wb, wsPerformance, 'Category Performance');
 
-        // ==================== SHEET 3: SALES & REVENUE ANALYSIS ====================
+        // ==================== SHEET 3: SALES DATA BY CATEGORY ====================
         const salesAnalysisData = categoryData.categories.map(category => ({
             'Category Name': category.category,
             'Total Sales Revenue (₹)': category.sales.totalSales,
@@ -817,21 +654,13 @@ const Report = () => {
             'Total Orders': category.sales.totalOrders,
             'Average Order Value (₹)': category.sales.averageOrderValue?.toFixed(2),
             'Total Tax Collected (₹)': category.sales.totalTax,
-            'Total Discount Given (₹)': category.sales.totalDiscount,
-            'Sales per Product': `₹${(category.sales.totalSales / category.stock.totalProducts).toFixed(2)}`,
-            'Orders per Product': (category.sales.totalOrders / category.stock.totalProducts).toFixed(1),
-            'Revenue per Order': `₹${(category.sales.totalSales / category.sales.totalOrders).toFixed(2)}`,
-            'Growth Rate': `${category.sales.growth}%`,
-            'Sales Efficiency Score': calculateSalesEfficiency(category),
-            'Market Share': `${((category.sales.totalSales / categoryData.summary.totalSales) * 100).toFixed(1)}%`,
-            'Seasonal Trend': analyzeSeasonalTrend(category),
-            'Customer Demand Level': getDemandLevel(category.sales.totalQuantity)
+            'Total Discount Given (₹)': category.sales.totalDiscount
         }));
 
         const wsSales = XLSX.utils.json_to_sheet(salesAnalysisData);
-        XLSX.utils.book_append_sheet(wb, wsSales, 'Sales Analysis');
+        XLSX.utils.book_append_sheet(wb, wsSales, 'Sales Data');
 
-        // ==================== SHEET 4: PURCHASE & INVENTORY ANALYSIS ====================
+        // ==================== SHEET 4: PURCHASE DATA BY CATEGORY ====================
         const purchaseAnalysisData = categoryData.categories.map(category => ({
             'Category Name': category.category,
             'Total Purchase Value (₹)': category.purchases.totalPurchaseValue,
@@ -839,169 +668,32 @@ const Report = () => {
             'Purchase Transactions': category.purchases.totalTransactions,
             'Average Purchase Price (₹)': category.purchases.averagePurchasePrice?.toFixed(2),
             'Current Stock Value (₹)': category.stock.totalValue,
-            'Stock Quantity': category.stock.totalQuantity,
-            'Cost per Product': `₹${(category.purchases.totalPurchaseValue / category.stock.totalProducts).toFixed(2)}`,
-            'Inventory Investment': `₹${category.stock.totalValue?.toLocaleString('en-IN')}`,
-            'Stock-to-Sales Ratio': (category.stock.totalValue / category.sales.totalSales).toFixed(2),
-            'Purchase Growth Rate': `${category.purchases.growth}%`,
-            'Inventory Health Score': calculateInventoryHealth(category),
-            'Reorder Priority': getReorderPriority(category),
-            'Optimal Stock Level': calculateOptimalStockLevel(category),
-            'Excess Stock Alert': checkExcessStock(category),
-            'Procurement Efficiency': calculateProcurementEfficiency(category)
+            'Stock Quantity': category.stock.totalQuantity
         }));
 
         const wsPurchases = XLSX.utils.json_to_sheet(purchaseAnalysisData);
-        XLSX.utils.book_append_sheet(wb, wsPurchases, 'Purchase Analysis');
+        XLSX.utils.book_append_sheet(wb, wsPurchases, 'Purchase Data');
 
-        // ==================== SHEET 5: STOCK MANAGEMENT & OPTIMIZATION ====================
-        const stockManagementHeaders = [
-            'Category Name',
-            'Total Products',
-            'In-Stock Products',
-            'Low Stock Products',
-            'Out of Stock Products',
-            'Stock Availability Rate',
-            'Stock Value (₹)',
-            'Average Product Value (₹)',
-            'Stock Turnover Days',
-            'Ideal Stock Level',
-            'Reorder Quantity',
-            'Stock Risk Level',
-            'Urgent Actions Required',
-            'Optimization Opportunity',
-            'Projected Stock-out Date'
-        ];
-
-        const stockManagementData = categoryData.categories.map(category => [
-            category.category,
-            category.stock.totalProducts,
-            category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts,
-            category.stock.lowStockProducts,
-            category.stock.outOfStockProducts,
-            `${(((category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts) / category.stock.totalProducts) * 100).toFixed(1)}%`,
-            category.stock.totalValue,
-            (category.stock.totalValue / category.stock.totalProducts).toFixed(2),
-            calculateStockTurnoverDays(category),
-            calculateIdealStockLevel(category),
-            calculateReorderQuantity(category),
-            getStockRiskLevel(category),
-            getUrgentActions(category),
-            getOptimizationOpportunity(category),
-            calculateProjectedStockOut(category)
-        ]);
-
-        const wsStock = XLSX.utils.aoa_to_sheet([stockManagementHeaders, ...stockManagementData]);
-        XLSX.utils.book_append_sheet(wb, wsStock, 'Stock Management');
-
-        // ==================== SHEET 6: STRATEGIC RECOMMENDATIONS ====================
-        const strategicData = [
-            ['STRATEGIC BUSINESS RECOMMENDATIONS'],
-            [''],
-            ['HIGH-PERFORMING CATEGORIES (Focus & Expand)'],
-            ...getHighPerformingCategories(categoryData.categories).map(cat => [
-                cat.category,
-                `Revenue: ₹${cat.sales.totalSales?.toLocaleString('en-IN')}`,
-                `Margin: ${calculateCategoryMargin(cat.sales.totalSales, cat.purchases.totalPurchaseValue)}%`,
-                'ACTION: Increase inventory, promote aggressively'
-            ]),
-            [''],
-            ['GROWTH OPPORTUNITY CATEGORIES (Invest & Develop)'],
-            ...getGrowthOpportunityCategories(categoryData.categories).map(cat => [
-                cat.category,
-                `Growth: ${cat.sales.growth}%`,
-                `Market Share: ${((cat.sales.totalSales / categoryData.summary.totalSales) * 100).toFixed(1)}%`,
-                'ACTION: Strategic marketing, product expansion'
-            ]),
-            [''],
-            ['RISK CATEGORIES (Monitor & Optimize)'],
-            ...getRiskCategories(categoryData.categories).map(cat => [
-                cat.category,
-                `Stock Risk: ${getStockRiskLevel(cat)}`,
-                `Low Stock: ${cat.stock.lowStockProducts} products`,
-                'ACTION: Replenish stock, review pricing'
-            ]),
-            [''],
-            ['INVENTORY OPTIMIZATION PRIORITIES'],
-            ...getInventoryPriorities(categoryData.categories).map(item => [
-                item.category,
-                item.priority,
-                item.action,
-                item.impact
-            ]),
-            [''],
-            ['FINANCIAL PROJECTIONS & BUDGETING'],
-            ['Projected Next Period Revenue', `₹${calculateProjectedRevenue(categoryData.categories).toLocaleString('en-IN')}`],
-            ['Recommended Inventory Investment', `₹${calculateRecommendedInvestment(categoryData.categories).toLocaleString('en-IN')}`],
-            ['Expected ROI', `${calculateExpectedROI(categoryData.categories)}%`],
-            ['Priority Investment Categories', getPriorityInvestmentCategories(categoryData.categories).join(', ')]
-        ];
-
-        const wsStrategic = XLSX.utils.aoa_to_sheet(strategicData);
-        XLSX.utils.book_append_sheet(wb, wsStrategic, 'Strategic Recommendations');
-
-        // ==================== STYLING AND FORMATTING ====================
-        const sheets = [wsSummary, wsPerformance, wsSales, wsPurchases, wsStock, wsStrategic];
+        // Apply basic styling
+        const sheets = [wsSummary, wsPerformance, wsSales, wsPurchases];
         const colWidths = [
-            [25, 40], // Executive Summary
-            [8, 25, 15, 15, 15, 15, 12, 12, 12, 15, 12, 12, 15, 15, 15, 15, 15, 15, 20], // Category Performance
-            [20, 15, 15, 12, 15, 15, 15, 15, 15, 15, 12, 15, 12, 15, 18], // Sales Analysis
-            [20, 18, 18, 18, 15, 15, 15, 18, 15, 15, 15, 18, 15, 18, 18, 18], // Purchase Analysis
-            [20, 15, 15, 15, 15, 18, 15, 18, 15, 15, 15, 15, 20, 20, 20], // Stock Management
-            [25, 35, 20, 40] // Strategic Recommendations
+            [25, 40],
+            [20, 15, 15, 15, 15, 12, 15, 15, 15, 15, 15],
+            [20, 18, 15, 12, 15, 15, 15],
+            [20, 18, 18, 18, 15, 15, 15]
         ];
 
-        // Apply professional styling
-        sheets.forEach((sheet, index) => {
-            if (colWidths[index]) {
-                sheet['!cols'] = colWidths[index].map(width => ({ wch: width }));
-            }
+        applyBasicStyling(sheets, colWidths);
 
-            // Style header rows with professional colors
-            const range = XLSX.utils.decode_range(sheet['!ref']);
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
-                if (sheet[cellAddress]) {
-                    sheet[cellAddress].s = {
-                        font: { bold: true, color: { rgb: "FFFFFF" } },
-                        fill: { fgColor: { rgb: "2C3E50" } },
-                        alignment: { horizontal: "center" },
-                        border: {
-                            top: { style: "thin", color: { rgb: "1A252F" } },
-                            left: { style: "thin", color: { rgb: "1A252F" } },
-                            bottom: { style: "thin", color: { rgb: "1A252F" } },
-                            right: { style: "thin", color: { rgb: "1A252F" } }
-                        }
-                    };
-                }
-            }
-
-            // Style title rows for executive summary and strategic sheets
-            if (index === 0 || index === 5) {
-                const titleRows = index === 0 ? [0, 8, 13, 18] : [0, 2, 6, 10, 14, 18];
-                titleRows.forEach(row => {
-                    const cellAddress = XLSX.utils.encode_cell({ r: row, c: 0 });
-                    if (sheet[cellAddress]) {
-                        sheet[cellAddress].s = {
-                            font: { bold: true, size: 14, color: { rgb: "FFFFFF" } },
-                            fill: { fgColor: { rgb: "34495E" } },
-                            alignment: { horizontal: "center" }
-                        };
-                    }
-                });
-            }
-        });
-
-        // Generate professional filename
+        // Generate filename
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         const period = categoryData.dateRange?.filterType || 'custom';
-        const filename = `Category_Performance_Analysis_${period}_${timestamp}.xlsx`;
+        const filename = `Category_Analysis_${period}_${timestamp}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Professional category analysis report exported successfully!");
+        toast.success("Category analysis report exported successfully!");
     };
-
     // ==================== HELPER FUNCTIONS ====================
 
     const calculateGrossMargin = (sales, purchases) => {
@@ -1229,6 +921,7 @@ const Report = () => {
 
     // Add this function to your parent component
     // Professional Trending Products Export Handler
+    // Professional Trending Products Export Handler - Clean Data Only
     const handleExportTrendingData = (trendingData) => {
         if (!trendingData || !trendingData.trendingProducts) {
             toast.error("No data available to export");
@@ -1238,42 +931,23 @@ const Report = () => {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ==================== SHEET 1: EXECUTIVE SUMMARY ====================
-        const executiveSummary = [
-            ['TRENDING PRODUCTS PERFORMANCE REPORT'],
+        // ==================== SHEET 1: TRENDING SUMMARY ====================
+        const trendingSummary = [
+            ['TRENDING PRODUCTS REPORT'],
             [''],
             ['Report Period', trendingData.dateRange?.filterType ? `${trendingData.dateRange.filterType.charAt(0).toUpperCase() + trendingData.dateRange.filterType.slice(1)}` : 'Custom Period'],
             ['Date Range', `${new Date(trendingData.dateRange?.start).toLocaleDateString('en-IN')} to ${new Date(trendingData.dateRange?.end).toLocaleDateString('en-IN')}`],
             ['Report Generated', new Date().toLocaleString('en-IN')],
-            ['Category Filter', trendingData.filters?.selectedCategory === 'all' ? 'All Categories' : trendingData.filters?.selectedCategory],
-            ['Products Analyzed', `Top ${trendingData.filters?.selectedLimit || trendingData.trendingProducts.length}`],
-            [''],
-            ['OVERALL PERFORMANCE SUMMARY'],
             ['Total Products Analyzed', trendingData.summary.totalProducts],
             ['Total Quantity Sold', trendingData.summary.totalQuantitySold?.toLocaleString('en-IN')],
             ['Total Revenue Generated', `₹${trendingData.summary.totalRevenue?.toLocaleString('en-IN')}`],
-            ['Total Orders Processed', trendingData.summary.totalOrders],
-            ['Average Sale Frequency', `${trendingData.summary.averageSaleFrequency?.toFixed(2)} sales per day`],
-            ['Average Revenue per Product', `₹${(trendingData.summary.totalRevenue / trendingData.summary.totalProducts).toLocaleString('en-IN')}`],
-            [''],
-            ['PERFORMANCE DISTRIBUTION'],
-            ['Top 5 Products Revenue Share', `${((trendingData.trendingProducts.slice(0, 5).reduce((sum, p) => sum + p.totalRevenue, 0) / trendingData.summary.totalRevenue) * 100).toFixed(1)}%`],
-            ['Top 10 Products Revenue Share', `${((trendingData.trendingProducts.slice(0, 10).reduce((sum, p) => sum + p.totalRevenue, 0) / trendingData.summary.totalRevenue) * 100).toFixed(1)}%`],
-            [''],
-            ['CATEGORY PERFORMANCE HIGHLIGHTS'],
-            ...getTopCategories(trendingData.trendingProducts).slice(0, 5).map(cat => [
-                cat.category,
-                `₹${cat.totalRevenue?.toLocaleString('en-IN')}`,
-                `${cat.totalQuantity} units`,
-                `${cat.products} products`,
-                `${((cat.totalRevenue / trendingData.summary.totalRevenue) * 100).toFixed(1)}%`
-            ])
+            ['Total Orders Processed', trendingData.summary.totalOrders]
         ];
 
-        const wsSummary = XLSX.utils.aoa_to_sheet(executiveSummary);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+        const wsSummary = XLSX.utils.aoa_to_sheet(trendingSummary);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Trending Summary');
 
-        // ==================== SHEET 2: PRODUCT PERFORMANCE RANKING ====================
+        // ==================== SHEET 2: PRODUCT PERFORMANCE DATA ====================
         const productPerformanceData = trendingData.trendingProducts.map((product, index) => ({
             'Rank': index + 1,
             'Product Name': product.name,
@@ -1288,189 +962,62 @@ const Report = () => {
             'Average Order Value (₹)': product.averageOrderValue?.toFixed(2),
             'Sale Frequency (per day)': product.saleFrequency?.toFixed(2),
             'Unique Customers': product.uniqueCustomerCount,
-            'Customer Reach Rate': `${((product.uniqueCustomerCount / product.totalOrders) * 100).toFixed(1)}%`,
-            'Revenue per Customer': `₹${(product.totalRevenue / product.uniqueCustomerCount).toFixed(2)}`,
             'Total Discount (₹)': product.totalDiscount || 0,
             'Total Tax (₹)': product.totalTax || 0,
             'Tax Slab': product.taxSlab || 'N/A',
             'First Sale Date': new Date(product.firstSold).toLocaleDateString('en-IN'),
-            'Last Sale Date': new Date(product.lastSold).toLocaleDateString('en-IN'),
-            'Days Active': Math.max(1, Math.ceil((new Date(product.lastSold) - new Date(product.firstSold)) / (1000 * 60 * 60 * 24))),
-            'Performance Score': calculatePerformanceScore(product),
-            'Revenue Contribution': `${((product.totalRevenue / trendingData.summary.totalRevenue) * 100).toFixed(2)}%`,
-            'Stock Status': getStockStatus(product),
-            'Growth Potential': getGrowthPotential(product)
+            'Last Sale Date': new Date(product.lastSold).toLocaleDateString('en-IN')
         }));
 
         const wsProducts = XLSX.utils.json_to_sheet(productPerformanceData);
         XLSX.utils.book_append_sheet(wb, wsProducts, 'Product Performance');
 
-        // ==================== SHEET 3: SALES TREND ANALYSIS ====================
-        const salesTrendHeaders = [
-            'Product Name',
-            'Category',
-            'Daily Sales Rate',
-            'Weekly Sales Projection',
-            'Monthly Sales Projection',
-            'Revenue Trend',
-            'Customer Demand Level',
-            'Seasonality Impact',
-            'Reorder Recommendation',
-            'Optimal Stock Level',
-            'Sales Velocity',
-            'Market Share in Category'
-        ];
-
-        const salesTrendData = trendingData.trendingProducts.map(product => [
-            product.name,
-            product.category,
-            `${product.saleFrequency?.toFixed(1)} units/day`,
-            `${Math.round(product.saleFrequency * 7)} units/week`,
-            `${Math.round(product.saleFrequency * 30)} units/month`,
-            getRevenueTrend(product),
-            getDemandLevel(product),
-            getSeasonality(product),
-            getReorderRecommendation(product),
-            calculateOptimalStock(product),
-            getSalesVelocity(product),
-            calculateMarketShare(product, trendingData.trendingProducts)
-        ]);
-
-        const wsTrends = XLSX.utils.aoa_to_sheet([salesTrendHeaders, ...salesTrendData]);
-        XLSX.utils.book_append_sheet(wb, wsTrends, 'Sales Trends');
-
-        // ==================== SHEET 4: CATEGORY DEEP DIVE ====================
-        const categoryAnalysis = getCategoryAnalysis(trendingData.trendingProducts);
-        const categoryData = categoryAnalysis.map(cat => ({
-            'Category Name': cat.category,
-            'Number of Products': cat.productCount,
-            'Total Revenue (₹)': cat.totalRevenue,
-            'Total Quantity Sold': cat.totalQuantity,
-            'Average Price (₹)': (cat.totalRevenue / cat.totalQuantity).toFixed(2),
-            'Revenue Share': `${cat.revenueShare}%`,
-            'Top Performing Product': cat.topProduct,
-            'Top Product Revenue': `₹${cat.topProductRevenue?.toLocaleString('en-IN')}`,
-            'Average Sale Frequency': `${cat.avgFrequency?.toFixed(2)}/day`,
-            'Category Performance': cat.performance,
-            'Growth Opportunity': cat.growthOpp
-        }));
-
-        const wsCategories = XLSX.utils.json_to_sheet(categoryData);
-        XLSX.utils.book_append_sheet(wb, wsCategories, 'Category Analysis');
-
-        // ==================== SHEET 5: INVENTORY & STOCK RECOMMENDATIONS ====================
-        const inventoryHeaders = [
-            'Product Name',
-            'Category',
-            'Current Sales Rate (units/day)',
-            'Daily Revenue (₹)',
-            'Stock Turnover Rate',
-            'Days of Inventory Required',
-            'Recommended Reorder Quantity',
-            'Reorder Point',
-            'Safety Stock Level',
-            'Inventory Investment (₹)',
-            'ROI Potential',
-            'Priority Level',
-            'Risk Assessment'
-        ];
-
-        const inventoryData = trendingData.trendingProducts.map(product => [
-            product.name,
-            product.category,
-            product.saleFrequency?.toFixed(2),
-            `₹${(product.totalRevenue / Math.max(1, Math.ceil((new Date(product.lastSold) - new Date(product.firstSold)) / (1000 * 60 * 60 * 24)))).toFixed(2)}`,
-            calculateTurnoverRate(product),
-            calculateDaysOfInventory(product),
-            calculateReorderQuantity(product),
-            calculateReorderPoint(product),
-            calculateSafetyStock(product),
-            `₹${(product.averagePrice * calculateReorderQuantity(product)).toLocaleString('en-IN')}`,
-            calculateROI(product),
-            getPriorityLevel(product),
-            getRiskAssessment(product)
-        ]);
-
-        const wsInventory = XLSX.utils.aoa_to_sheet([inventoryHeaders, ...inventoryData]);
-        XLSX.utils.book_append_sheet(wb, wsInventory, 'Inventory Management');
-
-        // ==================== SHEET 6: CUSTOMER BEHAVIOR INSIGHTS ====================
-        const customerInsightsData = trendingData.trendingProducts.map(product => ({
-            'Product Name': product.name,
-            'Category': product.category,
-            'Unique Customer Count': product.uniqueCustomerCount,
-            'Repeat Purchase Rate': `${((product.totalOrders / product.uniqueCustomerCount) * 100).toFixed(1)}%`,
-            'Average Purchase Value': `₹${product.averageOrderValue?.toFixed(2)}`,
-            'Customer Loyalty Score': calculateLoyaltyScore(product),
-            'Customer Acquisition Cost Estimate': `₹${calculateCAC(product).toFixed(2)}`,
-            'Customer Lifetime Value Potential': `₹${calculateLTV(product).toFixed(2)}`,
-            'Market Penetration': getMarketPenetration(product),
-            'Cross-sell Opportunity': getCrossSellOpportunity(product),
-            'Upsell Potential': getUpsellPotential(product)
-        }));
-
-        const wsCustomers = XLSX.utils.json_to_sheet(customerInsightsData);
-        XLSX.utils.book_append_sheet(wb, wsCustomers, 'Customer Insights');
-
-        // ==================== STYLING AND FORMATTING ====================
-        const sheets = [wsSummary, wsProducts, wsTrends, wsCategories, wsInventory, wsCustomers];
-        const colWidths = [
-            [25, 40], // Executive Summary
-            [8, 30, 15, 20, 15, 12, 15, 15, 15, 15, 15, 15, 15, 15, 12, 12, 12, 15, 15, 12, 15, 15, 15, 15], // Product Performance
-            [25, 20, 18, 20, 20, 15, 18, 18, 20, 18, 15, 20], // Sales Trends
-            [20, 15, 15, 15, 15, 12, 25, 15, 15, 15, 20], // Category Analysis
-            [25, 20, 20, 15, 18, 20, 22, 15, 18, 20, 15, 15, 18], // Inventory Management
-            [25, 20, 18, 18, 18, 18, 25, 25, 18, 20, 18] // Customer Insights
-        ];
-
-        // Apply professional styling
-        sheets.forEach((sheet, index) => {
-            if (colWidths[index]) {
-                sheet['!cols'] = colWidths[index].map(width => ({ wch: width }));
+        // ==================== SHEET 3: CATEGORY PERFORMANCE DATA ====================
+        const categoryMap = {};
+        trendingData.trendingProducts.forEach(product => {
+            if (!categoryMap[product.category]) {
+                categoryMap[product.category] = {
+                    category: product.category,
+                    totalRevenue: 0,
+                    totalQuantity: 0,
+                    products: 0
+                };
             }
-
-            // Style header rows with professional colors
-            const range = XLSX.utils.decode_range(sheet['!ref']);
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
-                if (sheet[cellAddress]) {
-                    sheet[cellAddress].s = {
-                        font: { bold: true, color: { rgb: "FFFFFF" } },
-                        fill: { fgColor: { rgb: "2C3E50" } },
-                        alignment: { horizontal: "center" },
-                        border: {
-                            top: { style: "thin", color: { rgb: "1A252F" } },
-                            left: { style: "thin", color: { rgb: "1A252F" } },
-                            bottom: { style: "thin", color: { rgb: "1A252F" } },
-                            right: { style: "thin", color: { rgb: "1A252F" } }
-                        }
-                    };
-                }
-            }
-
-            // Style title rows for executive summary
-            if (index === 0) {
-                [0, 7, 13, 18].forEach(row => {
-                    const cellAddress = XLSX.utils.encode_cell({ r: row, c: 0 });
-                    if (sheet[cellAddress]) {
-                        sheet[cellAddress].s = {
-                            font: { bold: true, size: 14, color: { rgb: "FFFFFF" } },
-                            fill: { fgColor: { rgb: "34495E" } },
-                            alignment: { horizontal: "center" }
-                        };
-                    }
-                });
-            }
+            categoryMap[product.category].totalRevenue += product.totalRevenue;
+            categoryMap[product.category].totalQuantity += product.totalQuantity;
+            categoryMap[product.category].products += 1;
         });
 
-        // Generate professional filename
+        const categoryData = Object.values(categoryMap).sort((a, b) => b.totalRevenue - a.totalRevenue)
+            .map(cat => ({
+                'Category Name': cat.category,
+                'Number of Products': cat.products,
+                'Total Revenue (₹)': cat.totalRevenue,
+                'Total Quantity Sold': cat.totalQuantity,
+                'Average Price (₹)': (cat.totalRevenue / cat.totalQuantity).toFixed(2)
+            }));
+
+        const wsCategories = XLSX.utils.json_to_sheet(categoryData);
+        XLSX.utils.book_append_sheet(wb, wsCategories, 'Category Performance');
+
+        // Apply basic styling
+        const sheets = [wsSummary, wsProducts, wsCategories];
+        const colWidths = [
+            [25, 40],
+            [8, 30, 15, 20, 15, 12, 15, 15, 15, 15, 15, 15, 12, 12, 12, 15, 15],
+            [20, 15, 15, 15, 15]
+        ];
+
+        applyBasicStyling(sheets, colWidths);
+
+        // Generate filename
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         const period = trendingData.dateRange?.filterType || 'custom';
-        const filename = `Trending_Products_Analysis_${period}_${timestamp}.xlsx`;
+        const filename = `Trending_Products_${period}_${timestamp}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Professional trending products report exported successfully!");
+        toast.success("Trending products report exported successfully!");
     };
 
     // ==================== HELPER FUNCTIONS ====================
@@ -1659,6 +1206,7 @@ const Report = () => {
 
     // Add this function to your parent component
     // Professional Daily Sales Export Handler
+    // Professional Daily Sales Export Handler - Clean Data Only
     const handleExportDailySalesData = (dailySalesData) => {
         if (!dailySalesData) {
             toast.error("No data available to export");
@@ -1668,251 +1216,93 @@ const Report = () => {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ==================== SHEET 1: EXECUTIVE SUMMARY ====================
-        const executiveSummary = [
-            ['DAILY SALES PERFORMANCE REPORT'],
+        // ==================== SHEET 1: DAILY SALES SUMMARY ====================
+        const dailySummary = [
+            ['DAILY SALES REPORT'],
             [''],
             ['Report Date', dailySalesData.date],
             ['Report Generated', new Date().toLocaleString('en-IN')],
-            ['Category Filter', dailySalesData.filters?.selectedCategory === 'all' ? 'All Categories' : dailySalesData.filters?.selectedCategory],
-            [''],
-            ['KEY PERFORMANCE INDICATORS'],
             ['Total Sales Revenue', `₹${dailySalesData.summary.totalSales?.toLocaleString('en-IN')}`],
             ['Total Number of Orders', dailySalesData.summary.totalOrders],
             ['Total Items Sold', dailySalesData.summary.totalItems],
             ['Average Order Value', `₹${dailySalesData.summary.averageOrderValue?.toFixed(2)}`],
-            ['Average Items per Order', (dailySalesData.summary.totalItems / dailySalesData.summary.totalOrders).toFixed(1)],
             ['Tax Collected', `₹${dailySalesData.summary.totalTax?.toLocaleString('en-IN')}`],
-            ['Discount Given', `₹${dailySalesData.summary.totalDiscount?.toLocaleString('en-IN')}`],
-            ['Net Revenue (After Discount)', `₹${(dailySalesData.summary.totalSales - dailySalesData.summary.totalDiscount)?.toLocaleString('en-IN')}`],
-            [''],
-            ['PAYMENT METHOD DISTRIBUTION'],
-            ...dailySalesData.paymentMethods.map(method => [
-                `${method.method.toUpperCase()}`,
-                `${method.count} orders (${method.percentage}%)`,
-                `₹${((method.count / dailySalesData.summary.totalOrders) * dailySalesData.summary.totalSales).toLocaleString('en-IN')}`
-            ]),
-            [''],
-            ['TOP PERFORMING CATEGORIES'],
-            ...dailySalesData.categoryBreakdown.slice(0, 5).map(category => [
-                category.category,
-                `₹${category.sales?.toLocaleString('en-IN')}`,
-                `${category.quantity} units`,
-                `${((category.sales / dailySalesData.summary.totalSales) * 100).toFixed(1)}% of total`
-            ])
+            ['Discount Given', `₹${dailySalesData.summary.totalDiscount?.toLocaleString('en-IN')}`]
         ];
 
-        const wsSummary = XLSX.utils.aoa_to_sheet(executiveSummary);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Executive Summary');
+        const wsSummary = XLSX.utils.aoa_to_sheet(dailySummary);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Daily Summary');
 
-        // ==================== SHEET 2: DETAILED INVOICE BREAKDOWN ====================
+        // ==================== SHEET 2: INVOICE DETAILS ====================
         const invoiceHeaders = [
             'Invoice Number',
             'Customer Name',
             'Customer Phone',
             'Sale Date & Time',
             'Payment Method',
-            'Product Details',
-            'Quantity',
-            'Unit Price (₹)',
-            'Total Product Amount (₹)',
-            'Product Category',
-            'Tax Amount (₹)',
-            'Discount Amount (₹)',
-            'Invoice Subtotal (₹)',
-            'Invoice Tax (₹)',
-            'Invoice Discount (₹)',
-            'Invoice Total (₹)'
+            'Subtotal (₹)',
+            'Tax (₹)',
+            'Discount (₹)',
+            'Total (₹)'
         ];
 
-        const invoiceData = [];
-        dailySalesData.sales.forEach(sale => {
-            if (sale.items.length === 0) return;
+        const invoiceData = dailySalesData.sales.map(sale => ({
+            'Invoice Number': sale.invoiceNumber,
+            'Customer Name': sale.customer.name,
+            'Customer Phone': sale.customer.phone || 'N/A',
+            'Sale Date & Time': new Date(sale.date).toLocaleString('en-IN'),
+            'Payment Method': sale.paymentType.toUpperCase(),
+            'Subtotal (₹)': sale.subtotal,
+            'Tax (₹)': sale.tax,
+            'Discount (₹)': sale.discount,
+            'Total (₹)': sale.total
+        }));
 
-            // First row for the invoice with main details
-            invoiceData.push([
-                sale.invoiceNumber,
-                sale.customer.name,
-                sale.customer.phone || 'N/A',
-                new Date(sale.date).toLocaleString('en-IN'),
-                sale.paymentType.toUpperCase(),
-                sale.items[0].name, // First product
-                sale.items[0].quantity,
-                sale.items[0].price,
-                sale.items[0].totalAmount,
-                sale.items[0].category,
-                sale.items[0].tax || 0,
-                sale.items[0].discount || 0,
-                sale.subtotal,
-                sale.tax,
-                sale.discount,
-                sale.total
-            ]);
-
-            // Additional rows for other products in the same invoice
-            for (let i = 1; i < sale.items.length; i++) {
-                invoiceData.push([
-                    '', // Empty invoice number for same invoice
-                    '', // Empty customer name
-                    '', // Empty phone
-                    '', // Empty date
-                    '', // Empty payment method
-                    sale.items[i].name,
-                    sale.items[i].quantity,
-                    sale.items[i].price,
-                    sale.items[i].totalAmount,
-                    sale.items[i].category,
-                    sale.items[i].tax || 0,
-                    sale.items[i].discount || 0,
-                    '', // Empty for subsequent rows
-                    '', // Empty for subsequent rows
-                    '', // Empty for subsequent rows
-                    ''  // Empty for subsequent rows
-                ]);
-            }
-
-            // Add an empty row between invoices for better readability
-            invoiceData.push(Array(16).fill(''));
-        });
-
-        const wsInvoices = XLSX.utils.aoa_to_sheet([invoiceHeaders, ...invoiceData]);
+        const wsInvoices = XLSX.utils.json_to_sheet(invoiceData);
         XLSX.utils.book_append_sheet(wb, wsInvoices, 'Invoice Details');
 
-        // ==================== SHEET 3: PRODUCT PERFORMANCE ====================
+        // ==================== SHEET 3: PRODUCT SALES DETAILS ====================
         const productData = dailySalesData.topProducts.map((product, index) => ({
-            'Rank': index + 1,
             'Product Name': product.name,
             'Category': product.category,
             'Total Quantity Sold': product.totalQuantity,
             'Total Revenue (₹)': product.totalRevenue,
             'Average Selling Price (₹)': product.averagePrice?.toFixed(2),
-            'Number of Times Sold': product.timesSold,
-            'Revenue Contribution': `${((product.totalRevenue / dailySalesData.summary.totalSales) * 100).toFixed(1)}%`,
-            'Performance Rating': getPerformanceRating(product.totalRevenue, dailySalesData.summary.totalSales)
+            'Number of Times Sold': product.timesSold
         }));
 
         const wsProducts = XLSX.utils.json_to_sheet(productData);
-        XLSX.utils.book_append_sheet(wb, wsProducts, 'Product Performance');
+        XLSX.utils.book_append_sheet(wb, wsProducts, 'Product Sales');
 
-        // ==================== SHEET 4: CATEGORY ANALYSIS ====================
-        const categoryData = dailySalesData.categoryBreakdown.map(category => ({
-            'Category Name': category.category,
-            'Total Sales Revenue (₹)': category.sales,
-            'Quantity Sold': category.quantity,
-            'Number of Products': category.products,
-            'Average Sale per Product (₹)': (category.sales / category.products).toFixed(2),
-            'Revenue Share': `${((category.sales / dailySalesData.summary.totalSales) * 100).toFixed(1)}%`,
-            'Units per Product': (category.quantity / category.products).toFixed(1),
-            'Performance': category.sales > (dailySalesData.summary.totalSales / dailySalesData.categoryBreakdown.length) ? 'High' : 'Medium'
-        }));
-
-        const wsCategories = XLSX.utils.json_to_sheet(categoryData);
-        XLSX.utils.book_append_sheet(wb, wsCategories, 'Category Analysis');
-
-        // ==================== SHEET 5: HOURLY PERFORMANCE ====================
+        // ==================== SHEET 4: HOURLY SALES DATA ====================
         const hourlyData = dailySalesData.hourlySales.map(hour => ({
             'Time Slot': `${hour.hour}:00 - ${hour.hour + 1}:00`,
             'Sales Revenue (₹)': hour.sales,
             'Number of Orders': hour.orders,
-            'Average Order Value (₹)': hour.orders > 0 ? (hour.sales / hour.orders).toFixed(2) : 0,
-            'Revenue Percentage': `${((hour.sales / dailySalesData.summary.totalSales) * 100).toFixed(1)}%`,
-            'Peak Hours': hour.sales === Math.max(...dailySalesData.hourlySales.map(h => h.sales)) ? 'PEAK HOUR' : '',
-            'Efficiency Rating': getEfficiencyRating(hour.sales, hour.orders)
+            'Average Order Value (₹)': hour.orders > 0 ? (hour.sales / hour.orders).toFixed(2) : 0
         }));
 
         const wsHourly = XLSX.utils.json_to_sheet(hourlyData);
-        XLSX.utils.book_append_sheet(wb, wsHourly, 'Hourly Analysis');
+        XLSX.utils.book_append_sheet(wb, wsHourly, 'Hourly Sales');
 
-        // ==================== SHEET 6: CUSTOMER TRANSACTIONS ====================
-        const customerMap = new Map();
-        dailySalesData.sales.forEach(sale => {
-            const customerId = sale.customer.customerId;
-            if (!customerMap.has(customerId)) {
-                customerMap.set(customerId, {
-                    name: sale.customer.name,
-                    phone: sale.customer.phone || 'N/A',
-                    email: sale.customer.email || 'N/A',
-                    totalOrders: 0,
-                    totalSpent: 0,
-                    averageOrder: 0,
-                    lastPurchase: sale.date
-                });
-            }
-            const customer = customerMap.get(customerId);
-            customer.totalOrders += 1;
-            customer.totalSpent += sale.total;
-            customer.averageOrder = customer.totalSpent / customer.totalOrders;
-            customer.lastPurchase = sale.date > customer.lastPurchase ? sale.date : customer.lastPurchase;
-        });
-
-        const customerData = Array.from(customerMap.values())
-            .sort((a, b) => b.totalSpent - a.totalSpent)
-            .map((customer, index) => ({
-                'Customer Name': customer.name,
-                'Contact Phone': customer.phone,
-                'Email': customer.email,
-                'Total Orders': customer.totalOrders,
-                'Total Spending (₹)': customer.totalSpent,
-                'Average Order Value (₹)': customer.averageOrder.toFixed(2),
-                'Last Purchase Date': new Date(customer.lastPurchase).toLocaleDateString('en-IN'),
-                'Customer Tier': getCustomerTier(customer.totalSpent)
-            }));
-
-        const wsCustomers = XLSX.utils.json_to_sheet(customerData);
-        XLSX.utils.book_append_sheet(wb, wsCustomers, 'Customer Analysis');
-
-        // ==================== STYLING AND FORMATTING ====================
-        const sheets = [wsSummary, wsInvoices, wsProducts, wsCategories, wsHourly, wsCustomers];
+        // Apply basic styling
+        const sheets = [wsSummary, wsInvoices, wsProducts, wsHourly];
         const colWidths = [
-            [25, 40], // Executive Summary
-            [15, 20, 15, 20, 15, 30, 10, 12, 18, 20, 12, 15, 15, 12, 15, 15], // Invoice Details
-            [8, 30, 20, 15, 15, 20, 15, 15, 15], // Product Performance
-            [20, 18, 15, 15, 20, 15, 15, 12], // Category Analysis
-            [20, 15, 15, 20, 15, 15, 15], // Hourly Analysis
-            [20, 15, 25, 12, 15, 15, 15, 15] // Customer Analysis
+            [25, 40],
+            [15, 20, 15, 20, 15, 15, 12, 15, 15],
+            [25, 20, 15, 15, 15, 15],
+            [20, 15, 15, 20]
         ];
 
-        // Apply column widths and styling
-        sheets.forEach((sheet, index) => {
-            if (colWidths[index]) {
-                sheet['!cols'] = colWidths[index].map(width => ({ wch: width }));
-            }
+        applyBasicStyling(sheets, colWidths);
 
-            // Style header rows
-            const range = XLSX.utils.decode_range(sheet['!ref']);
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
-                if (sheet[cellAddress]) {
-                    sheet[cellAddress].s = {
-                        font: { bold: true, color: { rgb: "FFFFFF" } },
-                        fill: { fgColor: { rgb: "2C3E50" } },
-                        alignment: { horizontal: "center" }
-                    };
-                }
-            }
-
-            // Style title rows for executive summary
-            if (index === 0) {
-                [0, 5, 13, 18].forEach(row => {
-                    const cellAddress = XLSX.utils.encode_cell({ r: row, c: 0 });
-                    if (sheet[cellAddress]) {
-                        sheet[cellAddress].s = {
-                            font: { bold: true, size: 14 },
-                            fill: { fgColor: { rgb: "34495E" } },
-                            alignment: { horizontal: "center" }
-                        };
-                    }
-                });
-            }
-        });
-
-        // Generate professional filename
+        // Generate filename
         const formattedDate = new Date(dailySalesData.date).toLocaleDateString('en-IN').replace(/\//g, '-');
-        const filename = `Daily_Sales_Report_${formattedDate}_${new Date().getTime()}.xlsx`;
+        const filename = `Daily_Sales_${formattedDate}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Professional daily sales report exported successfully!");
+        toast.success("Daily sales report exported successfully!");
     };
 
     // Helper functions for performance ratings
@@ -2564,7 +1954,7 @@ const Report = () => {
                                         </div>
 
                                         <div className="sales-charts">
-                                            <HourlySalesChart data={dailySalesData.hourlySales} />
+                                            {/* <HourlySalesChart data={dailySalesData.hourlySales} />  */}
                                             <PaymentMethodsChart data={dailySalesData.paymentMethods} />
                                         </div>
                                     </div>
@@ -2584,6 +1974,28 @@ const Report = () => {
             default:
                 return <div>Select a report type</div>;
         }
+    };
+
+    // Basic styling function for clean data exports
+    const applyBasicStyling = (sheets, colWidths) => {
+        sheets.forEach((sheet, index) => {
+            if (colWidths[index]) {
+                sheet['!cols'] = colWidths[index].map(width => ({ wch: width }));
+            }
+
+            // Style header rows
+            const range = XLSX.utils.decode_range(sheet['!ref']);
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (sheet[cellAddress]) {
+                    sheet[cellAddress].s = {
+                        font: { bold: true, color: { rgb: "FFFFFF" } },
+                        fill: { fgColor: { rgb: "2C3E50" } },
+                        alignment: { horizontal: "center" }
+                    };
+                }
+            }
+        });
     };
 
     return (
