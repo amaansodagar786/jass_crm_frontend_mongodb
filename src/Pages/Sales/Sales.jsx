@@ -432,6 +432,12 @@ const Sales = () => {
       return;
     }
 
+    const mobileRegex = /^\d{10}$/;
+    if (!mobileRegex.test(newCustomer.mobile)) {
+      toast.error("Please enter a valid 10-digit mobile number (numbers only)");
+      return;
+    }
+
     // Validate quantities against available stock
     for (const item of selectedItems) {
       const availableQty = getAvailableQuantity(item.productId, item.batchNumber);
@@ -1202,7 +1208,7 @@ const Sales = () => {
                       <tr>
                         <th width="5%">Sr No</th>
                         <th width="20%">Product Name</th>
-                        <th width="10%">Item Code</th>
+                        <th width="10%">HSN Code</th>
                         <th width="10%">Category</th>
                         <th width="10%">Batch No</th>
                         <th width="8%">Qty</th>
@@ -1595,7 +1601,7 @@ const Sales = () => {
                       <label>Search Products</label>
                       <input
                         type="text"
-                        placeholder="Search by name, Item Code, barcode or price..."
+                        placeholder="Search by name, HSN Code, barcode or price..."
                         value={itemSearchTerm}
                         onChange={(e) => setItemSearchTerm(e.target.value)}
                       />
@@ -1643,7 +1649,7 @@ const Sales = () => {
                                   )}
                                 </div>
                                 <div>
-                                  Item Code: {product.hsnCode || "N/A"} |
+                                  HSN Code: {product.hsnCode || "N/A"} |
                                   Price: ₹{product.price || 0} |
                                   Tax: {product.taxSlab || 18}% |
                                   Category: {product.category}

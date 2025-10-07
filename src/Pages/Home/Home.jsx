@@ -108,13 +108,19 @@ const Home = () => {
     return expiringItems.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   };
 
+  // Enhanced processChartData function to handle different data structures
   const processChartData = (data, type) => {
     if (!Array.isArray(data)) {
       console.error(`Expected array for ${type} data, got:`, typeof data);
       return [];
     }
 
-    const dateField = type === "sales" ? "invoiceDate" : "grnDate";
+    if (data.length === 0) {
+      console.warn(`No data available for ${type} chart`);
+      return generateEmptyChartData(); // Return empty data for last 6 months
+    }
+
+    const dateField = type === "sales" ? "invoiceDate" : "date";
     const valueField = "total";
 
     const monthlyData = data.reduce((acc, item) => {
@@ -134,9 +140,66 @@ const Home = () => {
       return acc;
     }, {});
 
-    return Object.values(monthlyData)
+    const chartData = Object.values(monthlyData)
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(-6);
+
+    return chartData.length > 0 ? chartData : generateEmptyChartData();
+  };
+
+  // Generate empty chart data for last 6 months when no data is available
+  const generateEmptyChartData = () => {
+    const today = new Date();
+    const emptyData = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(today.getMonth() - i);
+      const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      emptyData.push({
+        date: monthYear,
+        value: 0,
+        count: 0
+      });
+    }
+    
+    return emptyData;
+  };
+
+  // Calculate total sales amount
+  const getTotalSales = () => {
+    return salesData.reduce((sum, sale) => sum + (sale?.total || 0), 0);
+  };
+
+  // Calculate total purchase amount - since we don't have purchase data, we'll calculate from inventory batches
+  const getTotalPurchases = () => {
+    let totalPurchases = 0;
+    
+    inventoryData.forEach(item => {
+      if (item.batches && Array.isArray(item.batches)) {
+        item.batches.forEach(batch => {
+          // If we have price in batches, use it, otherwise estimate
+          if (batch.price) {
+            totalPurchases += (batch.price * batch.quantity);
+          } else if (item.price) {
+            totalPurchases += (item.price * batch.quantity);
+          }
+        });
+      }
+    });
+    
+    return totalPurchases;
+  };
+
+  // Get purchase count from inventory batches
+  const getPurchaseCount = () => {
+    let batchCount = 0;
+    inventoryData.forEach(item => {
+      if (item.batches && Array.isArray(item.batches)) {
+        batchCount += item.batches.length;
+      }
+    });
+    return batchCount;
   };
 
   useEffect(() => {
@@ -144,15 +207,10 @@ const Home = () => {
       try {
         console.log("Starting data fetch...");
 
-        // Only include URLs that exist and work
+        // Fetch sales and inventory data
         const urls = [
           `${import.meta.env.VITE_API_URL}/invoices/get-invoices`,
           `${import.meta.env.VITE_API_URL}/inventory/get-inventory`,
-          // Commented out until these routes are implemented
-          // `${import.meta.env.VITE_API_URL}/grn/get-grns`,
-          // `${import.meta.env.VITE_API_URL}/bom/get-boms`,
-          // `${import.meta.env.VITE_API_URL}/workorder/get-workorders`,
-          // `${import.meta.env.VITE_API_URL}/po/get-pos` 
         ];
 
         const responses = await Promise.all(
@@ -166,12 +224,11 @@ const Home = () => {
               })
               .catch(error => {
                 console.warn(`Failed to fetch from ${url}:`, error.message);
-                return { success: false, data: [] }; // Return empty data on error
+                return { success: false, data: [] };
               })
           )
         );
 
-        // Extract data from responses - only for the URLs we actually called
         const [salesResponse, inventoryResponse] = responses;
 
         const sales = salesResponse.success ? salesResponse.data : [];
@@ -185,8 +242,11 @@ const Home = () => {
         setSalesData(Array.isArray(sales) ? sales : []);
         setInventoryData(Array.isArray(inventory) ? inventory : []);
         
-        // Set empty arrays for the commented out routes
-        setPurchaseData([]);
+        // For purchase data, we'll use inventory data since we don't have separate purchase API
+        // This assumes inventory batches represent purchases
+        setPurchaseData(Array.isArray(inventory) ? inventory : []);
+        
+        // Set empty arrays for other data
         setBomData([]);
         setWorkOrders([]);
         setPurchaseOrders([]);
@@ -208,20 +268,46 @@ const Home = () => {
     fetchData();
   }, []);
 
-  // Find work orders without sales - temporarily disabled
-  const pendingWorkOrders = []; // workOrders.filter(wo => {
-    // return !salesData.some(sale => sale.workOrderNumber === wo.workOrderNumber);
-  // });
+  // Process purchase data for charts (using inventory batches as purchase data)
+  const processPurchaseChartData = (inventoryData) => {
+    if (!Array.isArray(inventoryData) || inventoryData.length === 0) {
+      return generateEmptyChartData();
+    }
 
-  // Find POs without GRNs - temporarily disabled
-  const pendingGRNs = []; // purchaseOrders.filter(po => {
-    // return !purchaseData.some(grn => grn.poNumber === po.poNumber);
-  // });
+    const monthlyData = {};
+
+    inventoryData.forEach(item => {
+      if (item.batches && Array.isArray(item.batches)) {
+        item.batches.forEach(batch => {
+          if (batch.addedAt) {
+            const date = new Date(batch.addedAt);
+            const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!monthlyData[monthYear]) {
+              monthlyData[monthYear] = { date: monthYear, value: 0, count: 0 };
+            }
+            
+            // Calculate batch value
+            const batchValue = batch.price ? (batch.price * batch.quantity) : 
+                              item.price ? (item.price * batch.quantity) : 0;
+            
+            monthlyData[monthYear].value += batchValue;
+            monthlyData[monthYear].count += 1;
+          }
+        });
+      }
+    });
+
+    const chartData = Object.values(monthlyData)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(-6);
+
+    return chartData.length > 0 ? chartData : generateEmptyChartData();
+  };
 
   // Inventory status
   const inventoryStatus = inventoryData.reduce(
     (acc, item) => {
-      // Use totalQuantity instead of currentStock since that's what your inventory schema has
       const stock = item.totalQuantity || 0;
       const minQty = item.minimumQty || 0;
       
@@ -260,11 +346,17 @@ const Home = () => {
     return <div className="error">{error}</div>;
   }
 
+  const totalSales = getTotalSales();
+  const totalPurchases = getTotalPurchases();
+  const purchaseCount = getPurchaseCount();
+  const salesChartData = processChartData(salesData, "sales");
+  const purchaseChartData = processPurchaseChartData(inventoryData);
+
   return (
     <div>
       <Navbar>
         <div className="dashboard-container">
-          {/* Inventory Alerts - Updated with Expiry Alert */}
+          {/* Inventory Alerts */}
           <div className="inventory-alerts">
             <h3>Inventory Alerts</h3>
             <div className="alert-grid">
@@ -306,15 +398,13 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Key Metrics */}
+          {/* Key Metrics - Updated with actual data */}
           <div className="metrics-grid">
             <div className="metric-card sales-metric">
               <FiDollarSign className="metric-icon" />
               <div>
                 <h3>Total Sales</h3>
-                <p>
-                  ₹{salesData.reduce((sum, sale) => sum + (sale?.total || 0), 0).toLocaleString()}
-                </p>
+                <p>₹{totalSales.toLocaleString()}</p>
                 <small>{salesData.length} invoices</small>
               </div>
             </div>
@@ -323,10 +413,8 @@ const Home = () => {
               <FiShoppingCart className="metric-icon" />
               <div>
                 <h3>Total Purchases</h3>
-                <p>
-                  ₹{purchaseData.reduce((sum, purchase) => sum + (purchase?.total || 0), 0).toLocaleString()}
-                </p>
-                <small>{purchaseData.length} GRNs</small>
+                <p>₹{totalPurchases.toLocaleString()}</p>
+                <small>{purchaseCount} batches</small>
               </div>
             </div>
 
@@ -336,65 +424,24 @@ const Home = () => {
                 <h3>Inventory Status</h3>
                 <p>{inventoryData.length} items</p>
                 <small>
-                  {inventoryStatus.lowStock} low stock, {inventoryStatus.outOfStock} out stock
+                  {inventoryStatus.lowStock} low stock, {inventoryStatus.outOfStock} out of stock
                 </small>
               </div>
             </div>
 
-            <div className="metric-card production-metric">
+            {/* <div className="metric-card production-metric">
               <FiTruck className="metric-icon" />
               <div>
                 <h3>Work Orders</h3>
                 <p>{workOrders.length} total</p>
                 <small>
-                  {pendingWorkOrders.length} pending sales
+                  {workOrders.filter(wo => !salesData.some(sale => sale.workOrderNumber === wo.workOrderNumber)).length} pending sales
                 </small>
               </div>
-            </div>
+            </div> */}
           </div>
 
-          {/* Pending Actions Section - Temporarily hidden since routes are commented out */}
-          {/* <div className="pending-actions">
-            <div className="pending-section work-orders-pending">
-              <h3><FiClock /> Pending Work Orders</h3>
-              <div className="pending-list">
-                <div className="pending-grid">
-                  {pendingWorkOrders.slice(0, 4).map(wo => (
-                    <div key={wo.workOrderNumber} className="pending-item">
-                      <p>WO #{wo.workOrderNumber}</p>
-                      <small>
-                        {wo.workOrderDate} • {wo.items?.length || 0} items
-                      </small>
-                    </div>
-                  ))}
-                </div>
-                {pendingWorkOrders.length === 0 && (
-                  <div className="no-pending">All work orders have sales</div>
-                )}
-              </div>
-            </div>
-
-            <div className="pending-section grns-pending">
-              <h3><FiClock /> Pending GRNs</h3>
-              <div className="pending-list">
-                <div className="pending-grid">
-                  {pendingGRNs.slice(0, 4).map(po => (
-                    <div key={po.poNumber} className="pending-item">
-                      <p>PO #{po.poNumber}</p>
-                      <small>
-                        {po.date} • Vendor: {po.vendorName}
-                      </small>
-                    </div>
-                  ))}
-                </div>
-                {pendingGRNs.length === 0 && (
-                  <div className="no-pending">All POs have GRNs</div>
-                )}
-              </div>
-            </div>
-          </div> */}
-
-          {/* Charts Section */}
+          {/* Charts Section - Updated with proper data */}
           <div className="charts-section">
             <div className="chart-container">
               <div className="chart-header">
@@ -407,28 +454,38 @@ const Home = () => {
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={processChartData(salesData, "sales")}>
+                <LineChart data={salesChartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => value.split('-')[1]}
+                    tickFormatter={(value) => {
+                      const [year, month] = value.split('-');
+                      return `${month}/${year.slice(2)}`;
+                    }}
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `₹${value / 1000}k`}
+                    tickFormatter={(value) => {
+                      if (value >= 100000) return `₹${(value / 100000).toFixed(0)}L`;
+                      if (value >= 1000) return `₹${(value / 1000).toFixed(0)}k`;
+                      return `₹${value}`;
+                    }}
                   />
                   <Tooltip
-                    formatter={(value) => [`₹${value.toLocaleString()}`, "Sales"]}
-                    labelFormatter={(label) => `Month: ${label}`}
+                    formatter={(value) => [`₹${Number(value).toLocaleString()}`, "Sales"]}
+                    labelFormatter={(label) => {
+                      const [year, month] = label.split('-');
+                      return `Month: ${month}/${year}`;
+                    }}
                   />
                   <Line
                     type="monotone"
                     dataKey="value"
                     stroke="#8884d8"
                     strokeWidth={3}
-                    dot={{ r: 5 }}
-                    activeDot={{ r: 8, stroke: '#8884d8', strokeWidth: 2 }}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6, stroke: '#8884d8', strokeWidth: 2 }}
                     name="Sales"
                   />
                   <ReferenceLine y={0} stroke="#ccc" />
@@ -447,20 +504,30 @@ const Home = () => {
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={processChartData(purchaseData, "purchase")}>
+                <BarChart data={purchaseChartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => value.split('-')[1]}
+                    tickFormatter={(value) => {
+                      const [year, month] = value.split('-');
+                      return `${month}/${year.slice(2)}`;
+                    }}
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `₹${value / 1000}k`}
+                    tickFormatter={(value) => {
+                      if (value >= 100000) return `₹${(value / 100000).toFixed(0)}L`;
+                      if (value >= 1000) return `₹${(value / 1000).toFixed(0)}k`;
+                      return `₹${value}`;
+                    }}
                   />
                   <Tooltip
-                    formatter={(value) => [`₹${value.toLocaleString()}`, "Purchases"]}
-                    labelFormatter={(label) => `Month: ${label}`}
+                    formatter={(value) => [`₹${Number(value).toLocaleString()}`, "Purchases"]}
+                    labelFormatter={(label) => {
+                      const [year, month] = label.split('-');
+                      return `Month: ${month}/${year}`;
+                    }}
                   />
                   <Bar
                     dataKey="value"
@@ -475,7 +542,7 @@ const Home = () => {
         </div>
       </Navbar>
 
-      {/* Expiry Alert Modal */}
+      {/* Modals remain the same */}
       {showExpiryModal && (
         <div className="modal-overlay" onClick={() => {
           setShowExpiryModal(false);
@@ -616,14 +683,6 @@ const Home = () => {
                   <div key={item.inventoryId} className="inventory-item">
                     <span className="item-name">{item.productName}</span>
                     <span className="item-status">Out of stock</span>
-                    {/* <FiPlusCircle
-                      className="order-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOrderItem(item);
-                      }}
-                      title="Create Purchase Order for this item"
-                    /> */}
                   </div>
                 ))}
               </div>

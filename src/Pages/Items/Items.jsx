@@ -555,7 +555,7 @@ const Items = () => {
       {
         "Product Name": "Example Product",
         "Barcode": "1234567890123",
-        "Item Code": "123456",
+        "HSN Code": "123456",
         "Tax Slab": "18",
         "Price": "29.99",
         "Category": "Electronics"
@@ -589,16 +589,16 @@ const Items = () => {
         return;
       }
 
-      // Get valid category names from database (convert to lowercase for case-insensitive matching)
+      // Get valid category names from database
       const validCategoryNames = categories.map(cat => cat.name.toLowerCase());
 
       // Prepare data for bulk upload with validation
       const productsData = jsonData.map((item, index) => {
         const productName = item['Product Name']?.toString().trim() || null;
         const category = item['Category']?.toString().trim()?.toLowerCase() || null;
-        const barcode = item['Barcode'] ? item['Barcode'].toString().trim() : `TEMP_${Date.now()}_${index}`;
-        const hsnCode = item['Item Code']?.toString().trim() || '00';
-        const taxSlab = item['Tax Slab'] ? Number(item['Tax Slab']) : 0;
+        const barcode = item['Barcode'] ? item['Barcode'].toString().trim() : null;
+        const hsnCode = item['HSN Code']?.toString().trim() || '00';
+        const taxSlab = item['Tax Slab'] ? Number(item['TaxSlab']) : 0;
         const price = item['Price'] ? Number(item['Price']) : 0;
 
         // Validate category
@@ -612,10 +612,10 @@ const Items = () => {
           taxSlab: isNaN(taxSlab) ? 0 : taxSlab,
           price: isNaN(price) ? 0 : price,
           discount: 0,
-          isValid: !!(productName && isValidCategory), // Both product name and valid category are required
+          isValid: !!(productName && isValidCategory),
           validationError: !productName ? 'Missing product name' :
             !category ? 'Missing category' :
-              !isValidCategory ? 'Invalid category' : null
+              !isValidCategory ? `Invalid category "${category}". Available: ${validCategoryNames.join(', ')}` : null
         };
       });
 
@@ -631,7 +631,7 @@ const Items = () => {
 
         toast.warning(
           <div>
-            <strong>{invalidProducts.length} products skipped due to errors:</strong>
+            <strong>{invalidProducts.length} products failed validation:</strong>
             <br />
             {errorMessages.split('\n').map((line, i) => (
               <div key={i} style={{ fontSize: '12px', marginTop: '2px' }}>{line}</div>
@@ -647,7 +647,7 @@ const Items = () => {
         return;
       }
 
-      // Prepare final payload (remove validation fields)
+      // Prepare final payload
       const uploadPayload = validProducts.map(product => ({
         productName: product.productName,
         category: product.category,
@@ -674,13 +674,128 @@ const Items = () => {
         uploadPayload
       )
         .then(response => {
-          const { successful, failed, duplicates } = response.data;
+          const data = response.data;
 
-          // Show success message
-          if (successful && successful.length > 0) {
+          // Handle different response structures safely
+          const successful = data.successful || [];
+          const failed = data.failed || [];
+          const summary = data.summary || {
+            total: (successful.length + failed.length),
+            successful: successful.length,
+            failed: failed.length
+          };
+
+          console.log("Bulk upload response:", data); // Debug log
+
+          // Show comprehensive results
+          if (successful.length > 0) {
             toast.success(`Successfully uploaded ${successful.length} products!`);
+          }
 
-            // Refresh the products list
+          // Show ALL failed products - both validation errors and backend errors
+          const allFailedProducts = [...invalidProducts, ...failed];
+
+          if (allFailedProducts.length > 0) {
+            const failedMessages = allFailedProducts.map((fail, index) => {
+              let productName = 'Unknown Product';
+              let reason = 'Unknown error';
+
+              // Handle validation errors (from frontend)
+              if (fail.validationError) {
+                productName = fail.productName || 'No Name';
+                reason = fail.validationError;
+              }
+              // Handle backend errors
+              else if (fail.reason || fail.message) {
+                productName = fail.product?.productName || fail.productName || 'Unknown Product';
+                reason = fail.reason || fail.message;
+              }
+              // Handle field-specific errors
+              else if (fail.field) {
+                productName = fail.product?.productName || 'Unknown Product';
+                reason = `${fail.field}: ${fail.reason || 'Validation failed'}`;
+              }
+
+              return `❌ ${productName} - ${reason}`;
+            }).join('\n');
+
+            // Create a detailed error modal instead of toast for better visibility
+            const shouldShowDetails = window.confirm(
+              `${allFailedProducts.length} products failed to upload.\n\n` +
+              `Successful: ${successful.length}\n` +
+              `Failed: ${allFailedProducts.length}\n\n` +
+              `Click OK to see detailed error messages for all failed products.`
+            );
+
+            if (shouldShowDetails) {
+              // Show detailed errors in alert with scrollable content
+              const errorWindow = window.open('', 'Upload Errors', 'width=800,height=600');
+              errorWindow.document.write(`
+        <html>
+          <head>
+            <title>Bulk Upload Errors</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { color: #d32f2f; }
+              .error-list { max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+              .error-item { padding: 5px; border-bottom: 1px solid #eee; }
+              .product-name { font-weight: bold; color: #333; }
+              .error-reason { color: #d32f2f; margin-left: 10px; }
+              .summary { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+            </style>
+          </head>
+          <body>
+            <h1>📊 Bulk Upload Results</h1>
+            <div class="summary">
+              <strong>Summary:</strong><br>
+              ✅ Successful: ${successful.length}<br>
+              ❌ Failed: ${allFailedProducts.length}<br>
+              📦 Total Processed: ${summary.total}
+            </div>
+            <h2>Failed Products:</h2>
+            <div class="error-list">
+              ${allFailedProducts.map((fail, index) => {
+                let productName = 'Unknown Product';
+                let reason = 'Unknown error';
+
+                if (fail.validationError) {
+                  productName = fail.productName || 'No Name';
+                  reason = fail.validationError;
+                } else if (fail.reason || fail.message) {
+                  productName = fail.product?.productName || fail.productName || 'Unknown Product';
+                  reason = fail.reason || fail.message;
+                } else if (fail.field) {
+                  productName = fail.product?.productName || 'Unknown Product';
+                  reason = `${fail.field}: ${fail.reason || 'Validation failed'}`;
+                }
+
+                return `
+                  <div class="error-item">
+                    <span class="product-name">${index + 1}. ${productName}</span>
+                    <span class="error-reason">${reason}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <br>
+            <button onclick="window.print()">Print Errors</button>
+            <button onclick="window.close()">Close</button>
+          </body>
+        </html>
+      `);
+              errorWindow.document.close();
+            }
+          }
+
+          // Show summary toast
+          if (data.message) {
+            toast.info(data.message, { autoClose: 5000 });
+          } else {
+            toast.info(`Upload completed: ${summary.successful} successful, ${summary.failed} failed`, { autoClose: 5000 });
+          }
+
+          // Refresh the products list if any were successful
+          if (successful.length > 0) {
             axios.get(`${import.meta.env.VITE_API_URL}/products/get-products`)
               .then((res) => {
                 const sortedData = res.data.sort((a, b) => {
@@ -703,24 +818,10 @@ const Items = () => {
                 });
                 setEditingPrices(newEditingState);
                 setOriginalPrices(newOriginalState);
+              })
+              .catch(err => {
+                console.error("Error refreshing products:", err);
               });
-          }
-
-          // Show warnings for failed uploads
-          if (failed && failed.length > 0) {
-            toast.error(`Failed to upload ${failed.length} products. They may already exist.`);
-            console.error("Failed uploads:", failed);
-          }
-
-          // Show warnings for duplicates
-          if (duplicates && duplicates.length > 0) {
-            toast.warning(`${duplicates.length} duplicate products were skipped.`);
-          }
-
-          // Show summary of skipped products
-          const totalSkipped = (invalidProducts.length) + (failed ? failed.length : 0) + (duplicates ? duplicates.length : 0);
-          if (totalSkipped > 0) {
-            toast.info(`Total skipped: ${totalSkipped} products (${invalidProducts.length} invalid, ${failed ? failed.length : 0} failed, ${duplicates ? duplicates.length : 0} duplicates)`);
           }
 
           setShowBulkUpload(false);
@@ -731,7 +832,6 @@ const Items = () => {
           if (error.response?.data?.message) {
             toast.error(`Upload failed: ${error.response.data.message}`);
           } else if (error.response?.data?.errors) {
-            // Handle validation errors from server
             const serverErrors = error.response.data.errors;
             const errorMessage = serverErrors.map(err =>
               `${err.field}: ${err.message}`
@@ -1027,7 +1127,7 @@ const Items = () => {
               <h4>Instructions:</h4>
               <ul>
                 <li>Download the template file to ensure proper formatting</li>
-                <li>Your Excel file should include these columns: Product Name, Category, Barcode, Item Code, Tax Slab, Price</li>
+                <li>Your Excel file should include these columns: Product Name, Category, Barcode, HSN Code, Tax Slab, Price</li>
                 <li>Ensure all required fields are filled (Product Name and Category are required)</li>
                 <li>Tax Slab should be a number (e.g., 5, 18)</li>
                 <li>Price should be numeric values</li>
@@ -1209,7 +1309,7 @@ const Items = () => {
                     <ErrorMessage name="barcode" component="div" className="error" />
                   </div>
                   <div className="form-field">
-                    <label><FaHashtag /> Item Code *</label>
+                    <label><FaHashtag /> HSN Code *</label>
                     <Field name="hsnCode" type="text" />
                     <ErrorMessage name="hsnCode" component="div" className="error" />
                   </div>
@@ -1259,7 +1359,7 @@ const Items = () => {
                     <th>Product Name</th>
                     <th>Category</th>
                     <th>Barcode</th>
-                    <th>Item Code</th>
+                    <th>HSN Code</th>
                     <th>Tax Slab</th>
                     <th>Price</th>
                     <th>Action</th>
