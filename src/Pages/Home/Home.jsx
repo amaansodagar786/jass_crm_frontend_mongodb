@@ -498,7 +498,7 @@ const Home = () => {
           <div className="charts-section">
             <div className="chart-container">
               <div className="chart-header">
-                <h3>Sales Trend ( Last 6 Months)</h3>
+                <h3>Sales Trend (Last 6 Months)</h3>
                 <div className="chart-legend">
                   <div className="legend-item">
                     <div className="legend-color sales"></div>
