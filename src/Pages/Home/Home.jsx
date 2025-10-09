@@ -421,7 +421,7 @@ const Home = () => {
                   <FiCalendar className="icon-expiry" /> Expiring Soon
                 </h4>
                 <div className="alert-count">
-                  {expiringItems.length} items expiring in 3 months
+                  {expiringItems.length} items expiring in 3 Months
                 </div>
               </div>
 
