@@ -215,19 +215,19 @@ const Home = () => {
     let totalPurchases = 0;
 
     inventoryData.forEach(item => {
-      if (item.batches && Array.isArray(item.batches)) {
-        item.batches.forEach(batch => {
-          // If we have price in batches, use it, otherwise estimate
-          if (batch.price) {
-            totalPurchases += (batch.price * batch.quantity);
-          } else if (item.price) {
-            totalPurchases += (item.price * batch.quantity);
-          }
+      if (item.priceHistory && Array.isArray(item.priceHistory)) {
+        item.priceHistory.forEach(priceEntry => {
+          // priceEntry.price is the purchase price per unit
+          // priceEntry.quantityAdded is the quantity purchased at that price
+          totalPurchases += (priceEntry.price * priceEntry.quantityAdded);
         });
       }
     });
 
-    console.log("🛒 Total Purchases Calculation:", { totalPurchases });
+    console.log("🛒 CORRECT Total Purchases Calculation:", {
+      totalPurchases,
+      priceHistoryEntries: inventoryData.reduce((sum, item) => sum + (item.priceHistory?.length || 0), 0)
+    });
     return totalPurchases;
   };
 
@@ -312,13 +312,13 @@ const Home = () => {
     const monthlyData = {};
 
     inventoryData.forEach(item => {
-      if (item.batches && Array.isArray(item.batches)) {
-        item.batches.forEach(batch => {
-          if (batch.addedAt) {
+      if (item.priceHistory && Array.isArray(item.priceHistory)) {
+        item.priceHistory.forEach(priceEntry => {
+          if (priceEntry.addedAt) {
             try {
-              const date = new Date(batch.addedAt);
+              const date = new Date(priceEntry.addedAt);
               if (isNaN(date.getTime())) {
-                console.warn(`Invalid batch date: ${batch.addedAt}`);
+                console.warn(`Invalid price history date: ${priceEntry.addedAt}`);
                 return;
               }
 
@@ -328,15 +328,13 @@ const Home = () => {
                 monthlyData[monthYear] = { date: monthYear, value: 0, count: 0 };
               }
 
-              // Calculate batch value
-              const batchValue = batch.price ? (batch.price * batch.quantity) :
-                item.price ? (item.price * batch.quantity) : 0;
-
-              monthlyData[monthYear].value += batchValue;
-              monthlyData[monthYear].count += 1;
+              // Calculate purchase value for this price history entry
+              const purchaseValue = priceEntry.price * priceEntry.quantityAdded;
+              monthlyData[monthYear].value += purchaseValue;
+              monthlyData[monthYear].count += priceEntry.quantityAdded;
 
             } catch (error) {
-              console.warn(`Error processing batch date ${batch.addedAt}:`, error);
+              console.warn(`Error processing price history date ${priceEntry.addedAt}:`, error);
             }
           }
         });
@@ -347,7 +345,7 @@ const Home = () => {
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(-6);
 
-    console.log("🛒 Purchase Chart Data:", chartData);
+    console.log("🛒 CORRECT Purchase Chart Data:", chartData);
     return chartData.length > 0 ? chartData : generateEmptyChartData();
   };
 
@@ -427,7 +425,7 @@ const Home = () => {
                 </div>
               </div>
 
-              <div
+              {/* <div
                 className="alert-section low-stock-alert clickable-alert"
                 onClick={() => setShowLowStockModal(true)}
               >
@@ -437,7 +435,7 @@ const Home = () => {
                 <div className="alert-count">
                   {lowStockItems.length} items need attention
                 </div>
-              </div>
+              </div> */}
 
               <div
                 className="alert-section out-of-stock-alert clickable-alert"
@@ -484,7 +482,7 @@ const Home = () => {
               </div>
             </div>
 
-            <div className="metric-card production-metric">
+            {/* <div className="metric-card production-metric">
               <FiTruck className="metric-icon" />
               <div>
                 <h3>Work Orders</h3>
@@ -493,7 +491,7 @@ const Home = () => {
                   {workOrders.filter(wo => !salesData.some(sale => sale.workOrderNumber === wo.workOrderNumber)).length} pending sales
                 </small>
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Charts Section */}
