@@ -44,11 +44,41 @@ const Inventory = () => {
 
     const [productPrice, setProductPrice] = useState("");
 
+    // ✅ ADDED: User access control state
+    const [userHasInventoryAccess, setUserHasInventoryAccess] = useState(true);
+
     useEffect(() => {
         window.scrollTo(0, 0);
+        checkUserAccess(); // ✅ Check user access first
         fetchData();
         fetchProducts();
     }, []);
+
+    // ✅ ADDED: Function to check user access
+    const checkUserAccess = () => {
+        try {
+            const userData = localStorage.getItem('user');
+            if (userData) {
+                const user = JSON.parse(userData);
+                const restrictedEmails = [
+                    "marketing@sfpsons.com",
+                    "test@gmail.com"
+                    // Add more restricted emails here as needed
+                    // "another@example.com",
+                ];
+
+                const hasAccess = !restrictedEmails.includes(user.email);
+                setUserHasInventoryAccess(hasAccess);
+
+                if (!hasAccess) {
+                    console.log(`User ${user.email} has restricted access to inventory modifications`);
+                }
+            }
+        } catch (error) {
+            console.error("Error checking user access:", error);
+            setUserHasInventoryAccess(true); // Default to true if there's an error
+        }
+    };
 
     // In your Inventory.js component
     useEffect(() => {
@@ -300,12 +330,31 @@ const Inventory = () => {
         }
     };
 
+    // ✅ ADDED: Protected modal open functions
+    const handleAddQtyClick = () => {
+        if (!userHasInventoryAccess) {
+            toast.error("You don't have permission to add quantity");
+            return;
+        }
+        setShowAddQtyModal(true);
+    };
+
+    const handleBulkUploadClick = () => {
+        if (!userHasInventoryAccess) {
+            toast.error("You don't have permission to bulk upload");
+            return;
+        }
+        setShowBulkUploadModal(true);
+    };
+
     // Add Qty Modal Functions
     const addBatchRow = () => {
+        if (!userHasInventoryAccess) return;
         setBatches([...batches, { batchNumber: "", quantity: "", expiryDate: "" }]);
     };
 
     const removeBatchRow = (index) => {
+        if (!userHasInventoryAccess) return;
         if (batches.length > 1) {
             const newBatches = batches.filter((_, i) => i !== index);
             setBatches(newBatches);
@@ -313,6 +362,7 @@ const Inventory = () => {
     };
 
     const updateBatch = (index, field, value) => {
+        if (!userHasInventoryAccess) return;
         const newBatches = batches.map((batch, i) =>
             i === index ? { ...batch, [field]: value } : batch
         );
@@ -321,6 +371,11 @@ const Inventory = () => {
 
     const handleAddQtySubmit = async (e) => {
         e.preventDefault();
+
+        if (!userHasInventoryAccess) {
+            toast.error("You don't have permission to perform this action");
+            return;
+        }
 
         if (!selectedProduct) {
             toast.error("Please select a product");
@@ -400,6 +455,11 @@ const Inventory = () => {
     // Bulk Upload Functions - UPDATED
     const handleBulkUpload = async (e) => {
         e.preventDefault();
+
+        if (!userHasInventoryAccess) {
+            toast.error("You don't have permission to perform this action");
+            return;
+        }
 
         if (!uploadFile) {
             toast.error("Please select a file");
@@ -679,7 +739,6 @@ const Inventory = () => {
 
             <div className="inventory-page">
                 <div className="page-header">
-                    {/* <h2>Inventory</h2>  */}
                     <div className="right-section inventory-header-right">
                         <div className="filter-container">
                             <div className="filter-with-icon">
@@ -707,21 +766,40 @@ const Inventory = () => {
                         </div>
 
                         <div className="action-buttons-group">
-                            <button
-                                className="add-qty-btn"
-                                onClick={() => setShowAddQtyModal(true)}
-                            >
-                                <FaPlus /> Add Qty
-                            </button>
-                            <button
-                                className="bulk-upload-btn"
-                                onClick={() => setShowBulkUploadModal(true)}
-                            >
-                                <FaUpload /> Bulk Upload 
-                            </button>
-                            {/* <button className="export-all-btn" onClick={handleExport}>
-                                <FaFileExport /> Export PDF
-                            </button> */}
+                            {/* ✅ UPDATED: Conditionally render buttons with access control */}
+                            {userHasInventoryAccess ? (
+                                <>
+                                    <button
+                                        className="add-qty-btn"
+                                        onClick={handleAddQtyClick}
+                                    >
+                                        <FaPlus /> Add Qty
+                                    </button>
+                                    <button
+                                        className="bulk-upload-btn"
+                                        onClick={handleBulkUploadClick}
+                                    >
+                                        <FaUpload /> Bulk Upload
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        className="add-qty-btn disabled-btn"
+                                        disabled
+                                        title="Inventory modifications restricted for your account"
+                                    >
+                                        <FaPlus /> Add Qty
+                                    </button>
+                                    <button
+                                        className="bulk-upload-btn disabled-btn"
+                                        disabled
+                                        title="Inventory modifications restricted for your account"
+                                    >
+                                        <FaUpload /> Bulk Upload
+                                    </button>
+                                </>
+                            )}
 
                             <button className="export-btn" onClick={exportToExcel}>
                                 <FaFileExport /> Export
@@ -736,12 +814,7 @@ const Inventory = () => {
                 {/* Export Buttons Row */}
                 <div className="export-buttons-row">
                     <div className="export-buttons-container">
-                        {/* <button className="export-btn" onClick={exportToExcel}>
-                            <FaFileExport /> Export
-                        </button>
-                        <button className="export-with-batches-btn" onClick={exportWithBatches}>
-                            <FaFileExport /> Export with Batches
-                        </button> */}
+                        {/* Export buttons remain accessible to all users */}
                     </div>
                 </div>
 
@@ -1039,7 +1112,7 @@ const Inventory = () => {
                                                 />
                                             </div>
                                             <div className="form-group">
-                                                <label>Manufacture Date (Year & Month) *</label>
+                                                <label>Manufacture Date (Month & Year) *</label>
                                                 <input
                                                     type="month"
                                                     value={batch.manufactureDate}
@@ -1087,7 +1160,7 @@ const Inventory = () => {
                                         onChange={(e) => setUploadFile(e.target.files[0])}
                                         required
                                     />
-                                    <small>Format: Product Name, Batch Number, Quantity, Manufacture Date (YYYY-MM), Price</small>
+                                    <small>Format: Product Name, Batch Number, Quantity, Manufacture Date (MONTH - YYYY), Price</small>
                                 </div>
 
                                 <div className="download-template">

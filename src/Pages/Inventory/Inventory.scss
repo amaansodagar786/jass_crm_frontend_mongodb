@@ -1063,3 +1063,34 @@ margin-bottom: 10px !important;
     }
   }
 }
+
+
+
+// Add these styles to your Inventory.scss
+
+.disabled-btn {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+    background-color: #f5f5f5 !important;
+    color: #999 !important;
+    border-color: #ddd !important;
+    
+    &:hover {
+        background-color: #f5f5f5 !important;
+        color: #999 !important;
+        border-color: #ddd !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+}
+
+// If you want to add a tooltip effect
+.action-buttons-group {
+    position: relative;
+    
+    .disabled-btn {
+        position: relative;
+        
+        
+    }
+}

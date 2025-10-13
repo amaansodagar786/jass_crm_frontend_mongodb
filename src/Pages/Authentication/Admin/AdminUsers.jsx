@@ -6,7 +6,7 @@ import {
   FaUser, FaEnvelope, FaPhone, FaPlus,
   FaFileExport, FaFileExcel, FaSearch,
   FaEdit, FaSave, FaTrash, FaLock, FaEye, FaEyeSlash,
-  FaList, FaTags, FaExclamationTriangle
+  FaList, FaTags, FaExclamationTriangle, FaKey
 } from "react-icons/fa";
 import html2pdf from "html2pdf.js";
 import * as XLSX from "xlsx";
@@ -99,7 +99,7 @@ const AdminUsers = () => {
             }
           }
         );
-        
+
         if (!response.ok) {
           if (response.status === 401) {
             navigate('/login');
@@ -107,7 +107,7 @@ const AdminUsers = () => {
           }
           throw new Error('Failed to fetch users');
         }
-        
+
         const data = await response.json();
 
         // Sort by creation date (newest first)
@@ -145,7 +145,7 @@ const AdminUsers = () => {
             }
           }
         );
-        
+
         if (!response.ok) {
           if (response.status === 401) {
             navigate('/login');
@@ -153,7 +153,7 @@ const AdminUsers = () => {
           }
           throw new Error('Failed to fetch categories');
         }
-        
+
         const data = await response.json();
 
         // Sort by creation date (newest first)
@@ -567,7 +567,8 @@ const AdminUsers = () => {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to update user");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update user");
       }
 
       const data = await response.json();
@@ -643,7 +644,7 @@ const AdminUsers = () => {
       );
       setSelectedUser(null);
       toast.success("User deleted successfully!");
-      
+
       // Show message if limit was reached and now space is available
       if (isUserLimitReached) {
         toast.info("You can now create new users. 1 slot available.");
@@ -697,16 +698,16 @@ const AdminUsers = () => {
       <div className="limit-info">
         <FaExclamationTriangle className="limit-icon" />
         <span>
-          {isUserLimitReached 
+          {isUserLimitReached
             ? `Maximum ${MAX_USERS_LIMIT} users reached`
             : `${remainingUsers} of ${MAX_USERS_LIMIT} user slots remaining`
           }
         </span>
       </div>
       <div className="limit-progress">
-        <div 
-          className="limit-progress-bar" 
-          style={{width: `${(users.length / MAX_USERS_LIMIT) * 100}%`}}
+        <div
+          className="limit-progress-bar"
+          style={{ width: `${(users.length / MAX_USERS_LIMIT) * 100}%` }}
         ></div>
       </div>
     </div>
@@ -717,6 +718,8 @@ const AdminUsers = () => {
     const [editedUser, setEditedUser] = useState({});
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [errors, setErrors] = useState({});
+    const [showPasswordField, setShowPasswordField] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
 
     useEffect(() => {
       document.body.style.overflow = 'hidden';
@@ -727,12 +730,19 @@ const AdminUsers = () => {
 
     useEffect(() => {
       if (user) {
-        setEditedUser({ 
+        setEditedUser({
           ...user,
-          permissions: user.permissions || []
+          permissions: user.permissions || [],
+          password: '' // Initialize password as empty
         });
         setErrors({});
+        setShowPasswordField(false);
       }
+    }, [user]);
+
+    // Check if user is admin (for password update restriction)
+    const isUserAdmin = useMemo(() => {
+      return user?.permissions?.includes('admin') || false;
     }, [user]);
 
     // Validation function for the modal form
@@ -754,8 +764,13 @@ const AdminUsers = () => {
       else if (values.phone.length !== 10) newErrors.phone = "Must be exactly 10 digits";
 
       // Permissions validation
-      if (!values.permissions || values.permissions.length === 0) 
+      if (!values.permissions || values.permissions.length === 0)
         newErrors.permissions = "At least one permission is required";
+
+      // Password validation (only if password field is shown and not empty)
+      if (showPasswordField && values.password && values.password.length < 8) {
+        newErrors.password = "Password must be at least 8 characters";
+      }
 
       return newErrors;
     };
@@ -775,7 +790,7 @@ const AdminUsers = () => {
         const newPermissions = currentPermissions.includes(permission)
           ? currentPermissions.filter(p => p !== permission)
           : [...currentPermissions, permission];
-        
+
         return { ...prev, permissions: newPermissions };
       });
 
@@ -794,11 +809,32 @@ const AdminUsers = () => {
       }
 
       try {
-        await onUpdate(editedUser);
+        // If password field is empty, remove it from the update
+        const userToUpdate = { ...editedUser };
+        if (!showPasswordField || !userToUpdate.password) {
+          delete userToUpdate.password;
+        }
+
+        await onUpdate(userToUpdate);
         setIsEditing(false);
+        setShowPasswordField(false);
         setErrors({});
       } catch (error) {
         console.error("Error updating user:", error);
+      }
+    };
+
+    const togglePasswordField = () => {
+      setShowPasswordField(!showPasswordField);
+      if (!showPasswordField) {
+        // Clear password when showing the field
+        setEditedUser(prev => ({ ...prev, password: '' }));
+      } else {
+        // Clear password when hiding the field
+        setEditedUser(prev => ({ ...prev, password: '' }));
+        if (errors.password) {
+          setErrors(prev => ({ ...prev, password: null }));
+        }
       }
     };
 
@@ -880,9 +916,9 @@ const AdminUsers = () => {
                 <span className="detail-label">Permissions *</span>
                 {isEditing ? (
                   <div className="edit-field-container">
-                    <div className="permissions-grid">
+                    <div className="permissions-grid-horizontal">
                       {availablePermissions.map(permission => (
-                        <label key={permission.id} className="permission-checkbox">
+                        <label key={permission.id} className="permission-checkbox-horizontal">
                           <input
                             type="checkbox"
                             checked={editedUser.permissions?.includes(permission.id) || false}
@@ -900,6 +936,60 @@ const AdminUsers = () => {
                   </span>
                 )}
               </div>
+
+              {/* Password Update Section - Only show for non-admin users */}
+              {isEditing && !isUserAdmin && (
+                <div className="detail-row">
+                  <span className="detail-label">
+                    <FaKey /> Password Update
+                  </span>
+                  <div className="edit-field-container">
+                    <button
+                      type="button"
+                      className={`password-toggle-btn ${showPasswordField ? 'active' : ''}`}
+                      onClick={togglePasswordField}
+                    >
+                      <FaKey /> {showPasswordField ? 'Cancel Password Update' : 'Update Password'}
+                    </button>
+
+                    {showPasswordField && (
+                      <div className="password-field-container">
+                        <div className="password-input-wrapper">
+                          <input
+                            type={showNewPassword ? "text" : "password"}
+                            name="password"
+                            value={editedUser.password || ''}
+                            onChange={handleInputChange}
+                            placeholder="Enter new password"
+                            className={`edit-input ${errors.password ? 'error' : ''}`}
+                          />
+                          <button
+                            type="button"
+                            className="password-visibility-toggle"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                          >
+                            {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                          </button>
+                        </div>
+                        {errors.password && <div className="error-message">{errors.password}</div>}
+                        <div className="password-hint">
+                          Leave empty to keep current password. Minimum 8 characters.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Admin user message */}
+              {isEditing && isUserAdmin && (
+                <div className="detail-row">
+                  <div className="admin-note">
+                    <FaExclamationTriangle />
+                    Password update is not available for admin users.
+                  </div>
+                </div>
+              )}
 
               {/* Created At */}
               <div className="detail-row">
@@ -1135,13 +1225,13 @@ const AdminUsers = () => {
                   <button className="export-all-btn" onClick={exportAllAsExcel}>
                     <FaFileExcel /> Export All
                   </button>
-                  <button 
+                  <button
                     className={`add-btn ${isUserLimitReached ? 'disabled' : ''}`}
                     onClick={handleAddUserClick}
                     disabled={isUserLimitReached}
                     title={isUserLimitReached ? `Maximum ${MAX_USERS_LIMIT} users allowed` : "Add new user"}
                   >
-                    <FaPlus /> 
+                    <FaPlus />
                     {showForm ? "Close" : "Add User"}
                     {isUserLimitReached && <FaExclamationTriangle className="warning-icon" />}
                   </button>
@@ -1162,13 +1252,13 @@ const AdminUsers = () => {
 
         {/* Section Tabs */}
         <div className="section-tabs">
-          <button 
+          <button
             className={`tab-button ${activeSection === "users" ? "active" : ""}`}
             onClick={() => setActiveSection("users")}
           >
             <FaUser /> User Management
           </button>
-          <button 
+          <button
             className={`tab-button ${activeSection === "categories" ? "active" : ""}`}
             onClick={() => setActiveSection("categories")}
           >
@@ -1185,12 +1275,12 @@ const AdminUsers = () => {
             {showForm && (
               <div className="form-container premium">
                 <h2>Add User</h2>
-                
+
                 {/* Show warning if approaching limit */}
                 {remainingUsers <= 2 && (
                   <div className="limit-warning">
                     <FaExclamationTriangle />
-                    {isUserLimitReached 
+                    {isUserLimitReached
                       ? `You have reached the maximum limit of ${MAX_USERS_LIMIT} users.`
                       : `Only ${remainingUsers} user slot(s) remaining.`
                     }
@@ -1232,12 +1322,12 @@ const AdminUsers = () => {
                         <div className="form-field">
                           <label><FaLock /> Password *</label>
                           <div className="password-input-container">
-                            <Field 
-                              name="password" 
-                              type={showPassword ? "text" : "password"} 
+                            <Field
+                              name="password"
+                              type={showPassword ? "text" : "password"}
                             />
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               className="password-toggle"
                               onClick={() => setShowPassword(!showPassword)}
                             >
@@ -1254,9 +1344,9 @@ const AdminUsers = () => {
                           <div className="permissions-grid">
                             {availablePermissions.map(permission => (
                               <label key={permission.id} className="permission-checkbox">
-                                <Field 
-                                  type="checkbox" 
-                                  name="permissions" 
+                                <Field
+                                  type="checkbox"
+                                  name="permissions"
                                   value={permission.id}
                                   checked={values.permissions.includes(permission.id)}
                                   onChange={(e) => {
@@ -1275,8 +1365,8 @@ const AdminUsers = () => {
                         </div>
                       </div>
 
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         disabled={isUserLimitReached || isSubmitting}
                         className={isUserLimitReached ? 'disabled' : ''}
                       >
@@ -1352,7 +1442,7 @@ const AdminUsers = () => {
             {showCategoryForm && (
               <div className="form-container premium">
                 <h2>Add Category</h2>
-                
+
                 {/* Single Category Form */}
                 <Formik
                   initialValues={categoryInitialValues}
@@ -1385,8 +1475,8 @@ const AdminUsers = () => {
                     rows={6}
                     className="bulk-category-input"
                   />
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="bulk-category-btn"
                     onClick={handleBulkCategorySubmit}
                   >

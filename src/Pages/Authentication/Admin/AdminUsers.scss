@@ -49,7 +49,7 @@
       transition: 0.3s;
       box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05),
         0 2px 5px rgba(0, 0, 0, 0.08);
-        
+
       &:focus {
         outline: none;
         background: #fff;
@@ -278,11 +278,11 @@
 
   .password-input-container {
     position: relative;
-    
+
     input {
       padding-right: 40px;
     }
-    
+
     .password-toggle {
       position: absolute;
       right: 10px;
@@ -292,7 +292,7 @@
       border: none;
       cursor: pointer;
       color: #666;
-      
+
       &:hover {
         color: #333;
       }
@@ -304,7 +304,7 @@
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 10px;
     margin-top: 10px;
-    
+
     .permission-checkbox {
       display: flex;
       align-items: center;
@@ -313,11 +313,11 @@
       padding: 8px;
       border-radius: 4px;
       transition: background-color 0.2s;
-      
+
       &:hover {
         background-color: #f5f5f5;
       }
-      
+
       input[type="checkbox"] {
         width: auto;
         margin: 0;
@@ -459,6 +459,7 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -480,6 +481,7 @@
       transform: translateY(20px);
       opacity: 0;
     }
+
     to {
       transform: translateY(0);
       opacity: 1;
@@ -546,13 +548,14 @@
   word-break: break-word;
 }
 
-.edit-input, .edit-textarea {
+.edit-input,
+.edit-textarea {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
-  
+
   &:focus {
     border-color: #7366ff;
     outline: none;
@@ -624,7 +627,7 @@
 
   .update-btn {
     background-color: #7366ff;
-    
+
     &.save-btn {
       background-color: #ff7043;
     }
@@ -705,7 +708,7 @@
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
   margin-top: 10px;
-  
+
   .permission-checkbox {
     display: flex;
     align-items: center;
@@ -714,11 +717,11 @@
     padding: 8px;
     border-radius: 4px;
     transition: background-color 0.2s;
-    
+
     &:hover {
       background-color: #f5f5f5;
     }
-    
+
     input[type="checkbox"] {
       width: auto;
       margin: 0;
@@ -741,7 +744,7 @@
   .modal-footer {
     padding: 12px 15px;
     flex-direction: column;
-    
+
     button {
       width: 100%;
       padding: 12px 20px;
@@ -800,14 +803,14 @@
   justify-content: center;
   padding: 40px;
   text-align: center;
-  
+
   .loading-spinner.large {
     width: 40px;
     height: 40px;
     border-width: 3px;
     margin-bottom: 15px;
   }
-  
+
   p {
     color: #666;
     font-size: 16px;
@@ -832,53 +835,120 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 
 
-// User Limit Indicator Styles
 .user-limit-indicator {
+  max-width: 1200px;
+  margin: 0 auto 20px;
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 12px 16px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
   &.limit-reached {
     border-color: #ff6b6b;
     background: #fff5f5;
   }
-  
+
   .limit-info {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
     font-weight: 500;
-    
+
     .limit-icon {
       color: #ff6b6b;
     }
   }
-  
+
   .limit-progress {
     display: none;
     height: 6px;
     background: #f0f0f0;
     border-radius: 3px;
     overflow: hidden;
-    
+
     .limit-progress-bar {
       height: 100%;
       background: linear-gradient(90deg, #4CAF50, #45a049);
       transition: width 0.3s ease;
-      
+
       .limit-reached & {
         background: linear-gradient(90deg, #ff6b6b, #ff5252);
       }
+    }
+  }
+}
+
+// Horizontal Permissions Grid for Modal
+.permissions-grid-horizontal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+
+  .permission-checkbox-horizontal {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+    min-width: 120px;
+
+    &:hover {
+      background: #e9ecef;
+      border-color: #dee2e6;
+    }
+
+    input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+
+    span {
+      font-size: 13px;
+      font-weight: 500;
+      color: #495057;
+    }
+  }
+}
+
+// Responsive adjustments for horizontal permissions
+@media (max-width: 768px) {
+  .permissions-grid-horizontal {
+    gap: 8px;
+
+    .permission-checkbox-horizontal {
+      min-width: 100px;
+      padding: 6px 10px;
+
+      span {
+        font-size: 12px;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .permissions-grid-horizontal {
+    .permission-checkbox-horizontal {
+      min-width: calc(50% - 8px);
+      flex: 1;
     }
   }
 }
@@ -902,7 +972,7 @@
   background: #6c757d !important;
   cursor: not-allowed !important;
   opacity: 0.6;
-  
+
   &:hover {
     background: #6c757d !important;
     transform: none !important;
@@ -916,18 +986,121 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 // Disabled form submit button
 button[type="submit"].disabled {
   background: #6c757d !important;
   cursor: not-allowed !important;
-  
+
   &:hover {
     background: #6c757d !important;
     transform: none !important;
+  }
+}
+
+
+
+// Password Update Styles
+.password-toggle-btn {
+  background: linear-gradient(135deg, #7366ff, #948cff);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+  margin-bottom: 10px;
+
+  &:hover {
+    background: linear-gradient(135deg, #5f53cc, #7366ff);
+    transform: translateY(-1px);
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #ff7043, #ff8a65);
+
+    &:hover {
+      background: linear-gradient(135deg, #f4511e, #ff7043);
+    }
+  }
+}
+
+.password-field-container {
+  margin-top: 10px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.password-input-wrapper {
+  position: relative;
+
+  .edit-input {
+    padding-right: 40px;
+    width: 100%;
+  }
+
+  .password-visibility-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+
+    &:hover {
+      color: #333;
+    }
+  }
+}
+
+.password-hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.admin-note {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .password-toggle-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .password-field-container {
+    padding: 12px;
   }
 }
