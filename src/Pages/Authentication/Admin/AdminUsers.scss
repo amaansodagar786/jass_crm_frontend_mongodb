@@ -835,3 +835,99 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+
+
+// User Limit Indicator Styles
+.user-limit-indicator {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  
+  &.limit-reached {
+    border-color: #ff6b6b;
+    background: #fff5f5;
+  }
+  
+  .limit-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    
+    .limit-icon {
+      color: #ff6b6b;
+    }
+  }
+  
+  .limit-progress {
+    display: none;
+    height: 6px;
+    background: #f0f0f0;
+    border-radius: 3px;
+    overflow: hidden;
+    
+    .limit-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #45a049);
+      transition: width 0.3s ease;
+      
+      .limit-reached & {
+        background: linear-gradient(90deg, #ff6b6b, #ff5252);
+      }
+    }
+  }
+}
+
+// Limit Warning in Form
+.limit-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+// Disabled State for Add Button
+.add-btn.disabled {
+  background: #6c757d !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+  
+  &:hover {
+    background: #6c757d !important;
+    transform: none !important;
+  }
+}
+
+// Warning icon in button
+.warning-icon {
+  margin-left: 8px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+// Disabled form submit button
+button[type="submit"].disabled {
+  background: #6c757d !important;
+  cursor: not-allowed !important;
+  
+  &:hover {
+    background: #6c757d !important;
+    transform: none !important;
+  }
+}

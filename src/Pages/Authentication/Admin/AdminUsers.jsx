@@ -6,7 +6,7 @@ import {
   FaUser, FaEnvelope, FaPhone, FaPlus,
   FaFileExport, FaFileExcel, FaSearch,
   FaEdit, FaSave, FaTrash, FaLock, FaEye, FaEyeSlash,
-  FaList, FaTags
+  FaList, FaTags, FaExclamationTriangle
 } from "react-icons/fa";
 import html2pdf from "html2pdf.js";
 import * as XLSX from "xlsx";
@@ -37,6 +37,19 @@ const AdminUsers = () => {
   const [bulkCategoryInput, setBulkCategoryInput] = useState("");
   const navigate = useNavigate();
 
+  // Maximum users limit
+  const MAX_USERS_LIMIT = 5;
+
+  // Check if user limit is reached
+  const isUserLimitReached = useMemo(() => {
+    return users.length >= MAX_USERS_LIMIT;
+  }, [users.length]);
+
+  // Calculate remaining users
+  const remainingUsers = useMemo(() => {
+    return Math.max(0, MAX_USERS_LIMIT - users.length);
+  }, [users.length]);
+
   // Available permissions
   const availablePermissions = [
     { id: "customer", name: "Customer" },
@@ -47,6 +60,7 @@ const AdminUsers = () => {
     { id: "discount", name: "Discount" },
     { id: "disposal", name: "Disposal" },
     { id: "admin", name: "Admin" },
+    { id: "report", name: "Reports" },
   ];
 
   useEffect(() => {
@@ -391,6 +405,12 @@ const AdminUsers = () => {
   // Handle user form submission
   const handleUserSubmit = async (values, { resetForm, setFieldError }) => {
     try {
+      // Frontend validation for user limit
+      if (isUserLimitReached) {
+        toast.error(`Maximum ${MAX_USERS_LIMIT} users allowed. Please delete some users to create new ones.`);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/admin/register`,
@@ -623,6 +643,11 @@ const AdminUsers = () => {
       );
       setSelectedUser(null);
       toast.success("User deleted successfully!");
+      
+      // Show message if limit was reached and now space is available
+      if (isUserLimitReached) {
+        toast.info("You can now create new users. 1 slot available.");
+      }
     } catch (error) {
       console.error("Error deleting user:", error);
       toast.error(error.message || "Error deleting user");
@@ -656,6 +681,36 @@ const AdminUsers = () => {
       toast.error(error.message || "Error deleting category");
     }
   };
+
+  // Handle add user button click with validation
+  const handleAddUserClick = () => {
+    if (isUserLimitReached) {
+      toast.error(`Maximum ${MAX_USERS_LIMIT} users reached. Please delete existing users to create new ones.`);
+      return;
+    }
+    setShowForm(!showForm);
+  };
+
+  // User limit indicator component
+  const UserLimitIndicator = () => (
+    <div className={`user-limit-indicator ${isUserLimitReached ? 'limit-reached' : ''}`}>
+      <div className="limit-info">
+        <FaExclamationTriangle className="limit-icon" />
+        <span>
+          {isUserLimitReached 
+            ? `Maximum ${MAX_USERS_LIMIT} users reached`
+            : `${remainingUsers} of ${MAX_USERS_LIMIT} user slots remaining`
+          }
+        </span>
+      </div>
+      <div className="limit-progress">
+        <div 
+          className="limit-progress-bar" 
+          style={{width: `${(users.length / MAX_USERS_LIMIT) * 100}%`}}
+        ></div>
+      </div>
+    </div>
+  );
 
   const UserModal = ({ user, onClose, onExport, onUpdate, onDelete }) => {
     const [isEditing, setIsEditing] = useState(false);
@@ -1080,8 +1135,15 @@ const AdminUsers = () => {
                   <button className="export-all-btn" onClick={exportAllAsExcel}>
                     <FaFileExcel /> Export All
                   </button>
-                  <button className="add-btn" onClick={() => setShowForm(!showForm)}>
-                    <FaPlus /> {showForm ? "Close" : "Add User"}
+                  <button 
+                    className={`add-btn ${isUserLimitReached ? 'disabled' : ''}`}
+                    onClick={handleAddUserClick}
+                    disabled={isUserLimitReached}
+                    title={isUserLimitReached ? `Maximum ${MAX_USERS_LIMIT} users allowed` : "Add new user"}
+                  >
+                    <FaPlus /> 
+                    {showForm ? "Close" : "Add User"}
+                    {isUserLimitReached && <FaExclamationTriangle className="warning-icon" />}
                   </button>
                 </>
               ) : (
@@ -1117,15 +1179,30 @@ const AdminUsers = () => {
         {/* User Management Section */}
         {activeSection === "users" && (
           <>
+            {/* User Limit Indicator */}
+            <UserLimitIndicator />
+
             {showForm && (
               <div className="form-container premium">
                 <h2>Add User</h2>
+                
+                {/* Show warning if approaching limit */}
+                {remainingUsers <= 2 && (
+                  <div className="limit-warning">
+                    <FaExclamationTriangle />
+                    {isUserLimitReached 
+                      ? `You have reached the maximum limit of ${MAX_USERS_LIMIT} users.`
+                      : `Only ${remainingUsers} user slot(s) remaining.`
+                    }
+                  </div>
+                )}
+
                 <Formik
                   initialValues={userInitialValues}
                   validationSchema={userValidationSchema}
                   onSubmit={handleUserSubmit}
                 >
-                  {({ values, setFieldValue }) => (
+                  {({ values, setFieldValue, isSubmitting }) => (
                     <Form>
                       <div className="form-row">
                         <div className="form-field">
@@ -1198,7 +1275,13 @@ const AdminUsers = () => {
                         </div>
                       </div>
 
-                      <button type="submit">Create User</button>
+                      <button 
+                        type="submit" 
+                        disabled={isUserLimitReached || isSubmitting}
+                        className={isUserLimitReached ? 'disabled' : ''}
+                      >
+                        {isUserLimitReached ? 'Limit Reached' : 'Create User'}
+                      </button>
                     </Form>
                   )}
                 </Formik>
