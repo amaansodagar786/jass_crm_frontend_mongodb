@@ -1400,3 +1400,254 @@
     transform: rotate(360deg);
   }
 }
+
+
+
+// Promo Code Styles
+.promo-code-container {
+  width: 100%;
+}
+
+.promo-input-group {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+
+  input {
+    flex: 1;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+
+    &:focus {
+      border-color: #7366ff;
+      outline: none;
+    }
+
+    &.error {
+      border-color: #dc3545;
+    }
+
+    &:disabled {
+      background-color: #f8f9fa;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.apply-promo-btn,
+.remove-promo-btn {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.apply-promo-btn {
+  background: #28a745;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+  }
+}
+
+.remove-promo-btn {
+  background: #dc3545;
+  color: white;
+
+  &:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+  }
+}
+
+.promo-error {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.promo-success {
+  color: #28a745;
+  font-size: 14px;
+  margin-top: 8px;
+  font-weight: 500;
+  background: #e8f5e8;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 4px solid #28a745;
+}
+
+// Responsive design for promo code
+@media (max-width: 768px) {
+  .promo-input-group {
+    flex-direction: column;
+
+    input {
+      width: 100%;
+    }
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+}
+
+
+// Add to your Sales.scss
+.promo-code-value {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.promo-description {
+  font-size: 12px;
+  color: #666;
+  font-weight: normal;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+
+
+// Add these styles to your Sales.scss
+
+// Detailed Calculation Styles
+.invoice-summary-grid.detailed-calculation {
+  max-width: 450px;
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  margin-left: auto;
+
+  .calculation-step {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e8e8e8;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .step-label {
+      font-weight: 500;
+      color: #555;
+      font-size: 14px;
+    }
+
+    .step-value {
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+
+    &.discount-step,
+    &.promo-step {
+      .step-value {
+        color: #dc3545;
+      }
+    }
+
+    &.tax-step {
+      .step-value {
+        color: #ff6b00;
+      }
+    }
+
+    &.amount-before-tax,
+    &.taxable-amount {
+      background: #f0f8ff;
+      margin: 5px -10px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px dashed #b3d9ff;
+
+      .step-label {
+        color: #0066cc;
+        font-weight: 600;
+      }
+
+      .step-value {
+        color: #0066cc;
+        font-weight: 700;
+      }
+    }
+
+    &.total-row {
+      border-top: 2px solid #7366ff;
+      margin-top: 10px;
+      padding-top: 12px;
+      background: #e8f5e8;
+      margin: 10px -10px 0;
+      padding: 12px 10px;
+      border-radius: 6px;
+
+      .step-label {
+        font-size: 16px;
+        color: #2e7d32;
+        font-weight: 700;
+      }
+
+      .total-amount {
+        font-size: 18px;
+        color: #2e7d32;
+        font-weight: 800;
+      }
+    }
+  }
+}
+
+// Promo code highlight in basic info
+.promo-code-value {
+  color: #28a745;
+  font-weight: 600;
+  background: #e8f5e8;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border-left: 3px solid #28a745;
+}
+
+.promo-description {
+  font-size: 12px;
+  color: #666;
+  font-weight: normal;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+// Responsive design for detailed calculation
+@media (max-width: 768px) {
+  .invoice-summary-grid.detailed-calculation {
+    max-width: 100%;
+    margin: 0;
+
+    .calculation-step {
+      .step-label {
+        font-size: 13px;
+      }
+
+      .step-value {
+        font-size: 13px;
+      }
+    }
+  }
+}

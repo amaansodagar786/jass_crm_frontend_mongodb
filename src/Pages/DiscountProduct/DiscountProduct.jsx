@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import {
     FaBox, FaBarcode, FaHashtag, FaDollarSign,
     FaPercentage, FaFileExport, FaPlus, FaSearch,
-    FaSave, FaEdit
+    FaSave, FaEdit, FaTags, FaTimes, FaTrash,
+    FaCalendarAlt, FaClock
 } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
@@ -11,15 +12,20 @@ import Navbar from "../../Components/Sidebar/Navbar";
 import "../Form/Form.scss";
 import "./DiscountProduct.scss";
 import "react-toastify/dist/ReactToastify.css";
+import PromoCodeModal from "./Promocode/PromoCodeModal";
+
 
 const DiscountProduct = () => {
     const [showForm, setShowForm] = useState(false);
+    const [showPromoModal, setShowPromoModal] = useState(false);
     const [products, setProducts] = useState([]);
+    const [promoCodes, setPromoCodes] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(9);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingPromos, setIsLoadingPromos] = useState(false);
     const [editingDiscounts, setEditingDiscounts] = useState({});
     const navigate = useNavigate();
 
@@ -30,6 +36,22 @@ const DiscountProduct = () => {
     const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
     const [pendingNavigation, setPendingNavigation] = useState(null);
 
+    // Promo Code States
+    const [newPromoCode, setNewPromoCode] = useState("");
+    const [newPromoDiscount, setNewPromoDiscount] = useState("");
+    const [newPromoStartDate, setNewPromoStartDate] = useState("");
+    const [newPromoEndDate, setNewPromoEndDate] = useState("");
+    const [isSavingPromo, setIsSavingPromo] = useState(false);
+    const [editingPromo, setEditingPromo] = useState(null);
+
+    // Refs for input focus management
+    const promoCodeInputRef = useRef(null);
+    const promoDiscountInputRef = useRef(null);
+    const startDateInputRef = useRef(null);
+    const endDateInputRef = useRef(null);
+
+    // Track if modal is mounted to prevent re-renders
+    const modalMountedRef = useRef(false);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -79,7 +101,6 @@ const DiscountProduct = () => {
                 setProducts(sortedData);
 
                 // Initialize editing discounts
-                // Inside the fetch products useEffect, update the initialization:
                 const initialEditingState = {};
                 const initialOriginalState = {};
                 sortedData.forEach(product => {
@@ -99,6 +120,257 @@ const DiscountProduct = () => {
         fetchProducts();
     }, [navigate]);
 
+    // Fetch promo codes
+    const fetchPromoCodes = async () => {
+        try {
+            setIsLoadingPromos(true);
+            const token = localStorage.getItem('token');
+            const response = await fetch(
+                `${import.meta.env.VITE_API_URL}/promoCodes/get-promos`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch promo codes');
+            }
+
+            const data = await response.json();
+            setPromoCodes(data);
+        } catch (error) {
+            console.error("Error fetching promo codes:", error);
+            toast.error("Failed to fetch promo codes");
+        } finally {
+            setIsLoadingPromos(false);
+        }
+    };
+
+    // Open promo modal and fetch codes
+    const handleOpenPromoModal = () => {
+        setShowPromoModal(true);
+        fetchPromoCodes();
+        resetPromoForm();
+        modalMountedRef.current = true;
+
+        // Focus on promo code input when modal opens
+        setTimeout(() => {
+            if (promoCodeInputRef.current && modalMountedRef.current) {
+                promoCodeInputRef.current.focus();
+            }
+        }, 100);
+    };
+
+    // Reset promo form
+    const resetPromoForm = () => {
+        setNewPromoCode("");
+        setNewPromoDiscount("");
+        setNewPromoStartDate("");
+        setNewPromoEndDate("");
+        setEditingPromo(null);
+    };
+
+    // Close promo modal
+    const handleClosePromoModal = () => {
+        setShowPromoModal(false);
+        resetPromoForm();
+        modalMountedRef.current = false;
+    };
+
+    // Save promo code
+
+    const savePromoCode = async () => {
+        try {
+            if (!newPromoCode.trim()) {
+                toast.error("Please enter promo code");
+                return;
+            }
+
+            if (!newPromoDiscount || newPromoDiscount < 1 || newPromoDiscount > 100) {
+                toast.error("Please enter valid discount (1-100%)");
+                return;
+            }
+
+            if (!newPromoStartDate || !newPromoEndDate) {
+                toast.error("Please select both start and end dates");
+                return;
+            }
+
+            let startDate = new Date(newPromoStartDate);
+            let endDate = new Date(newPromoEndDate);
+            const now = new Date();
+
+            // Allow same day promos (start date can be equal to end date)
+            if (startDate > endDate) {
+                toast.error("End date cannot be before start date");
+                return;
+            }
+
+            // FOR ALL END DATES: Set to 23:59:59 of the selected end date
+            endDate.setHours(23, 59, 59, 999);
+
+            // Compare dates without time for validation
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const endDateOnly = new Date(endDate);
+            endDateOnly.setHours(0, 0, 0, 0);
+
+            // Allow today's date and future dates
+            if (endDateOnly < today) {
+                toast.error("End date cannot be in the past");
+                return;
+            }
+
+            setIsSavingPromo(true);
+            const token = localStorage.getItem('token');
+
+            const url = editingPromo
+                ? `${import.meta.env.VITE_API_URL}/promoCodes/update-promo/${editingPromo.promoId}`
+                : `${import.meta.env.VITE_API_URL}/promoCodes/create-promo`;
+
+            const method = editingPromo ? "PUT" : "POST";
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    "Content-Type": "application/json",
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    code: newPromoCode,
+                    discount: parseFloat(newPromoDiscount),
+                    startDate: startDate.toISOString(),
+                    endDate: endDate.toISOString()
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to save promo code");
+            }
+
+            const result = await response.json();
+            toast.success(result.message);
+
+            // Refresh promo codes list
+            await fetchPromoCodes();
+            resetPromoForm();
+        } catch (error) {
+            console.error("Error saving promo code:", error);
+            toast.error(error.message);
+        } finally {
+            setIsSavingPromo(false);
+        }
+    };
+
+    // Delete promo code
+    const deletePromoCode = async (promoId) => {
+        if (!window.confirm("Are you sure you want to delete this promo code?")) {
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(
+                `${import.meta.env.VITE_API_URL}/promoCodes/delete-promo/${promoId}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to delete promo code');
+            }
+
+            const result = await response.json();
+            toast.success(result.message);
+            await fetchPromoCodes();
+        } catch (error) {
+            console.error("Error deleting promo code:", error);
+            toast.error("Failed to delete promo code");
+        }
+    };
+
+    // Edit promo code
+    const handleEditPromo = (promo) => {
+        setEditingPromo(promo);
+        setNewPromoCode(promo.code);
+        setNewPromoDiscount(promo.discount.toString());
+
+        // Format dates for input fields (YYYY-MM-DD)
+        const startDate = new Date(promo.startDate);
+        const endDate = new Date(promo.endDate);
+
+        setNewPromoStartDate(startDate.toISOString().split('T')[0]);
+        setNewPromoEndDate(endDate.toISOString().split('T')[0]);
+
+        // Focus on promo code input when editing
+        setTimeout(() => {
+            if (promoCodeInputRef.current && modalMountedRef.current) {
+                promoCodeInputRef.current.focus();
+                promoCodeInputRef.current.setSelectionRange(
+                    promoCodeInputRef.current.value.length,
+                    promoCodeInputRef.current.value.length
+                );
+            }
+        }, 100);
+    };
+
+    // Toggle promo code status
+    const togglePromoStatus = async (promo) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(
+                `${import.meta.env.VITE_API_URL}/promoCodes/update-promo/${promo.promoId}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        isActive: !promo.isActive
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to update promo code');
+            }
+
+            await fetchPromoCodes();
+            toast.success(`Promo code ${!promo.isActive ? 'activated' : 'deactivated'} successfully`);
+        } catch (error) {
+            console.error("Error updating promo code:", error);
+            toast.error("Failed to update promo code");
+        }
+    };
+
+    // Handle promo code input change
+    const handlePromoCodeChange = useCallback((e) => {
+        setNewPromoCode(e.target.value.toUpperCase());
+    }, []);
+
+    // Handle promo discount change
+    const handlePromoDiscountChange = useCallback((e) => {
+        setNewPromoDiscount(e.target.value);
+    }, []);
+
+    // Handle date changes
+    const handleStartDateChange = useCallback((e) => {
+        setNewPromoStartDate(e.target.value);
+    }, []);
+
+    const handleEndDateChange = useCallback((e) => {
+        setNewPromoEndDate(e.target.value);
+    }, []);
+
     // Filtered products
     const filteredProducts = useMemo(() => {
         if (!debouncedSearch) return products;
@@ -115,10 +387,7 @@ const DiscountProduct = () => {
     }, [debouncedSearch, products]);
 
     const paginatedProducts = useMemo(() => {
-        // If searching, show all filtered results without pagination
         if (debouncedSearch) return filteredProducts;
-
-        // Otherwise, apply pagination
         const startIndex = (currentPage - 1) * itemsPerPage;
         return filteredProducts.slice(0, startIndex + itemsPerPage);
     }, [filteredProducts, currentPage, itemsPerPage, debouncedSearch]);
@@ -134,9 +403,7 @@ const DiscountProduct = () => {
 
     // Handle discount change
     const handleDiscountChange = (productId, value) => {
-        // Validate discount value (0-100)
         const discountValue = Math.min(Math.max(parseFloat(value) || 0, 0), 100);
-
         setEditingDiscounts(prev => ({
             ...prev,
             [productId]: discountValue
@@ -339,6 +606,41 @@ const DiscountProduct = () => {
         }
     };
 
+    // Get status badge for promo code
+    const getPromoStatus = (promo) => {
+        const now = new Date();
+        const startDate = new Date(promo.startDate);
+        const endDate = new Date(promo.endDate);
+
+        if (promo.isExpired || endDate < now) {
+            return { status: 'expired', label: 'Expired' };
+        } else if (startDate > now) {
+            return { status: 'upcoming', label: 'Upcoming' };
+        } else if (!promo.isActive) {
+            return { status: 'inactive', label: 'Inactive' };
+        } else {
+            return { status: 'active', label: 'Active' };
+        }
+    };
+
+    // Format date for display
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    };
+
+    // Check if promo is currently active
+    const isPromoCurrentlyActive = (promo) => {
+        const now = new Date();
+        const startDate = new Date(promo.startDate);
+        const endDate = new Date(promo.endDate);
+        return promo.isActive && !promo.isExpired && startDate <= now && endDate >= now;
+    };
+
     // Handle unsaved changes alert actions
     const handleUnsavedAlertAction = async (action) => {
         if (action === 'save') {
@@ -349,7 +651,6 @@ const DiscountProduct = () => {
                 setPendingNavigation(null);
             }
         } else if (action === 'cancel') {
-            // Revert all changes
             setEditingDiscounts(originalDiscounts);
             setShowUnsavedAlert(false);
             setPendingNavigation(null);
@@ -362,13 +663,23 @@ const DiscountProduct = () => {
         }
     };
 
-
     // Check for unsaved discount changes
     const hasUnsavedChanges = useMemo(() => {
         return Object.keys(editingDiscounts).some(productId =>
             editingDiscounts[productId] !== originalDiscounts[productId]
         );
     }, [editingDiscounts, originalDiscounts]);
+
+    // Navigation guard for unsaved changes
+    const handleNavigation = useCallback((path) => {
+        if (hasUnsavedChanges) {
+            setPendingNavigation(path);
+            setShowUnsavedAlert(true);
+        } else {
+            navigate(path);
+        }
+    }, [hasUnsavedChanges, navigate]);
+
 
 
     // Unsaved Changes Alert Modal
@@ -380,17 +691,17 @@ const DiscountProduct = () => {
         ).length;
 
         return (
-            <div className="modal-overlay unsaved-alert-overlay">
-                <div className="modal-content unsaved-alert">
-                    <div className="modal-header">
-                        <div className="modal-title">Unsaved Changes</div>
+            <div className="discount-unsaved-alert-overlay">
+                <div className="discount-unsaved-alert-content">
+                    <div className="discount-alert-header">
+                        <div className="discount-alert-title">Unsaved Changes</div>
                     </div>
-                    <div className="modal-body">
+                    <div className="discount-alert-body">
                         <p>You have {changedCount} unsaved discount change(s). What would you like to do?</p>
                     </div>
-                    <div className="modal-footer">
+                    <div className="discount-alert-footer">
                         <button
-                            className="save-all-btn"
+                            className="discount-save-all-btn"
                             onClick={() => handleUnsavedAlertAction('save')}
                             disabled={isSavingAll}
                         >
@@ -407,13 +718,13 @@ const DiscountProduct = () => {
                             )}
                         </button>
                         <button
-                            className="cancel-changes-btn"
+                            className="discount-cancel-changes-btn"
                             onClick={() => handleUnsavedAlertAction('cancel')}
                         >
                             Discard
                         </button>
                         <button
-                            className="continue-editing-btn"
+                            className="discount-continue-editing-btn"
                             onClick={() => handleUnsavedAlertAction('continue')}
                         >
                             Go Without Saving
@@ -424,29 +735,11 @@ const DiscountProduct = () => {
         );
     };
 
-
-    // Navigation guard for unsaved changes
-    const handleNavigation = useCallback((path) => {
-        console.log('Navigation attempted to:', path);
-        console.log('Has unsaved changes:', hasUnsavedChanges);
-
-        if (hasUnsavedChanges) {
-            console.log('Showing unsaved alert');
-            setPendingNavigation(path);
-            setShowUnsavedAlert(true);
-        } else {
-            console.log('Navigating directly');
-            navigate(path);
-        }
-    }, [hasUnsavedChanges, navigate]);
-
     return (
-        // In the return statement, update the Navbar component
         <Navbar onNavigation={handleNavigation}>
             <ToastContainer position="top-center" autoClose={3000} />
             <div className="main">
                 <div className="page-header">
-                    {/* <h2>Discount Product Management</h2>  */}
                     <div className="right-section">
                         <div className="search-container">
                             <FaSearch className="search-icon" />
@@ -459,6 +752,12 @@ const DiscountProduct = () => {
                         </div>
                         <div className="action-buttons-group">
                             <button
+                                className="promo-code-btn"
+                                onClick={handleOpenPromoModal}
+                            >
+                                <FaTags /> Promo Codes
+                            </button>
+                            <button
                                 className="save-all-btn"
                                 onClick={saveAllDiscounts}
                                 disabled={isSavingAll}
@@ -470,13 +769,9 @@ const DiscountProduct = () => {
                                 )}
                                 {isSavingAll ? "Saving..." : "Save All"}
                             </button>
-
                             <button className="export-all-btn" onClick={exportAllAsExcel}>
                                 <FaFileExport /> Export All
                             </button>
-                            {/* <button className="add-btn" onClick={() => setShowForm(!showForm)}>
-                                <FaPlus /> {showForm ? "Close" : "Add Product"}
-                            </button> */}
                         </div>
                     </div>
                 </div>
@@ -488,7 +783,6 @@ const DiscountProduct = () => {
                             e.preventDefault();
                             const formData = new FormData(e.target);
                             const values = Object.fromEntries(formData);
-                            // Convert number fields to proper types
                             values.price = parseFloat(values.price);
                             values.taxSlab = values.taxSlab ? parseFloat(values.taxSlab) : 0;
                             values.discount = values.discount ? parseFloat(values.discount) : 0;
@@ -635,6 +929,33 @@ const DiscountProduct = () => {
                     )}
                 </div>
 
+                <PromoCodeModal
+                    show={showPromoModal}
+                    onClose={handleClosePromoModal}
+                    promoCodes={promoCodes}
+                    isLoadingPromos={isLoadingPromos}
+                    newPromoCode={newPromoCode}
+                    newPromoDiscount={newPromoDiscount}
+                    newPromoStartDate={newPromoStartDate}
+                    newPromoEndDate={newPromoEndDate}
+                    isSavingPromo={isSavingPromo}
+                    editingPromo={editingPromo}
+                    handlePromoCodeChange={handlePromoCodeChange}
+                    handlePromoDiscountChange={handlePromoDiscountChange}
+                    handleStartDateChange={handleStartDateChange}
+                    handleEndDateChange={handleEndDateChange}
+                    savePromoCode={savePromoCode}
+                    handleEditPromo={handleEditPromo}
+                    togglePromoStatus={togglePromoStatus}
+                    deletePromoCode={deletePromoCode}
+                    getPromoStatus={getPromoStatus}
+                    isPromoCurrentlyActive={isPromoCurrentlyActive}
+                    formatDate={formatDate}
+                    promoCodeInputRef={promoCodeInputRef}
+                    promoDiscountInputRef={promoDiscountInputRef}
+                    startDateInputRef={startDateInputRef}
+                    endDateInputRef={endDateInputRef}
+                />
 
                 <UnsavedChangesAlert />
             </div>

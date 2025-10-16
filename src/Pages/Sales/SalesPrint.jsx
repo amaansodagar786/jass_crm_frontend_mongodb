@@ -18,7 +18,9 @@ const SalesPrint = ({ invoice }) => {
     sgst,
     tax,
     hasMixedTaxRates,
-    total
+    total,
+    promoDiscount, // Add this
+    appliedPromoCode,
   } = invoice;
 
   const termsAndConditions = `
@@ -191,6 +193,12 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
                   <td>Payment Type:</td>
                   <td>{(paymentType || "N/A").toUpperCase()}</td>
                 </tr>
+                {appliedPromoCode && (
+                  <tr>
+                    <td>Promo Code:</td>
+                    <td>{appliedPromoCode.code} ({appliedPromoCode.discount}% off)</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -241,6 +249,11 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
                 <tr>
                   <td>Discount:</td>
                   <td>{formatCurrency(discount)}</td>
+                </tr>
+
+                <tr>
+                  <td>Promo Discount:</td>
+                  <td>{formatCurrency(promoDiscount)}</td>
                 </tr>
 
                 {/* Show CGST/SGST only if no mixed tax rates */}

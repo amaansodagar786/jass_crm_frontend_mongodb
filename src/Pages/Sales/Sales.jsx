@@ -50,6 +50,84 @@ const Sales = () => {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [isBulkImportLoading, setIsBulkImportLoading] = useState(false);
 
+  const [promoCode, setPromoCode] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState(null);
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+  const [promoError, setPromoError] = useState("");
+
+
+  // Add this function to validate promo code
+  // Update the validatePromoCode function in Sales component
+  const validatePromoCode = async (code) => {
+    if (!code.trim()) {
+      setPromoError("Please enter a promo code");
+      return false;
+    }
+
+    setIsValidatingPromo(true);
+    setPromoError("");
+
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/promoCodes/validate-promo/${code.trim().toUpperCase()}`
+      );
+
+      if (response.data.isValid) {
+        setAppliedPromo(response.data.promoCode);
+        setPromoError("");
+        toast.success(`Promo code applied! ${response.data.promoCode.discount}% discount`);
+        return true;
+      } else {
+        // Check the specific error message from backend
+        const errorMessage = response.data.message || "Invalid promo code";
+
+        if (errorMessage.includes("inactive")) {
+          setPromoError("This promo code is currently inactive");
+          toast.error("Promo code is inactive");
+        } else if (errorMessage.includes("expired")) {
+          setPromoError("This promo code has expired");
+          toast.error("Promo code has expired");
+        } else if (errorMessage.includes("Invalid") || errorMessage.includes("invalid")) {
+          setPromoError("Invalid promo code. Please check the spelling");
+          toast.error("Invalid promo code. Please check the spelling");
+        } else {
+          setPromoError(errorMessage);
+          toast.error(errorMessage);
+        }
+
+        setAppliedPromo(null);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error validating promo code:", error);
+
+      // Handle specific HTTP status codes
+      if (error.response?.status === 404) {
+        setPromoError("Promo code not found. Please check the spelling");
+        toast.error("Promo code not found. Please check the spelling");
+      } else if (error.response?.status === 400) {
+        setPromoError("Invalid promo code format");
+        toast.error("Invalid promo code format");
+      } else {
+        setPromoError("Failed to validate promo code. Please try again.");
+        toast.error("Failed to validate promo code");
+      }
+
+      setAppliedPromo(null);
+      return false;
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  };
+
+  // Add this function to remove applied promo
+  const removePromoCode = () => {
+    setAppliedPromo(null);
+    setPromoCode("");
+    setPromoError("");
+    toast.info("Promo code removed");
+  };
+
   // Fetch all data on component mount
   useEffect(() => {
     fetchCustomers();
@@ -332,15 +410,18 @@ const Sales = () => {
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/customer/create-customer`, {
         customerName: customerData.name,
         email: customerData.email,
-        contactNumber: customerData.mobile
+        contactNumber: customerData.mobile,
+        loyaltyCoins: 0
       });
 
       return {
         id: response.data.customerId,
+        customerId: response.data.customerId || response.data.id,
         customerNumber: response.data.customerId,
         name: response.data.customerName,
         email: response.data.email,
-        mobile: response.data.contactNumber
+        mobile: response.data.contactNumber,
+        loyaltyCoins: 0
       };
     } catch (error) {
       console.error("Error creating customer:", error);
@@ -348,7 +429,7 @@ const Sales = () => {
     }
   };
 
-  // Invoice calculations
+  // CORRECT calculateInvoiceTotals function - Tax calculated AFTER promo discount
   const calculateInvoiceTotals = () => {
     let subtotal = 0;
     let totalDiscountAmount = 0;
@@ -358,26 +439,52 @@ const Sales = () => {
     let sgstAmount = 0;
     const taxPercentages = new Set();
 
+    // First calculate amount after all discounts
+    let amountAfterAllDiscounts = 0;
+
     const itemsWithCalculations = selectedItems.map(item => {
       const quantity = item.quantity || 1;
       const taxRate = item.taxSlab || 18;
       const discountPercentage = item.discount || 0;
 
-      console.log(`Product: ${item.productName || "Unnamed"}, Tax Slab: ${taxRate}%`);
-
       taxPercentages.add(taxRate);
 
+      // Price already includes tax
       const itemTotalInclTax = item.price * quantity;
       const itemDiscountAmount = itemTotalInclTax * (discountPercentage / 100);
       const itemTotalAfterDiscount = itemTotalInclTax - itemDiscountAmount;
-      const itemBaseValue = itemTotalAfterDiscount / (1 + taxRate / 100);
-      const itemTaxAmount = itemTotalAfterDiscount - itemBaseValue;
-      const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
-      const itemSgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
-      const itemTotalAmount = itemTotalAfterDiscount;
 
       subtotal += itemTotalInclTax;
       totalDiscountAmount += itemDiscountAmount;
+      amountAfterAllDiscounts += itemTotalAfterDiscount;
+
+      return {
+        ...item,
+        discountAmount: itemDiscountAmount,
+        totalAmount: itemTotalAfterDiscount
+      };
+    });
+
+    // ✅ Apply promo discount on the total amount after item discounts
+    let promoDiscountAmount = 0;
+    if (appliedPromo) {
+      promoDiscountAmount = amountAfterAllDiscounts * (appliedPromo.discount / 100);
+    }
+
+    // ✅ Final amount after ALL discounts
+    const finalAmountAfterAllDiscounts = amountAfterAllDiscounts - promoDiscountAmount;
+
+    // ✅ NOW calculate tax on the final amount after ALL discounts
+    const itemsWithTaxCalculations = itemsWithCalculations.map(item => {
+      const taxRate = item.taxSlab || 18;
+
+      // Calculate tax based on final discounted amount for this item
+      const itemFinalAmount = (item.totalAmount / amountAfterAllDiscounts) * finalAmountAfterAllDiscounts;
+      const itemBaseValue = itemFinalAmount / (1 + taxRate / 100);
+      const itemTaxAmount = itemFinalAmount - itemBaseValue;
+      const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
+      const itemSgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
+
       totalBaseValue += itemBaseValue;
       totalTaxAmount += itemTaxAmount;
       cgstAmount += itemCgstAmount;
@@ -386,11 +493,10 @@ const Sales = () => {
       return {
         ...item,
         baseValue: itemBaseValue,
-        discountAmount: itemDiscountAmount,
         taxAmount: itemTaxAmount,
         cgstAmount: itemCgstAmount,
         sgstAmount: itemSgstAmount,
-        totalAmount: itemTotalAmount
+        finalAmount: itemFinalAmount
       };
     });
 
@@ -400,21 +506,55 @@ const Sales = () => {
       sgstAmount = 0;
     }
 
-    const grandTotal = subtotal - totalDiscountAmount;
+    // ✅ Final grand total (amount after ALL discounts)
+    const grandTotal = finalAmountAfterAllDiscounts;
 
     return {
-      items: itemsWithCalculations,
+      items: itemsWithTaxCalculations,
       subtotal: subtotal,
       baseValue: totalBaseValue,
       discount: totalDiscountAmount,
+      promoDiscount: promoDiscountAmount,
       tax: totalTaxAmount,
       cgst: cgstAmount,
       sgst: sgstAmount,
       hasMixedTaxRates: hasMixedTaxRates,
       taxPercentages: Array.from(taxPercentages),
+      amountAfterAllDiscounts: amountAfterAllDiscounts,
+      finalAmountAfterAllDiscounts: finalAmountAfterAllDiscounts,
       grandTotal: grandTotal
     };
   };
+
+  // Add this function in your Sales component
+  const calculateLoyaltyCoins = (invoiceTotals) => {
+    // Use baseValue which is total after discounts but before tax
+    const spendAmount = invoiceTotals.baseValue;
+
+    // Calculate coins: 1 coin per 100 rupees, rounded down
+    let coins = Math.floor(spendAmount / 100);
+
+    // Apply maximum limit of 50 coins per order
+    coins = Math.min(coins, 50);
+
+    return coins;
+  };
+
+
+  // Add this function in your Sales component (after the createCustomer function)
+  const updateCustomerLoyaltyCoins = async (customerId, coinsEarned) => {
+    try {
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/customer/update-loyalty-coins/${customerId}`,
+        { coinsEarned }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error updating customer loyalty coins:", error);
+      throw error;
+    }
+  };
+
 
   // Form submission
   const handleSubmit = async (values) => {
@@ -474,6 +614,8 @@ const Sales = () => {
 
       const invoiceTotals = calculateInvoiceTotals();
 
+      const loyaltyCoinsEarned = calculateLoyaltyCoins(invoiceTotals);
+
       const invoice = {
         date: newCustomer.date || new Date().toISOString().split('T')[0],
         customer: customerToUse,
@@ -487,17 +629,29 @@ const Sales = () => {
         subtotal: invoiceTotals.subtotal,
         baseValue: invoiceTotals.baseValue,
         discount: invoiceTotals.discount,
+        promoDiscount: invoiceTotals.promoDiscount, // Add this
+        appliedPromoCode: appliedPromo ? { // Add this
+          promoId: appliedPromo.promoId,
+          code: appliedPromo.code,
+          discount: appliedPromo.discount,
+          description: appliedPromo.description
+        } : null,
         tax: invoiceTotals.tax,
         cgst: invoiceTotals.cgst,
         sgst: invoiceTotals.sgst,
         hasMixedTaxRates: invoiceTotals.hasMixedTaxRates,
         taxPercentages: invoiceTotals.taxPercentages,
         total: invoiceTotals.grandTotal,
-        remarks: newCustomer.remarks || ''
+        remarks: newCustomer.remarks || '',
+        loyaltyCoinsEarned: loyaltyCoinsEarned
       };
 
       const savedInvoice = await saveInvoiceToDB(invoice);
       // await updateInventoryQuantities(selectedItems); 
+
+      if (loyaltyCoinsEarned > 0) {
+        await updateCustomerLoyaltyCoins(customerToUse.customerId, loyaltyCoinsEarned);
+      }
 
       setInvoices(prev => {
         const updated = [savedInvoice.data, ...prev];
@@ -523,6 +677,10 @@ const Sales = () => {
         remarks: ""
       });
       setCustomerMobileSearch("");
+
+      setPromoCode("");
+      setAppliedPromo(null);
+      setPromoError("");
 
       setInvoiceForPrint({ invoice: savedInvoice.data, openWhatsapp: true });
 
@@ -1074,6 +1232,30 @@ const Sales = () => {
       }
     };
 
+
+    const calculateInvoiceBreakdown = (invoice) => {
+      const subtotal = invoice.subtotal || 0;
+      const itemDiscount = invoice.discount || 0;
+      const promoDiscount = invoice.promoDiscount || 0;
+      const tax = invoice.tax || 0;
+
+      const amountBeforeTax = subtotal - itemDiscount;
+      const taxableAmountAfterPromo = amountBeforeTax - promoDiscount;
+      const grandTotal = taxableAmountAfterPromo;
+
+      return {
+        subtotal,
+        itemDiscount,
+        promoDiscount,
+        amountBeforeTax,
+        taxableAmountAfterPromo,
+        tax,
+        grandTotal
+      };
+    };
+
+    const invoiceBreakdown = calculateInvoiceBreakdown(invoice);
+
     // Calculate item totals for display
     const calculateItemTotal = (item) => {
       const quantity = item.quantity || 1;
@@ -1195,6 +1377,19 @@ const Sales = () => {
                     <span className="detail-value">{invoice.remarks || 'No remarks'}</span>
                   )}
                 </div>
+
+
+                {invoice.appliedPromoCode && (
+                  <div className="detail-row">
+                    <span className="detail-label">Promo Code Applied:</span>
+                    <span className="detail-value promo-code-value">
+                      {invoice.appliedPromoCode.code} - {invoice.appliedPromoCode.discount}% off
+                      {invoice.appliedPromoCode.description && (
+                        <div className="promo-description">{invoice.appliedPromoCode.description}</div>
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1255,44 +1450,69 @@ const Sales = () => {
               )}
             </div>
 
+
+
             {/* Invoice Summary Section */}
             <div className="invoice-section">
-              <h3 className="section-title">Invoice Summary</h3>
-              <div className="invoice-summary-grid">
-                <div className="summary-row">
-                  <span className="summary-label">Subtotal:</span>
-                  <span className="summary-value">₹{invoice.subtotal?.toFixed(2) || '0.00'}</span>
+              <h3 className="section-title">Invoice Calculation Breakdown</h3>
+              <div className="invoice-summary-grid detailed-calculation">
+                <div className="calculation-step">
+                  <span className="step-label">Subtotal (Incl. Tax):</span>
+                  <span className="step-value">₹{invoiceBreakdown.subtotal.toFixed(2)}</span>
                 </div>
 
-                <div className="summary-row">
-                  <span className="summary-label">Total Discount:</span>
-                  <span className="summary-value">₹{invoice.discount?.toFixed(2) || '0.00'}</span>
+                <div className="calculation-step discount-step">
+                  <span className="step-label">Total Item Discount:</span>
+                  <span className="step-value">-₹{invoiceBreakdown.itemDiscount.toFixed(2)}</span>
                 </div>
 
+                <div className="calculation-step amount-before-tax">
+                  <span className="step-label">Amount Before Tax:</span>
+                  <span className="step-value">₹{invoiceBreakdown.amountBeforeTax.toFixed(2)}</span>
+                </div>
+
+                {/* Add Promo Discount Section */}
+                {invoice.appliedPromoCode && (
+                  <>
+                    <div className="calculation-step promo-step">
+                      <span className="step-label">
+                        Promo Discount ({invoice.appliedPromoCode.discount}%):
+                      </span>
+                      <span className="step-value">-₹{invoiceBreakdown.promoDiscount.toFixed(2)}</span>
+                    </div>
+
+                    <div className="calculation-step taxable-amount">
+                      <span className="step-label">Taxable Amount After Promo:</span>
+                      <span className="step-value">₹{invoiceBreakdown.taxableAmountAfterPromo.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+
+                {/* Tax Calculation */}
                 {!invoice.hasMixedTaxRates && invoice.taxPercentages && invoice.taxPercentages.length > 0 && (
                   <>
-                    <div className="summary-row">
-                      <span className="summary-label">CGST ({invoice.taxPercentages[0] / 2}%):</span>
-                      <span className="summary-value">₹{invoice.cgst?.toFixed(2) || '0.00'}</span>
+                    <div className="calculation-step tax-step">
+                      <span className="step-label">CGST ({invoice.taxPercentages[0] / 2}%):</span>
+                      <span className="step-value">+₹{invoice.cgst?.toFixed(2) || '0.00'}</span>
                     </div>
-                    <div className="summary-row">
-                      <span className="summary-label">SGST ({invoice.taxPercentages[0] / 2}%):</span>
-                      <span className="summary-value">₹{invoice.sgst?.toFixed(2) || '0.00'}</span>
+                    <div className="calculation-step tax-step">
+                      <span className="step-label">SGST ({invoice.taxPercentages[0] / 2}%):</span>
+                      <span className="step-value">+₹{invoice.sgst?.toFixed(2) || '0.00'}</span>
                     </div>
                   </>
                 )}
 
                 {invoice.hasMixedTaxRates && (
-                  <div className="summary-row">
-                    <span className="summary-label">Total GST:</span>
-                    <span className="summary-value">₹{invoice.tax?.toFixed(2) || '0.00'}</span>
+                  <div className="calculation-step tax-step">
+                    <span className="step-label">Total GST:</span>
+                    <span className="step-value">+₹{invoiceBreakdown.tax.toFixed(2)}</span>
                   </div>
                 )}
 
-                <div className="summary-row total-row">
-                  <span className="summary-label">Grand Total:</span>
-                  <span className="summary-value total-amount">
-                    ₹{invoice.total?.toFixed(2) || '0.00'}
+                <div className="calculation-step total-row">
+                  <span className="step-label">Grand Total:</span>
+                  <span className="step-value total-amount">
+                    ₹{invoiceBreakdown.grandTotal.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -1824,6 +2044,15 @@ const Sales = () => {
                             <span>₹{invoiceTotals.discount.toFixed(2)}</span>
                           </div>
 
+                          {/* Add this promo discount row */}
+                          {appliedPromo && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#28a745' }}>
+                              <span>Promo Discount ({appliedPromo.discount}%):</span>
+                              <span>-₹{invoiceTotals.promoDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {/* Rest of the tax calculation remains same */}
                           {!invoiceTotals.hasMixedTaxRates && invoiceTotals.taxPercentages.length > 0 && (
                             <>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -1917,6 +2146,51 @@ const Sales = () => {
                     </div>
                   </div>
 
+
+                  {/* Add this section before the Remarks section */}
+                  <h3 className="section-heading">Promo Code (Optional)</h3>
+                  <div className="form-group-row">
+                    <div className="field-wrapper" style={{ width: '100%' }}>
+                      <div className="promo-code-container">
+                        <div className="promo-input-group">
+                          <input
+                            type="text"
+                            placeholder="Enter promo code"
+                            value={promoCode}
+                            onChange={(e) => setPromoCode(e.target.value)}
+                            disabled={!!appliedPromo || isValidatingPromo}
+                            className={promoError ? 'error' : ''}
+                          />
+                          {!appliedPromo ? (
+                            <button
+                              type="button"
+                              className="apply-promo-btn"
+                              onClick={() => validatePromoCode(promoCode)}
+                              disabled={!promoCode.trim() || isValidatingPromo}
+                            >
+                              {isValidatingPromo ? <FaSpinner className="spinner" /> : "Apply"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="remove-promo-btn"
+                              onClick={removePromoCode}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        {promoError && <div className="promo-error">{promoError}</div>}
+                        {appliedPromo && (
+                          <div className="promo-success">
+                            ✅ {appliedPromo.code} applied - {appliedPromo.discount}% discount
+                            {appliedPromo.description && `: ${appliedPromo.description}`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <h3 className="section-heading">Payment Type</h3>
                   <div className="payment-options-container">
                     <div className="payment-options">
@@ -1934,6 +2208,9 @@ const Sales = () => {
                       </label>
                     </div>
                   </div>
+
+
+
 
                   <h3 className="section-heading">Remarks (Optional)</h3>
                   <div className="form-group-row">
