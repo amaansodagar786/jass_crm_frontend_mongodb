@@ -53,6 +53,9 @@ const DiscountProduct = () => {
     // Track if modal is mounted to prevent re-renders
     const modalMountedRef = useRef(false);
 
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [promoToDelete, setPromoToDelete] = useState(null);
+
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
@@ -268,14 +271,18 @@ const DiscountProduct = () => {
 
     // Delete promo code
     const deletePromoCode = async (promoId) => {
-        if (!window.confirm("Are you sure you want to delete this promo code?")) {
-            return;
-        }
+        setPromoToDelete(promoId);
+        setShowDeleteConfirm(true);
+    };
+
+
+    const confirmDeletePromo = async () => {
+        if (!promoToDelete) return;
 
         try {
             const token = localStorage.getItem('token');
             const response = await fetch(
-                `${import.meta.env.VITE_API_URL}/promoCodes/delete-promo/${promoId}`,
+                `${import.meta.env.VITE_API_URL}/promoCodes/delete-promo/${promoToDelete}`,
                 {
                     method: "DELETE",
                     headers: {
@@ -294,7 +301,100 @@ const DiscountProduct = () => {
         } catch (error) {
             console.error("Error deleting promo code:", error);
             toast.error("Failed to delete promo code");
+        } finally {
+            setShowDeleteConfirm(false);
+            setPromoToDelete(null);
         }
+    };
+
+    // Delete Confirmation Modal
+    const DeleteConfirmationModal = () => {
+        if (!showDeleteConfirm) return null;
+
+        const promo = promoCodes.find(p => p.promoId === promoToDelete);
+
+        return (
+            <div className="discount-modal-overlay">
+                <div className="discount-modal-content" style={{ maxWidth: "500px" }}>
+                    <div className="discount-modal-header">
+                        <div className="discount-modal-title">
+                            <FaTrash /> Delete Promo Code
+                        </div>
+                        <button className="discount-close-btn" onClick={cancelDeletePromo}>
+                            <FaTimes />
+                        </button>
+                    </div>
+
+                    <div className="discount-modal-body">
+                        <div style={{ padding: "30px", textAlign: "center" }}>
+                            <div style={{ fontSize: "48px", color: "#e74c3c", marginBottom: "20px" }}>
+                                <FaTrash />
+                            </div>
+                            <h3 style={{ margin: "0 0 15px 0", color: "#2c3e50" }}>
+                                Confirm Deletion
+                            </h3>
+                            <p style={{ color: "#7f8c8d", lineHeight: "1.6", marginBottom: "25px" }}>
+                                Are you sure you want to delete the promo code{" "}
+                                <strong style={{ color: "#9b59b6", fontFamily: "'Courier New', monospace" }}>
+                                    {promo?.code}
+                                </strong>
+                                ? This action cannot be undone.
+                            </p>
+
+                            <div style={{
+                                background: "#fff3cd",
+                                border: "1px solid #ffeaa7",
+                                borderRadius: "8px",
+                                padding: "15px",
+                                marginBottom: "25px",
+                                textAlign: "left"
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                                    <FaTags style={{ color: "#e67e22" }} />
+                                    <strong style={{ color: "#856404" }}>Promo Details:</strong>
+                                </div>
+                                <div style={{ fontSize: "14px", color: "#856404" }}>
+                                    <div>Code: <strong>{promo?.code}</strong></div>
+                                    <div>Discount: <strong>{promo?.discount}%</strong></div>
+                                    <div>Valid: {formatDate(promo?.startDate)} to {formatDate(promo?.endDate)}</div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                                <button
+                                    className="discount-cancel-changes-btn"
+                                    onClick={cancelDeletePromo}
+                                    style={{
+                                        background: "#95a5a6",
+                                        padding: "12px 24px"
+                                    }}
+                                >
+                                    <FaTimes /> Cancel
+                                </button>
+                                <button
+                                    className="discount-delete-btn"
+                                    onClick={confirmDeletePromo}
+                                    style={{
+                                        background: "linear-gradient(135deg, #e74c3c, #c0392b)",
+                                        padding: "12px 24px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px"
+                                    }}
+                                >
+                                    <FaTrash /> Delete Promo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const cancelDeletePromo = () => {
+        setShowDeleteConfirm(false);
+        setPromoToDelete(null);
     };
 
     // Edit promo code
@@ -956,9 +1056,12 @@ const DiscountProduct = () => {
                     promoDiscountInputRef={promoDiscountInputRef}
                     startDateInputRef={startDateInputRef}
                     endDateInputRef={endDateInputRef}
+                    // deletePromoCode={deletePromoCode}
+                    
                 />
 
                 <UnsavedChangesAlert />
+                <DeleteConfirmationModal />
             </div>
         </Navbar>
     );

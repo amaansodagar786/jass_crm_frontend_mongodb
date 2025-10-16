@@ -1651,3 +1651,147 @@
     }
   }
 }
+
+
+
+// Add these styles to your Sales.scss
+
+// Promo Dropdown Styles
+.promo-dropdown-group {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+}
+
+.dropdown-wrapper {
+  position: relative;
+  flex: 1;
+
+  select {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    background-color: white;
+    appearance: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:focus {
+      border-color: #7366ff;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(115, 102, 255, 0.2);
+    }
+
+    &.error {
+      border-color: #dc3545;
+    }
+
+    &:disabled {
+      background-color: #f8f9fa;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    option {
+      padding: 10px;
+      font-size: 14px;
+
+      &:disabled {
+        color: #999;
+      }
+    }
+  }
+
+  .dropdown-arrow {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    color: #666;
+    pointer-events: none;
+    font-size: 14px;
+  }
+}
+
+.promo-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #7366ff;
+  font-size: 14px;
+  margin-top: 8px;
+
+  .spinner {
+    animation: spin 1s linear infinite;
+  }
+}
+
+// Keep the existing promo styles but adjust for dropdown
+.promo-error {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 8px;
+  font-weight: 500;
+  background: #f8d7da;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 4px solid #dc3545;
+}
+
+.promo-success {
+  color: #28a745;
+  font-size: 14px;
+  margin-top: 8px;
+  font-weight: 500;
+  background: #e8f5e8;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 4px solid #28a745;
+}
+
+.remove-promo-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: fit-content;
+
+  &:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+// Loading state for dropdown
+.dropdown-loading {
+  position: relative;
+
+  &::after {
+    content: "Loading...";
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    font-size: 12px;
+  }
+}
