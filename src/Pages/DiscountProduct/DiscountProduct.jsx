@@ -627,6 +627,7 @@ const DiscountProduct = () => {
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata', // Explicitly set to IST
             day: '2-digit',
             month: '2-digit',
             year: 'numeric'
