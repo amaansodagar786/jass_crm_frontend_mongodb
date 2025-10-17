@@ -20,6 +20,7 @@ const SalesPrint = ({ invoice }) => {
     hasMixedTaxRates,
     total,
     promoDiscount, // Add this
+    loyaltyDiscount,
     appliedPromoCode,
   } = invoice;
 
@@ -199,6 +200,12 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
                     <td>{appliedPromoCode.code} ({appliedPromoCode.discount}% off)</td>
                   </tr>
                 )}
+                {loyaltyDiscount > 0 && (
+                  <tr>
+                    <td>Coins Used:</td>
+                    <td>{invoice.loyaltyCoinsUsed || 0} coins</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -250,11 +257,20 @@ Only manufacturing defects are eligible for replacement<br /> within 1 day of pu
                   <td>Discount:</td>
                   <td>{formatCurrency(discount)}</td>
                 </tr>
+                {promoDiscount > 0 && (
+                  <tr>
+                    <td>Promo Discount:</td>
+                    <td>{formatCurrency(promoDiscount)}</td>
+                  </tr>
+                )}
 
-                <tr>
-                  <td>Promo Discount:</td>
-                  <td>{formatCurrency(promoDiscount)}</td>
-                </tr>
+                {/* Loyalty Coins Discount - NEW SECTION */}
+                {loyaltyDiscount > 0 && (
+                  <tr>
+                    <td>Loyalty Coins Discount:</td>
+                    <td>{formatCurrency(loyaltyDiscount)}</td>
+                  </tr>
+                )}
 
                 {/* Show CGST/SGST only if no mixed tax rates */}
                 {!hasMixedTaxRates && cgst > 0 && sgst > 0 && (

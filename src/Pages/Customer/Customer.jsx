@@ -124,45 +124,60 @@ const Customer = () => {
     const customer = customers.find((c) => c.customerId === selectedCustomer);
 
     const content = `
-  <div style="font-family: 'Arial', sans-serif; padding: 30px; background: #fff; max-width: 600px; margin: 0 auto;">
-    <div style="text-align: center; margin-bottom: 30px;">
-      <h1 style="color: #3f3f91; margin: 0; font-size: 28px; font-weight: bold;">Customer Details</h1>
-      <div style="height: 3px; background: linear-gradient(90deg, #3f3f91, #6a6ac5); width: 100px; margin: 10px auto;"></div>
+<div style="font-family: 'Arial', sans-serif; padding: 30px; background: #fff; max-width: 600px; margin: 0 auto;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="color: #3f3f91; margin: 0; font-size: 28px; font-weight: bold;">Customer Details</h1>
+    <div style="height: 3px; background: linear-gradient(90deg, #3f3f91, #6a6ac5); width: 100px; margin: 10px auto;"></div>
+  </div>
+  
+  <div style="border: 2px solid #3f3f91; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+    <div style="background: #3f3f91; padding: 15px; color: white;">
+      <h2 style="margin: 0; font-size: 22px;">${customer.customerName || 'N/A'}</h2>
     </div>
     
-    <div style="border: 2px solid #3f3f91; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
-      <div style="background: #3f3f91; padding: 15px; color: white;">
-        <h2 style="margin: 0; font-size: 22px;">${customer.customerName || 'N/A'}</h2>
-      </div>
-      
-      <div style="padding: 25px;">
-        <div style="display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px;">
-          <div>
-            <h3 style="color: #3f3f91; margin: 0 0 15px 0; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 8px;">Contact Information</h3>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Email</div>
-              <div>${customer.email || 'N/A'}</div>
-            </div>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Mobile Number</div>
-              <div>${customer.contactNumber || 'N/A'}</div>
-            </div>
-            
-            <div style="margin-bottom: 12px;">
-              <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Created Date</div>
-              <div>${new Date(customer.createdAt || customer._id?.getTimestamp()).toLocaleDateString()}</div>
-            </div>
+    <div style="padding: 25px;">
+      <div style="display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px;">
+        <div>
+          <h3 style="color: #3f3f91; margin: 0 0 15px 0; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 8px;">Contact Information</h3>
+          
+          <div style="margin-bottom: 12px;">
+            <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Email</div>
+            <div>${customer.email || 'N/A'}</div>
+          </div>
+          
+          <div style="margin-bottom: 12px;">
+            <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Mobile Number</div>
+            <div>${customer.contactNumber || 'N/A'}</div>
+          </div>
+          
+          <div style="margin-bottom: 12px;">
+            <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Loyalty Coins</div>
+            <div>${customer.loyaltyCoins || 0}</div>
+          </div>
+          
+          <div style="margin-bottom: 12px;">
+            <div style="font-weight: bold; color: #555; margin-bottom: 4px;">Created Date</div>
+            <div>${new Date(customer.createdAt || customer._id?.getTimestamp()).toLocaleDateString()}</div>
           </div>
         </div>
-        
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; text-align: center; margin-top: 20px; border: 1px dashed #ddd;">
-          <div style="font-style: italic; color: #777;">Generated on ${new Date().toLocaleDateString()}</div>
-        </div>
+      </div>
+      
+      <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; text-align: center; margin-top: 20px; border: 1px dashed #ddd;">
+        <div style="font-style: italic; color: #777;">Generated on ${new Date().toLocaleDateString()}</div>
       </div>
     </div>
-  </div>`;
+  </div>
+</div>`;
+
+    // Update exportAllAsExcel function to include loyalty coins
+    const worksheet = XLSX.utils.json_to_sheet(
+      dataToExport.map((customer) => ({
+        Name: customer.customerName,
+        Email: customer.email,
+        "Mobile Number": customer.contactNumber,
+        "Loyalty Coins": customer.loyaltyCoins || 0, // Added this column
+      }))
+    );
 
     const opt = {
       margin: 10,
@@ -556,6 +571,13 @@ const Customer = () => {
                 )}
               </div>
 
+              <div className="detail-row">
+                <span className="detail-label">Loyalty Coins</span>
+                <span className="detail-value loyalty-coins">
+                  {customer.loyaltyCoins || 0}
+                </span>
+              </div>
+
               {/* Created At */}
               <div className="detail-row">
                 <span className="detail-label">Created At:</span>
@@ -871,6 +893,7 @@ const Customer = () => {
                     <th>Name</th>
                     <th>Email</th>
                     <th>Mobile Number</th>
+                    <th>Loyalty Coins</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -885,6 +908,7 @@ const Customer = () => {
                       <td>{cust.customerName}</td>
                       <td>{cust.email}</td>
                       <td>{cust.contactNumber}</td>
+                      <td>{cust.loyaltyCoins || 0}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -916,3 +916,35 @@ button:disabled {
     cursor: not-allowed;
   }
 }
+
+
+
+/* Add this to your Customer.scss */
+.data-table table th:nth-child(4),
+.data-table table td:nth-child(4) {
+  text-align: center;
+  font-weight: 600;
+  color: #e67e22; /* Orange color for coins to make them stand out */
+}
+
+/* For the modal */
+.detail-row .detail-value:last-child {
+  font-weight: 600;
+  color: #e67e22;
+}
+
+
+
+/* Add this to your Customer.scss */
+.detail-row .loyalty-coins {
+  font-weight: 600;
+  color: #e67e22;
+  font-size: 16px;
+}
+
+.data-table table th:nth-child(4),
+.data-table table td:nth-child(4) {
+  text-align: center;
+  font-weight: 600;
+  color: #e67e22;
+}

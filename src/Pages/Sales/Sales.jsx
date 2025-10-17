@@ -60,6 +60,12 @@ const Sales = () => {
   const [isLoadingPromos, setIsLoadingPromos] = useState(false);
 
 
+  const [useLoyaltyCoins, setUseLoyaltyCoins] = useState(false);
+  const [availableLoyaltyCoins, setAvailableLoyaltyCoins] = useState(0);
+  const [usableLoyaltyCoins, setUsableLoyaltyCoins] = useState(0);
+
+
+
 
   // Add this useEffect to fetch active promo codes
   useEffect(() => {
@@ -157,14 +163,15 @@ const Sales = () => {
         await generatePDF(invoiceForPrint.invoice);
 
         // Open WhatsApp if needed
-        if (invoiceForPrint.openWhatsapp) {
-          const customerMobile = (invoiceForPrint.invoice.customer?.mobile || "").replace(/\D/g, "");
-          if (customerMobile) {
-            const message = `Hello ${invoiceForPrint.invoice.customer?.name || ""}, your invoice (No: ${invoiceForPrint.invoice.invoiceNumber}) has been generated.`;
-            window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
-          }
-        }
-      } catch (error) {
+        // if (invoiceForPrint.openWhatsapp) {
+        //   const customerMobile = (invoiceForPrint.invoice.customer?.mobile || "").replace(/\D/g, "");
+        //   if (customerMobile) {
+        //     const message = `Hello ${invoiceForPrint.invoice.customer?.name || ""}, your invoice (No: ${invoiceForPrint.invoice.invoiceNumber}) has been generated.`;
+        //     window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
+        //   }
+        // }
+      }
+      catch (error) {
         console.error("Error in PDF/WhatsApp process:", error);
         toast.error("Failed to generate PDF");
       } finally {
@@ -215,7 +222,8 @@ const Sales = () => {
         customerNumber: customer.customerId,
         name: customer.customerName || "",
         email: customer.email || "",
-        mobile: customer.contactNumber || ""
+        mobile: customer.contactNumber || "",
+        loyaltyCoins: customer.loyaltyCoins || 0 // ✅ THIS MUST BE INCLUDED
       }));
       setCustomers(customersData);
     } catch (error) {
@@ -394,15 +402,23 @@ const Sales = () => {
     });
     setCustomerMobileSearch(customer.mobile);
     setShowCustomerDropdown(false);
+
+    // Calculate usable loyalty coins
+    const totalCoins = customer.loyaltyCoins || 0;
+    const usableCoins = Math.max(0, totalCoins - 50);
+
+    setAvailableLoyaltyCoins(totalCoins);
+    setUsableLoyaltyCoins(usableCoins);
+    setUseLoyaltyCoins(false); // Reset checkbox
   };
 
-  const createCustomer = async (customerData) => {
+  const createCustomer = async (customerData, initialCoins = 0) => {
     try {
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/customer/create-customer`, {
         customerName: customerData.name,
         email: customerData.email,
         contactNumber: customerData.mobile,
-        loyaltyCoins: 0
+        loyaltyCoins: initialCoins,
       });
 
       return {
@@ -412,7 +428,7 @@ const Sales = () => {
         name: response.data.customerName,
         email: response.data.email,
         mobile: response.data.contactNumber,
-        loyaltyCoins: 0
+        loyaltyCoins: initialCoins,
       };
     } catch (error) {
       console.error("Error creating customer:", error);
@@ -420,7 +436,6 @@ const Sales = () => {
     }
   };
 
-  // CORRECT calculateInvoiceTotals function - Tax calculated AFTER promo discount
   const calculateInvoiceTotals = () => {
     let subtotal = 0;
     let totalDiscountAmount = 0;
@@ -440,7 +455,6 @@ const Sales = () => {
 
       taxPercentages.add(taxRate);
 
-      // Price already includes tax
       const itemTotalInclTax = item.price * quantity;
       const itemDiscountAmount = itemTotalInclTax * (discountPercentage / 100);
       const itemTotalAfterDiscount = itemTotalInclTax - itemDiscountAmount;
@@ -456,16 +470,29 @@ const Sales = () => {
       };
     });
 
-    // ✅ Apply promo discount on the total amount after item discounts
+    // Apply promo discount
     let promoDiscountAmount = 0;
     if (appliedPromo) {
       promoDiscountAmount = amountAfterAllDiscounts * (appliedPromo.discount / 100);
     }
 
-    // ✅ Final amount after ALL discounts
-    const finalAmountAfterAllDiscounts = amountAfterAllDiscounts - promoDiscountAmount;
+    // Amount after promo discount
+    const amountAfterPromo = amountAfterAllDiscounts - promoDiscountAmount;
 
-    // ✅ NOW calculate tax on the final amount after ALL discounts
+    // Apply loyalty coins discount (AFTER promo, BEFORE tax)
+    let loyaltyDiscountAmount = 0;
+    let actualLoyaltyCoinsUsed = 0;
+
+    if (useLoyaltyCoins && usableLoyaltyCoins > 0) {
+      // Maximum loyalty discount is the usable coins amount (1 coin = 1 rupee)
+      loyaltyDiscountAmount = Math.min(usableLoyaltyCoins, amountAfterPromo);
+      actualLoyaltyCoinsUsed = Math.floor(loyaltyDiscountAmount); // Since 1 coin = 1 rupee
+    }
+
+    // Final amount after ALL discounts (promo + loyalty)
+    const finalAmountAfterAllDiscounts = amountAfterPromo - loyaltyDiscountAmount;
+
+    // Calculate tax on the final amount after ALL discounts
     const itemsWithTaxCalculations = itemsWithCalculations.map(item => {
       const taxRate = item.taxSlab || 18;
 
@@ -497,7 +524,7 @@ const Sales = () => {
       sgstAmount = 0;
     }
 
-    // ✅ Final grand total (amount after ALL discounts)
+    // Final grand total
     const grandTotal = finalAmountAfterAllDiscounts;
 
     return {
@@ -506,6 +533,8 @@ const Sales = () => {
       baseValue: totalBaseValue,
       discount: totalDiscountAmount,
       promoDiscount: promoDiscountAmount,
+      loyaltyDiscount: loyaltyDiscountAmount,
+      loyaltyCoinsUsed: actualLoyaltyCoinsUsed,
       tax: totalTaxAmount,
       cgst: cgstAmount,
       sgst: sgstAmount,
@@ -518,26 +547,25 @@ const Sales = () => {
   };
 
   // Add this function in your Sales component
+
   const calculateLoyaltyCoins = (invoiceTotals) => {
     // Use baseValue which is total after discounts but before tax
     const spendAmount = invoiceTotals.baseValue;
 
     // Calculate coins: 1 coin per 100 rupees, rounded down
-    let coins = Math.floor(spendAmount / 100);
-
-    // Apply maximum limit of 50 coins per order
-    coins = Math.min(coins, 50);
+    const coins = Math.floor(spendAmount / 100);
 
     return coins;
   };
 
-
-  // Add this function in your Sales component (after the createCustomer function)
-  const updateCustomerLoyaltyCoins = async (customerId, coinsEarned) => {
+  const updateCustomerLoyaltyCoins = async (customerId, coinsEarned, coinsUsed) => {
     try {
       const response = await axios.put(
         `${import.meta.env.VITE_API_URL}/customer/update-loyalty-coins/${customerId}`,
-        { coinsEarned }
+        {
+          coinsEarned: coinsEarned || 0,
+          coinsUsed: coinsUsed || 0
+        }
       );
       return response.data;
     } catch (error) {
@@ -546,8 +574,7 @@ const Sales = () => {
     }
   };
 
-
-  // Form submission
+  // Form submission - CORRECTED VERSION
   const handleSubmit = async (values) => {
     const hasInvalidQuantity = selectedItems.some(item =>
       !item.quantity || item.quantity === "" || item.quantity < 1
@@ -584,11 +611,30 @@ const Sales = () => {
       const existingCustomer = customers.find(c => c.mobile === newCustomer.mobile);
       let customerToUse = { ...newCustomer };
 
+      // Calculate loyalty coins
+      const invoiceTotals = calculateInvoiceTotals();
+      const loyaltyCoinsEarned = calculateLoyaltyCoins(invoiceTotals);
+      const loyaltyCoinsUsed = invoiceTotals.loyaltyCoinsUsed || 0;
+
+      // Validate loyalty coins usage for existing customers
+      if (useLoyaltyCoins && loyaltyCoinsUsed > 0 && existingCustomer) {
+        if (existingCustomer.loyaltyCoins < (50 + loyaltyCoinsUsed)) {
+          toast.error(`Customer doesn't have enough loyalty coins. Available: ${existingCustomer.loyaltyCoins}, Required minimum: 150 + ${loyaltyCoinsUsed} for usage`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       if (!existingCustomer) {
         try {
-          const createdCustomer = await createCustomer(newCustomer);
-          customerToUse = createdCustomer;
-          setCustomers([...customers, createdCustomer]);
+          // For NEW customer: initial coins = earned coins (no coins to use from existing balance)
+          const initialCoins = loyaltyCoinsEarned;
+          const createdCustomer = await createCustomer(newCustomer, initialCoins);
+          customerToUse = {
+            ...createdCustomer,
+            loyaltyCoins: initialCoins
+          };
+          setCustomers([...customers, customerToUse]);
           toast.success("New customer created successfully!");
         } catch (error) {
           if (error.response?.data?.field === "email") {
@@ -601,11 +647,35 @@ const Sales = () => {
         }
       } else {
         customerToUse = existingCustomer;
+
+        // For EXISTING customer: update coins (deduct used + add earned)
+        if (loyaltyCoinsUsed > 0 || loyaltyCoinsEarned > 0) {
+          try {
+            const updatedCustomer = await updateCustomerLoyaltyCoins(
+              customerToUse.customerId,
+              loyaltyCoinsEarned,  // coins to ADD (earned from this purchase)
+              loyaltyCoinsUsed     // coins to DEDUCT (used from existing balance)
+            );
+
+            customerToUse = {
+              ...customerToUse,
+              loyaltyCoins: updatedCustomer.data.loyaltyCoins
+            };
+
+            // Update customers state with new balance
+            setCustomers(prev => prev.map(c =>
+              c.customerId === customerToUse.customerId
+                ? { ...c, loyaltyCoins: updatedCustomer.data.loyaltyCoins }
+                : c
+            ));
+          } catch (error) {
+            console.error("Error updating customer loyalty coins:", error);
+            toast.error("Failed to update customer loyalty coins");
+            setIsSubmitting(false);
+            return;
+          }
+        }
       }
-
-      const invoiceTotals = calculateInvoiceTotals();
-
-      const loyaltyCoinsEarned = calculateLoyaltyCoins(invoiceTotals);
 
       const invoice = {
         date: newCustomer.date || new Date().toISOString().split('T')[0],
@@ -620,13 +690,16 @@ const Sales = () => {
         subtotal: invoiceTotals.subtotal,
         baseValue: invoiceTotals.baseValue,
         discount: invoiceTotals.discount,
-        promoDiscount: invoiceTotals.promoDiscount, // Add this
-        appliedPromoCode: appliedPromo ? { // Add this
+        promoDiscount: invoiceTotals.promoDiscount,
+        appliedPromoCode: appliedPromo ? {
           promoId: appliedPromo.promoId,
           code: appliedPromo.code,
           discount: appliedPromo.discount,
-          description: appliedPromo.description
+          description: appliedPromo.description,
+          appliedAt: new Date()
         } : null,
+        loyaltyDiscount: invoiceTotals.loyaltyDiscount,
+        loyaltyCoinsUsed: invoiceTotals.loyaltyCoinsUsed,
         tax: invoiceTotals.tax,
         cgst: invoiceTotals.cgst,
         sgst: invoiceTotals.sgst,
@@ -638,11 +711,6 @@ const Sales = () => {
       };
 
       const savedInvoice = await saveInvoiceToDB(invoice);
-      // await updateInventoryQuantities(selectedItems); 
-
-      if (loyaltyCoinsEarned > 0) {
-        await updateCustomerLoyaltyCoins(customerToUse.customerId, loyaltyCoinsEarned);
-      }
 
       setInvoices(prev => {
         const updated = [savedInvoice.data, ...prev];
@@ -658,6 +726,8 @@ const Sales = () => {
       });
 
       await fetchInventory();
+
+      // Reset all form states
       setSelectedItems([]);
       setNewCustomer({
         customerNumber: "",
@@ -669,24 +739,69 @@ const Sales = () => {
       });
       setCustomerMobileSearch("");
 
+      // Reset loyalty coins state
+      setUseLoyaltyCoins(false);
+      setAvailableLoyaltyCoins(0);
+      setUsableLoyaltyCoins(0);
+
+      // Reset promo state
       setPromoCode("");
       setAppliedPromo(null);
       setPromoError("");
 
       setInvoiceForPrint({ invoice: savedInvoice.data, openWhatsapp: true });
 
-      const customerMobile = customerToUse.mobile.replace(/\D/g, "");
-      const message = `Hello ${customerToUse.name}, your invoice (No: ${savedInvoice.data.invoiceNumber}) has been generated.`;
-      window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(message)}`, "_blank");
+      // Send WhatsApp message
+      // In the handleSubmit function, replace the WhatsApp message section:
 
-      toast.success("Invoice created successfully!");
+      // Send WhatsApp message
+      const customerMobile = customerToUse.mobile.replace(/\D/g, "");
+      const invoiceMessage = `Hello ${customerToUse.name}, your invoice (No: ${savedInvoice.data.invoiceNumber}) has been generated.`;
+
+      // Create loyalty coins message
+      let loyaltyMessage = '';
+      if (customerToUse.loyaltyCoins !== undefined) {
+        // const usableCoins = Math.max(0, customerToUse.loyaltyCoins - 150);
+
+        loyaltyMessage = `\n\n*Loyalty Coins Update:*\n` +
+          `• Current Balance: ${customerToUse.loyaltyCoins} coins\n` 
+
+      }
+
+      // Combine messages
+      const fullMessage = invoiceMessage + loyaltyMessage;
+
+      window.open(`https://wa.me/${customerMobile}?text=${encodeURIComponent(fullMessage)}`, "_blank");
+
+      // Show success message with loyalty coins info
+      let successMessage = "Invoice created successfully!";
+      if (loyaltyCoinsEarned > 0) {
+        successMessage += ` Earned ${loyaltyCoinsEarned} loyalty coins.`;
+      }
+      if (loyaltyCoinsUsed > 0) {
+        successMessage += ` Used ${loyaltyCoinsUsed} loyalty coins.`;
+      }
+      if (customerToUse.loyaltyCoins !== undefined) {
+        successMessage += ` Current balance: ${customerToUse.loyaltyCoins} coins.`;
+      }
+
+      toast.success(successMessage);
     } catch (error) {
       console.error("Error creating invoice:", error);
-      toast.error("Failed to create invoice");
+
+      // More specific error messages
+      if (error.response?.data?.message?.includes("Insufficient quantity")) {
+        toast.error(`Inventory error: ${error.response.data.message}`);
+      } else if (error.response?.data?.message?.includes("not found in inventory")) {
+        toast.error(`Product not found: ${error.response.data.message}`);
+      } else {
+        toast.error("Failed to create invoice. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   // Database operations
   const saveInvoiceToDB = async (invoice) => {
@@ -1178,6 +1293,7 @@ const Sales = () => {
   };
 
   // Modal component
+  // Modal component - FIXED VERSION
   const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedInvoice, setEditedInvoice] = useState({});
@@ -1223,29 +1339,31 @@ const Sales = () => {
       }
     };
 
-
+    // CORRECTED: Define calculateInvoiceBreakdown function properly
     const calculateInvoiceBreakdown = (invoice) => {
       const subtotal = invoice.subtotal || 0;
       const itemDiscount = invoice.discount || 0;
       const promoDiscount = invoice.promoDiscount || 0;
+      const loyaltyDiscount = invoice.loyaltyDiscount || 0;
       const tax = invoice.tax || 0;
 
       const amountBeforeTax = subtotal - itemDiscount;
-      const taxableAmountAfterPromo = amountBeforeTax - promoDiscount;
-      const grandTotal = taxableAmountAfterPromo;
+      const amountAfterPromo = amountBeforeTax - promoDiscount;
+      const amountAfterLoyalty = amountAfterPromo - loyaltyDiscount;
+      const grandTotal = amountAfterLoyalty;
 
       return {
         subtotal,
         itemDiscount,
         promoDiscount,
+        loyaltyDiscount,
         amountBeforeTax,
-        taxableAmountAfterPromo,
+        amountAfterPromo,
+        amountAfterLoyalty,
         tax,
         grandTotal
       };
     };
-
-    const invoiceBreakdown = calculateInvoiceBreakdown(invoice);
 
     // Calculate item totals for display
     const calculateItemTotal = (item) => {
@@ -1259,6 +1377,9 @@ const Sales = () => {
     };
 
     if (!invoice) return null;
+
+    // Calculate invoice breakdown AFTER the function is defined
+    const invoiceBreakdown = calculateInvoiceBreakdown(invoice);
 
     return (
       <div className="modal-overlay" onClick={onClose}>
@@ -1369,6 +1490,14 @@ const Sales = () => {
                   )}
                 </div>
 
+                {invoice.loyaltyCoinsUsed > 0 && (
+                  <div className="detail-row">
+                    <span className="detail-label">Loyalty Coins Used:</span>
+                    <span className="detail-value">
+                      {invoice.loyaltyCoinsUsed} coins (₹{invoiceBreakdown.loyaltyDiscount.toFixed(2)})
+                    </span>
+                  </div>
+                )}
 
                 {invoice.appliedPromoCode && (
                   <div className="detail-row">
@@ -1441,8 +1570,6 @@ const Sales = () => {
               )}
             </div>
 
-
-
             {/* Invoice Summary Section */}
             <div className="invoice-section">
               <h3 className="section-title">Invoice Calculation Breakdown</h3>
@@ -1473,8 +1600,25 @@ const Sales = () => {
                     </div>
 
                     <div className="calculation-step taxable-amount">
-                      <span className="step-label">Taxable Amount After Promo:</span>
-                      <span className="step-value">₹{invoiceBreakdown.taxableAmountAfterPromo.toFixed(2)}</span>
+                      <span className="step-label">Amount After Promo:</span>
+                      <span className="step-value">₹{invoiceBreakdown.amountAfterPromo.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+
+                {/* Add Loyalty Coins Section */}
+                {invoice.loyaltyCoinsUsed > 0 && (
+                  <>
+                    <div className="calculation-step loyalty-step">
+                      <span className="step-label">
+                        Loyalty Coins Used ({invoice.loyaltyCoinsUsed} coins):
+                      </span>
+                      <span className="step-value">-₹{invoiceBreakdown.loyaltyDiscount.toFixed(2)}</span>
+                    </div>
+
+                    <div className="calculation-step amount-after-loyalty">
+                      <span className="step-label">Amount After Loyalty:</span>
+                      <span className="step-value">₹{invoiceBreakdown.amountAfterLoyalty.toFixed(2)}</span>
                     </div>
                   </>
                 )}
@@ -1555,7 +1699,6 @@ const Sales = () => {
       </div>
     );
   };
-
 
   // Bulk Import Modal Component
   const BulkImportModal = ({ onClose, onImport, isLoading }) => {
@@ -2031,11 +2174,11 @@ const Sales = () => {
                             <span>₹{invoiceTotals.subtotal.toFixed(2)}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span>Total Discount:</span>
+                            <span>Product Discount:</span>
                             <span>₹{invoiceTotals.discount.toFixed(2)}</span>
                           </div>
 
-                          {/* Add this promo discount row */}
+                          {/* Promo Discount */}
                           {appliedPromo && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#28a745' }}>
                               <span>Promo Discount ({appliedPromo.discount}%):</span>
@@ -2043,7 +2186,15 @@ const Sales = () => {
                             </div>
                           )}
 
-                          {/* Rest of the tax calculation remains same */}
+                          {/* Loyalty Coins Discount */}
+                          {useLoyaltyCoins && invoiceTotals.loyaltyCoinsUsed > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#ff6b35' }}>
+                              <span>Loyalty Coins Used ({invoiceTotals.loyaltyCoinsUsed} coins):</span>
+                              <span>-₹{invoiceTotals.loyaltyDiscount.toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {/* Tax Calculation remains same */}
                           {!invoiceTotals.hasMixedTaxRates && invoiceTotals.taxPercentages.length > 0 && (
                             <>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -2136,6 +2287,40 @@ const Sales = () => {
                       />
                     </div>
                   </div>
+
+                  {/* Loyalty Coins Section */}
+                  {availableLoyaltyCoins > 0 && (
+                    <>
+                      <h3 className="section-heading">Loyalty Coins</h3>
+                      <div className="form-group-row">
+                        <div className="field-wrapper" style={{ width: '100%' }}>
+                          <div className="loyalty-coins-container">
+                            <div className="loyalty-info">
+                              <span>Available Coins: {availableLoyaltyCoins}</span>
+                              {usableLoyaltyCoins > 0 && (
+                                <span className="usable-coins">Usable Coins: {usableLoyaltyCoins} (1 Coin = ₹1)</span>
+                              )}
+                            </div>
+
+                            {usableLoyaltyCoins > 0 ? (
+                              <label className="loyalty-checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={useLoyaltyCoins}
+                                  onChange={(e) => setUseLoyaltyCoins(e.target.checked)}
+                                />
+                                <span>Use Loyalty Coins (Maximum: {usableLoyaltyCoins} coins)</span>
+                              </label>
+                            ) : (
+                              <div className="loyalty-message">
+                                Minimum 50 coins required to use loyalty rewards. Need {50 - availableLoyaltyCoins} more coins.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
 
                   <h3 className="section-heading">Promo Code (Optional)</h3>
