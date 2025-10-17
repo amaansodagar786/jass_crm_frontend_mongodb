@@ -576,6 +576,12 @@ const Sales = () => {
 
   // Form submission - CORRECTED VERSION
   const handleSubmit = async (values) => {
+    // 🔥 ADD SUBMISSION LOCK - PREVENT MULTIPLE SUBMISSIONS
+    if (isSubmitting) {
+      console.log('Submission already in progress, please wait...');
+      return;
+    }
+
     const hasInvalidQuantity = selectedItems.some(item =>
       !item.quantity || item.quantity === "" || item.quantity < 1
     );
@@ -605,6 +611,7 @@ const Sales = () => {
       }
     }
 
+    // 🔥 SET SUBMITTING STATE IMMEDIATELY
     setIsSubmitting(true);
 
     try {
@@ -752,20 +759,14 @@ const Sales = () => {
       setInvoiceForPrint({ invoice: savedInvoice.data, openWhatsapp: true });
 
       // Send WhatsApp message
-      // In the handleSubmit function, replace the WhatsApp message section:
-
-      // Send WhatsApp message
       const customerMobile = customerToUse.mobile.replace(/\D/g, "");
       const invoiceMessage = `Hello ${customerToUse.name}, your invoice (No: ${savedInvoice.data.invoiceNumber}) has been generated.`;
 
       // Create loyalty coins message
       let loyaltyMessage = '';
       if (customerToUse.loyaltyCoins !== undefined) {
-        // const usableCoins = Math.max(0, customerToUse.loyaltyCoins - 150);
-
         loyaltyMessage = `\n\n*Loyalty Coins Update:*\n` +
-          `• Current Balance: ${customerToUse.loyaltyCoins} coins\n` 
-
+          `• Current Balance: ${customerToUse.loyaltyCoins} coins\n`
       }
 
       // Combine messages
@@ -798,6 +799,7 @@ const Sales = () => {
         toast.error("Failed to create invoice. Please try again.");
       }
     } finally {
+      // 🔥 RESET SUBMITTING STATE IN FINALLY BLOCK (GUARANTEED EXECUTION)
       setIsSubmitting(false);
     }
   };
@@ -2418,10 +2420,14 @@ const Sales = () => {
                   </div>
 
                   <div className="submit-btn-container">
-                    <button type="submit" className="submit-btn" disabled={isSubmitting || isExporting}>
+                    <button
+                      type="submit"
+                      className="submit-btn"
+                      disabled={isSubmitting || isExporting}
+                    >
                       {isSubmitting ? (
                         <>
-                          <FaSpinner className="spinner" /> Creating Invoice...
+                          <FaSpinner className="spinner" /> Creating Invoice..
                         </>
                       ) : isExporting ? (
                         "Generating PDF..."
