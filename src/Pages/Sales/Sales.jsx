@@ -1057,13 +1057,54 @@ const Sales = () => {
 
   const handleDeleteInvoice = async (invoiceNumber) => {
     try {
-      await deleteInvoice(invoiceNumber);
+      console.log('🗑️ Frontend: Attempting to delete invoice:', invoiceNumber);
+
+      const response = await axios.delete(
+        `${import.meta.env.VITE_API_URL}/invoices/delete-invoice/${invoiceNumber}`
+      );
+
+      // Remove from invoices list
       setInvoices(prev => prev.filter(inv => inv.invoiceNumber !== invoiceNumber));
       setSelectedInvoice(null);
-      toast.success("Invoice deleted successfully!");
+
+      console.log('✅ Frontend: Invoice deleted successfully:', {
+        invoiceNumber,
+        response: response.data
+      });
+
+      // Show success message
+      toast.success(
+        `Invoice deleted successfully! ${response.data.restorationDetails.itemsRestored} items restored to inventory.`
+      );
+
+      // Refresh inventory data
+      await fetchInventory();
+
     } catch (error) {
-      console.error("Error deleting invoice:", error);
-      toast.error(error.response?.data?.message || "Error deleting invoice");
+      console.error('❌ Frontend: Error deleting invoice:', {
+        invoiceNumber,
+        error: error.response?.data,
+        message: error.message
+      });
+
+      // Handle batch not found error specifically
+      if (error.response?.data?.success === false &&
+        error.response?.data?.message?.includes("inventory batches not found")) {
+
+        const errorData = error.response.data;
+        const errorCount = errorData.details?.totalErrors || 0;
+        const firstError = errorData.errors?.[0] || {};
+
+        toast.error(
+          `Cannot delete invoice! ${errorCount} item(s) not found in inventory. Example: ${firstError.productName} (Batch: ${firstError.batchNumber})`
+        );
+
+        console.warn('🛑 Invoice deletion blocked due to missing batches:', errorData.details);
+
+      } else {
+        // Generic error
+        toast.error(error.response?.data?.message || "Error deleting invoice");
+      }
     }
   };
 

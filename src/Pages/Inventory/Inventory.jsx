@@ -434,13 +434,30 @@ const Inventory = () => {
         } catch (error) {
             console.error("Error adding batches:", error);
 
-            // ✅ FIX: Better error handling
-            if (error.response?.data?.message) {
-                toast.error("Error adding batches: " + error.response.data.message);
-            } else if (error.response?.data?.errors?.length > 0) {
-                toast.error("Error adding batches: " + error.response.data.errors[0].message);
+            // ✅ IMPROVED: User-friendly error messages
+            if (error.response?.data?.errors && error.response.data.errors.length > 0) {
+                // Show specific batch errors
+                const firstError = error.response.data.errors[0];
+
+                if (firstError.message.includes("different manufacture date")) {
+                    toast.error(`❌ Batch "${firstError.batchNumber}" has different manufacture date. Please use a different batch number.`);
+                } else if (firstError.message.includes("Missing required fields")) {
+                    toast.error(`❌ Batch "${firstError.batchNumber}" is missing required information. Please fill all fields.`);
+                } else if (firstError.message.includes("Invalid manufacture date")) {
+                    toast.error(`❌ Batch "${firstError.batchNumber}" has invalid date format. Use YYYY-MM format.`);
+                } else {
+                    // Generic but specific error
+                    toast.error(`❌ ${firstError.message} (Batch: ${firstError.batchNumber})`);
+                }
+            } else if (error.response?.data?.message) {
+                // Handle other backend messages
+                if (error.response.data.message.includes("All batches failed")) {
+                    toast.error("❌ All batches failed validation. Please check batch numbers and manufacture dates.");
+                } else {
+                    toast.error("❌ " + error.response.data.message);
+                }
             } else {
-                toast.error("Error adding batches: " + (error.response?.data?.message || error.message));
+                toast.error("❌ Failed to add batches: " + (error.message || "Unknown error"));
             }
         }
     };
