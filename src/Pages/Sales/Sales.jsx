@@ -297,19 +297,61 @@ const Sales = () => {
   const handleProductSelect = (product) => {
     const availableBatches = getAvailableBatches(product.productId);
 
-    // Check if all batches are expired
+    // ✅ ADDED: Validation for batch number and expiry date
     const inventoryItem = inventory.find(item => item.productId === product.productId);
-    const hasExpiredBatches = inventoryItem && inventoryItem.batches.some(batch => {
-      const isExpired = new Date(batch.expiryDate) < new Date();
-      return batch.quantity > 0 && isExpired;
+
+    // Check if product exists in inventory
+    if (!inventoryItem) {
+      toast.error("❌ Product not found in inventory. Cannot add this product.");
+      setItemSearchTerm(""); // Clear search term
+      return;
+    }
+
+    // Check if product has any batches at all
+    if (!inventoryItem.batches || inventoryItem.batches.length === 0) {
+      toast.error("❌ This product has no batch numbers. Cannot add to invoice.");
+      setItemSearchTerm(""); // Clear search term
+      return;
+    }
+
+    // Check if all batches are missing expiry dates
+    const batchesWithoutExpiry = inventoryItem.batches.filter(batch =>
+      !batch.expiryDate || batch.expiryDate === ""
+    );
+
+    if (batchesWithoutExpiry.length === inventoryItem.batches.length) {
+      toast.error("❌ All batches for this product are missing expiry dates. Cannot add to invoice.");
+      setItemSearchTerm(""); // Clear search term
+      return;
+    }
+
+    // Check if all batches are expired
+    const currentDate = new Date();
+    const expiredBatches = inventoryItem.batches.filter(batch => {
+      if (!batch.expiryDate) return true; // No expiry date = consider as invalid
+      return new Date(batch.expiryDate) < currentDate;
     });
 
+    if (expiredBatches.length === inventoryItem.batches.length) {
+      toast.error("❌ All batches for this product are expired. Cannot add to invoice.");
+      setItemSearchTerm(""); // Clear search term
+      return;
+    }
+
+    // Check if all batches have zero quantity
+    const batchesWithZeroQuantity = inventoryItem.batches.filter(batch =>
+      batch.quantity <= 0
+    );
+
+    if (batchesWithZeroQuantity.length === inventoryItem.batches.length) {
+      toast.error("❌ All batches for this product have zero quantity. Cannot add to invoice.");
+      setItemSearchTerm(""); // Clear search term
+      return;
+    }
+
+    // Original logic for available batches
     if (availableBatches.length === 0) {
-      if (hasExpiredBatches) {
-        toast.error("All batches for this product are expired");
-      } else {
-        toast.error("No available stock for this product");
-      }
+      toast.error("❌ No available stock with valid batches for this product");
       setItemSearchTerm(""); // Clear search term
       return;
     }
@@ -808,7 +850,19 @@ const Sales = () => {
   // Database operations
   const saveInvoiceToDB = async (invoice) => {
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/invoices/create-invoice`, invoice);
+
+      // Get user from localStorage
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/invoices/create-invoice`, {
+        ...invoice,
+        userDetails: user ? {
+          userId: user.userId,
+          name: user.name,
+          email: user.email
+        } : null
+      });
       return response.data;
     } catch (error) {
       console.error("Error saving invoice to database:", error);
@@ -818,6 +872,10 @@ const Sales = () => {
 
   const updateInvoice = async (invoiceData) => {
     try {
+
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+
       const updatePayload = {
         customer: {
           customerId: invoiceData.customer?.customerId,
@@ -827,7 +885,13 @@ const Sales = () => {
           mobile: invoiceData.customer?.mobile
         },
         paymentType: invoiceData.paymentType,
-        remarks: invoiceData.remarks || ''
+        remarks: invoiceData.remarks || '',
+
+        userDetails: user ? {
+          userId: user.userId,
+          name: user.name,
+          email: user.email
+        } : null
       };
 
       const response = await axios.put(
@@ -1041,6 +1105,8 @@ const Sales = () => {
 
   const handleUpdateInvoice = async (updatedInvoice) => {
     try {
+
+
       const result = await updateInvoice(updatedInvoice);
       setInvoices(prev =>
         prev.map(inv =>
@@ -1059,8 +1125,22 @@ const Sales = () => {
     try {
       console.log('🗑️ Frontend: Attempting to delete invoice:', invoiceNumber);
 
+      // Get user from localStorage
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+
       const response = await axios.delete(
-        `${import.meta.env.VITE_API_URL}/invoices/delete-invoice/${invoiceNumber}`
+        `${import.meta.env.VITE_API_URL}/invoices/delete-invoice/${invoiceNumber}`,
+        {
+          // ADD THIS - Send user details in request body
+          data: {
+            userDetails: user ? {
+              userId: user.userId,
+              name: user.name,
+              email: user.email
+            } : null
+          }
+        }
       );
 
       // Remove from invoices list
@@ -2016,32 +2096,56 @@ const Sales = () => {
                             const availableBatches = getAvailableBatches(product.productId);
                             const totalAvailable = availableBatches.reduce((sum, batch) => sum + batch.quantity, 0);
 
-                            // Check for expired batches
+                            // ✅ ADDED: Validation checks for display
                             const inventoryItem = inventory.find(item => item.productId === product.productId);
+                            const hasBatches = inventoryItem && inventoryItem.batches && inventoryItem.batches.length > 0;
+                            const hasValidBatches = hasBatches && inventoryItem.batches.some(batch =>
+                              batch.expiryDate && new Date(batch.expiryDate) >= new Date() && batch.quantity > 0
+                            );
                             const hasExpiredBatches = inventoryItem && inventoryItem.batches.some(batch => {
                               const isExpired = new Date(batch.expiryDate) < new Date();
                               return batch.quantity > 0 && isExpired;
                             });
+                            const hasNoBatches = !hasBatches;
+                            const hasBatchesWithoutExpiry = hasBatches && inventoryItem.batches.some(batch =>
+                              !batch.expiryDate || batch.expiryDate === ""
+                            );
 
                             return (
                               <div
                                 key={product.productId}
-                                className={`dropdown-item ${totalAvailable === 0 ? 'out-of-stock' : ''}`}
+                                className={`dropdown-item ${!hasValidBatches ? 'invalid-product' : totalAvailable === 0 ? 'out-of-stock' : ''}`}
                                 onClick={() => {
-                                  if (totalAvailable > 0) {
+                                  if (hasValidBatches && totalAvailable > 0) {
                                     handleProductSelect(product);
+                                  } else {
+                                    // Show specific error message
+                                    if (hasNoBatches) {
+                                      toast.error("❌ This product has no batch numbers. Cannot add to invoice.");
+                                    } else if (hasBatchesWithoutExpiry) {
+                                      toast.error("❌ This product has batches missing expiry dates. Cannot add to invoice.");
+                                    } else if (!hasValidBatches) {
+                                      toast.error("❌ This product has no valid batches. Cannot add to invoice.");
+                                    }
                                   }
                                 }}
                               >
                                 <div>
                                   {product.productName}
-                                  {totalAvailable === 0 && hasExpiredBatches && (
-                                    <span className="expired-badge">Expired Batches</span>
+                                  {/* Status badges */}
+                                  {hasNoBatches && (
+                                    <span className="error-badge">No Batches</span>
                                   )}
-                                  {totalAvailable === 0 && !hasExpiredBatches && (
+                                  {hasBatchesWithoutExpiry && (
+                                    <span className="error-badge">Missing Expiry</span>
+                                  )}
+                                  {hasExpiredBatches && !hasValidBatches && (
+                                    <span className="expired-badge">All Expired</span>
+                                  )}
+                                  {totalAvailable === 0 && hasValidBatches && (
                                     <span className="stock-badge">Out of Stock</span>
                                   )}
-                                  {totalAvailable > 0 && (
+                                  {totalAvailable > 0 && hasValidBatches && (
                                     <span className="stock-badge">In Stock: {totalAvailable}</span>
                                   )}
                                 </div>
@@ -2051,6 +2155,15 @@ const Sales = () => {
                                   Tax: {product.taxSlab || 18}% |
                                   Category: {product.category}
                                 </div>
+                                {/* Additional validation info */}
+                                {hasBatches && (
+                                  <div className="batch-validation-info">
+                                    Batches: {inventoryItem.batches.length} |
+                                    Valid: {inventoryItem.batches.filter(b =>
+                                      b.expiryDate && new Date(b.expiryDate) >= new Date() && b.quantity > 0
+                                    ).length}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

@@ -54,6 +54,20 @@ const Inventory = () => {
         fetchProducts();
     }, []);
 
+
+    const getUserDetails = () => {
+        try {
+            const userData = localStorage.getItem('user');
+            if (userData) {
+                return JSON.parse(userData);
+            }
+            return null;
+        } catch (error) {
+            console.error("Error getting user details:", error);
+            return null;
+        }
+    };
+
     // ✅ ADDED: Function to check user access
     const checkUserAccess = () => {
         try {
@@ -398,6 +412,9 @@ const Inventory = () => {
         }
 
         try {
+
+            const userDetails = getUserDetails();
+
             const response = await axios.post(`${import.meta.env.VITE_API_URL}/inventory/add-batches`, {
                 productId: selectedProduct.productId,
                 price: parseFloat(productPrice),
@@ -411,7 +428,9 @@ const Inventory = () => {
                         quantity: parseInt(batch.quantity),
                         manufactureDate: yearMonth // Send only YYYY-MM format
                     }
-                })
+                }),
+
+                userDetails: userDetails
             });
 
             // ✅ FIX: Check if operation was successful (even with some warnings)
@@ -485,6 +504,11 @@ const Inventory = () => {
 
         const formData = new FormData();
         formData.append("file", uploadFile);
+
+        const userDetails = getUserDetails();
+        if (userDetails) {
+            formData.append("userDetails", JSON.stringify(userDetails));
+        }
 
         setUploadLoading(true);
         setUploadErrors([]); // Reset errors

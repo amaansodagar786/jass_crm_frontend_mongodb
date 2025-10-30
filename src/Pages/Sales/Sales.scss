@@ -1802,35 +1802,82 @@
   border-radius: 8px;
   padding: 15px;
   background: #f8f9fa;
-  
+
   .loyalty-info {
     display: flex;
     justify-content: space-between;
     margin-bottom: 10px;
     font-weight: 500;
-    
+
     .usable-coins {
       color: #28a745;
       font-weight: bold;
     }
   }
-  
+
   .loyalty-checkbox {
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
     font-weight: 500;
-    
+
     input[type="checkbox"] {
       width: 16px;
       height: 16px;
     }
   }
-  
+
   .loyalty-message {
     color: #6c757d;
     font-style: italic;
     font-size: 14px;
   }
+}
+
+
+/* Add to your Sales.scss */
+.error-badge {
+  background: #dc3545;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  margin-left: 8px;
+}
+
+.invalid-product {
+  opacity: 0.7;
+  background: #fff5f5 !important;
+  border-left: 4px solid #dc3545 !important;
+}
+
+.invalid-product:hover {
+  background: #ffe6e6 !important;
+  cursor: not-allowed !important;
+}
+
+.batch-validation-info {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.expired-badge {
+  background: #ff6b6b;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  margin-left: 8px;
+}
+
+.stock-badge {
+  background: #28a745;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  margin-left: 8px;
 }

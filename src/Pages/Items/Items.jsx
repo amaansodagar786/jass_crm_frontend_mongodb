@@ -360,11 +360,22 @@ const Items = () => {
   const handleSubmit = async (values, { resetForm, setFieldError }) => {
     setIsSubmitting(true);
     try {
+
+
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+
+
       const payload = {
         ...values,
         taxSlab: Number(values.taxSlab),
         price: Number(values.price),
-        discount: 0
+        discount: 0,
+        userDetails: user ? {
+          userId: user.userId,
+          name: user.name,
+          email: user.email
+        } : null
       };
 
       const response = await axios.post(
@@ -489,15 +500,21 @@ const Items = () => {
     try {
       const { productId, _id, createdAt, updatedAt, ...itemData } = updatedItem;
 
+      // Get user from localStorage
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+
       const response = await axios.put(
         `${import.meta.env.VITE_API_URL}/products/update-product/${updatedItem.productId}`,
-        itemData
-      );
-
-      setItems(prev =>
-        prev.map(item =>
-          item.productId === updatedItem.productId ? response.data : item
-        )
+        {
+          ...itemData,
+          // ADD THIS - Send user details
+          userDetails: user ? {
+            userId: user.userId,
+            name: user.name,
+            email: user.email
+          } : null
+        }
       );
 
       // Update editing prices if price was changed
@@ -521,9 +538,26 @@ const Items = () => {
 
   const handleDeleteItem = async (productId) => {
     try {
+
+
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+
+
       await axios.delete(
-        `${import.meta.env.VITE_API_URL}/products/delete-product/${productId}`
+        `${import.meta.env.VITE_API_URL}/products/delete-product/${productId}`,
+        {
+          // ADD THIS - Send user details in request body
+          data: {
+            userDetails: user ? {
+              userId: user.userId,
+              name: user.name,
+              email: user.email
+            } : null
+          }
+        }
       );
+
 
       setItems(prev =>
         prev.filter(item => item.productId !== productId)
@@ -648,15 +682,23 @@ const Items = () => {
       }
 
       // Prepare final payload
-      const uploadPayload = validProducts.map(product => ({
-        productName: product.productName,
-        category: product.category,
-        barcode: product.barcode,
-        hsnCode: product.hsnCode,
-        taxSlab: product.taxSlab,
-        price: product.price,
-        discount: product.discount
-      }));
+      const uploadPayload = {
+        products: validProducts.map(product => ({
+          productName: product.productName,
+          category: product.category,
+          barcode: product.barcode,
+          hsnCode: product.hsnCode,
+          taxSlab: product.taxSlab,
+          price: product.price,
+          discount: product.discount
+        })),
+        // ADD THIS - Send user details for bulk upload
+        userDetails: user ? {
+          userId: user.userId,
+          name: user.name,
+          email: user.email
+        } : null
+      };
 
       // Show confirmation before upload
       const shouldUpload = window.confirm(
