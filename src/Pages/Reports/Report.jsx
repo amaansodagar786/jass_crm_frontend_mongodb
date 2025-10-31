@@ -600,9 +600,7 @@ const Report = () => {
     };
 
 
-    // Add this function to your Report.jsx component
-    // Professional Category Analysis Export Handler
-    // Professional Category Analysis Export Handler - Clean Data Only
+    // Fixed Category Analysis Export Handler with Product Data
     const handleExportCategoryData = (categoryData) => {
         if (!categoryData || !categoryData.categories) {
             toast.error("No category data available to export");
@@ -622,7 +620,9 @@ const Report = () => {
             ['Total Categories', categoryData.summary.totalCategories],
             ['Total Sales Revenue', `₹${categoryData.summary.totalSales?.toLocaleString('en-IN')}`],
             ['Total Purchase Value', `₹${categoryData.summary.totalPurchases?.toLocaleString('en-IN')}`],
-            ['Total Stock Value', `₹${categoryData.summary.totalStockValue?.toLocaleString('en-IN')}`]
+            ['Total Stock Value', `₹${categoryData.summary.totalStockValue?.toLocaleString('en-IN')}`],
+            ['Total Products', categoryData.summary.totalProducts],
+            ['Total Orders', categoryData.summary.totalOrders]
         ];
 
         const wsSummary = XLSX.utils.aoa_to_sheet(categorySummary);
@@ -637,16 +637,133 @@ const Report = () => {
             'Stock Value (₹)': category.stock.totalValue,
             'Total Orders': category.sales.totalOrders,
             'Average Order Value (₹)': category.sales.averageOrderValue?.toFixed(2),
-            'Sales Growth Rate': `${category.sales.growth}%`,
+            // 'Sales Growth Rate': `${category.sales.growth}%`, 
             'In-Stock Products': category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts,
-            'Low Stock Products': category.stock.lowStockProducts,
-            'Out of Stock Products': category.stock.outOfStockProducts
+            // 'Low Stock Products': category.stock.lowStockProducts,
+            'Out of Stock Products': category.stock.outOfStockProducts,
+            // 'Stock Health Score': `${((category.stock.totalProducts - category.stock.lowStockProducts - category.stock.outOfStockProducts) / category.stock.totalProducts * 100).toFixed(1)}%`
         }));
 
         const wsPerformance = XLSX.utils.json_to_sheet(categoryPerformanceData);
         XLSX.utils.book_append_sheet(wb, wsPerformance, 'Category Performance');
 
-        // ==================== SHEET 3: SALES DATA BY CATEGORY ====================
+        // ==================== SHEET 3: PRODUCT-WISE DATA ====================
+        let productWiseData = [];
+        let wsProducts = null;
+
+        if (categoryData.categoryProducts) {
+            // If specific category selected
+            if (categoryData.filters.selectedCategory !== 'all') {
+                const selectedCategory = categoryData.filters.selectedCategory;
+                const products = categoryData.categoryProducts[selectedCategory] || [];
+                productWiseData = products.map(product => ({
+                    // 'Product ID': product.productId, 
+                    'Product Name': product.productName,
+                    'Category': product.category,
+                    'Sales Revenue (₹)': product.sales.totalSales,
+                    'Quantity Sold': product.sales.totalQuantity,
+                    'Total Orders': product.sales.totalOrders,
+                    'Average Order Value (₹)': product.sales.averageOrderValue?.toFixed(2),
+                    'Purchase Value (₹)': product.purchases.totalPurchaseValue,
+                    'Quantity Purchased': product.purchases.totalQuantity,
+                    'Purchase Transactions': product.purchases.totalTransactions,
+                    'Current Stock': product.stock.totalQuantity,
+                    'Stock Value (₹)': product.stock.totalValue,
+                    'Current Price (₹)': product.stock.currentPrice,
+                    // 'Gross Margin (₹)': product.sales.totalSales - product.purchases.totalPurchaseValue,
+                    // 'Margin Percentage': product.sales.totalSales > 0 ?
+                    //     `${(((product.sales.totalSales - product.purchases.totalPurchaseValue) / product.sales.totalSales) * 100).toFixed(1)}%` : '0%'
+                }));
+            } else {
+                // All categories - combine all products
+                Object.keys(categoryData.categoryProducts).forEach(category => {
+                    const products = categoryData.categoryProducts[category];
+                    products.forEach(product => {
+                        productWiseData.push({
+                            // 'Product ID': product.productId, 
+                            'Product Name': product.productName,
+                            'Category': product.category,
+                            'Sales Revenue (₹)': product.sales.totalSales,
+                            'Quantity Sold': product.sales.totalQuantity,
+                            'Total Orders': product.sales.totalOrders,
+                            'Average Order Value (₹)': product.sales.averageOrderValue?.toFixed(2),
+                            'Purchase Value (₹)': product.purchases.totalPurchaseValue,
+                            'Quantity Purchased': product.purchases.totalQuantity,
+                            'Purchase Transactions': product.purchases.totalTransactions,
+                            'Current Stock': product.stock.totalQuantity,
+                            'Stock Value (₹)': product.stock.totalValue,
+                            'Current Price (₹)': product.stock.currentPrice,
+                            // 'Gross Margin (₹)': product.sales.totalSales - product.purchases.totalPurchaseValue,
+                            // 'Margin Percentage': product.sales.totalSales > 0 ?
+                            //     `${(((product.sales.totalSales - product.purchases.totalPurchaseValue) / product.sales.totalSales) * 100).toFixed(1)}%` : '0%'
+                        });
+                    });
+                });
+            }
+
+            // ONLY CREATE PRODUCT SHEET IF THERE'S PRODUCT DATA
+            if (productWiseData.length > 0) {
+                wsProducts = XLSX.utils.json_to_sheet(productWiseData);
+                XLSX.utils.book_append_sheet(wb, wsProducts, 'Product Wise Data');
+            }
+        }
+
+        // ==================== SHEET 4: COMBINED CATEGORY-PRODUCT HIERARCHY ====================
+        const combinedData = [];
+
+        // Add header
+        combinedData.push(['COMBINED CATEGORY & PRODUCT ANALYSIS']);
+        combinedData.push(['']);
+        combinedData.push([
+            'Category',
+            'Product Name',
+            'Sales Revenue (₹)',
+            'Purchase Value (₹)',
+            'Stock Value (₹)',
+            'Quantity Sold',
+            'Current Stock',
+            'Total Orders'
+        ]);
+
+        if (categoryData.categoryProducts) {
+            categoryData.categories.forEach(category => {
+                // Add category row with summary data
+                combinedData.push([
+                    category.category,
+                    'CATEGORY SUMMARY',
+                    category.sales.totalSales,
+                    category.purchases.totalPurchaseValue,
+                    category.stock.totalValue,
+                    category.sales.totalQuantity,
+                    category.stock.totalQuantity,
+                    category.sales.totalOrders
+                ]);
+
+                // Add products under this category
+                const products = categoryData.categoryProducts[category.category] || [];
+                products.forEach(product => {
+                    combinedData.push([
+                        '', // Empty category cell for indentation
+                        product.productName,
+                        product.sales.totalSales,
+                        product.purchases.totalPurchaseValue,
+                        product.stock.totalValue,
+                        product.sales.totalQuantity,
+                        product.stock.totalQuantity,
+                        product.sales.totalOrders
+                    ]);
+                });
+
+                // Add empty row for spacing between categories
+                combinedData.push(['', '', '', '', '', '', '', '']);
+            });
+        }
+
+        const wsCombined = XLSX.utils.aoa_to_sheet(combinedData);
+        XLSX.utils.book_append_sheet(wb, wsCombined, 'Category-Product Combined');
+
+
+        // ==================== SHEET 5: SALES DATA BY CATEGORY ====================
         const salesAnalysisData = categoryData.categories.map(category => ({
             'Category Name': category.category,
             'Total Sales Revenue (₹)': category.sales.totalSales,
@@ -660,7 +777,7 @@ const Report = () => {
         const wsSales = XLSX.utils.json_to_sheet(salesAnalysisData);
         XLSX.utils.book_append_sheet(wb, wsSales, 'Sales Data');
 
-        // ==================== SHEET 4: PURCHASE DATA BY CATEGORY ====================
+        // ==================== SHEET 6: PURCHASE DATA BY CATEGORY ====================
         const purchaseAnalysisData = categoryData.categories.map(category => ({
             'Category Name': category.category,
             'Total Purchase Value (₹)': category.purchases.totalPurchaseValue,
@@ -674,26 +791,40 @@ const Report = () => {
         const wsPurchases = XLSX.utils.json_to_sheet(purchaseAnalysisData);
         XLSX.utils.book_append_sheet(wb, wsPurchases, 'Purchase Data');
 
-        // Apply basic styling
-        const sheets = [wsSummary, wsPerformance, wsSales, wsPurchases];
+        // Apply styling - FIXED: Build sheets array dynamically
+        const sheets = [wsSummary, wsPerformance];
         const colWidths = [
             [25, 40],
-            [20, 15, 15, 15, 15, 12, 15, 15, 15, 15, 15],
+            [20, 15, 15, 15, 15, 12, 15, 15, 15, 15, 15, 15]
+        ];
+
+        // Add product sheet if it exists
+        if (wsProducts) {
+            sheets.push(wsProducts);
+            colWidths.push([15, 25, 15, 15, 12, 15, 15, 15, 12, 15, 15, 15, 15, 15]);
+        }
+
+        // Add remaining sheets
+        sheets.push(wsCombined, wsSales, wsPurchases);
+        colWidths.push(
+            [20, 30, 15, 15, 15, 15, 15, 15, 12, 12, 15],
             [20, 18, 15, 12, 15, 15, 15],
             [20, 18, 18, 18, 15, 15, 15]
-        ];
+        );
 
         applyBasicStyling(sheets, colWidths);
 
         // Generate filename
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         const period = categoryData.dateRange?.filterType || 'custom';
-        const filename = `Category_Analysis_${period}_${timestamp}.xlsx`;
+        const categoryFilter = categoryData.filters.selectedCategory !== 'all' ? `_${categoryData.filters.selectedCategory}` : '';
+        const filename = `Category_Analysis${categoryFilter}_${period}_${timestamp}.xlsx`;
 
         // Export file
         XLSX.writeFile(wb, filename);
-        toast.success("Category analysis report exported successfully!");
+        toast.success("Enhanced category analysis report exported successfully!");
     };
+
     // ==================== HELPER FUNCTIONS ====================
 
     const calculateGrossMargin = (sales, purchases) => {
@@ -1976,9 +2107,12 @@ const Report = () => {
         }
     };
 
-    // Basic styling function for clean data exports
+
+
     const applyBasicStyling = (sheets, colWidths) => {
         sheets.forEach((sheet, index) => {
+            if (!sheet) return; // Skip if sheet is undefined
+
             if (colWidths[index]) {
                 sheet['!cols'] = colWidths[index].map(width => ({ wch: width }));
             }
@@ -1993,6 +2127,25 @@ const Report = () => {
                         fill: { fgColor: { rgb: "2C3E50" } },
                         alignment: { horizontal: "center" }
                     };
+                }
+            }
+
+            // Special styling for Combined sheet (category rows)
+            if (sheet['!ref'] && sheet['!ref'].includes('Category-Product Combined')) {
+                for (let R = range.s.r; R <= range.e.r; ++R) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: 1 });
+                    if (sheet[cellAddress] && sheet[cellAddress].v === 'CATEGORY SUMMARY') {
+                        // Style category rows
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            const categoryCell = XLSX.utils.encode_cell({ r: R, c: C });
+                            if (sheet[categoryCell]) {
+                                sheet[categoryCell].s = {
+                                    font: { bold: true, color: { rgb: "FFFFFF" } },
+                                    fill: { fgColor: { rgb: "34495E" } }
+                                };
+                            }
+                        }
+                    }
                 }
             }
         });
