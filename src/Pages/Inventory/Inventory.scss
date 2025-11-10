@@ -7,10 +7,9 @@
     max-width: 1300px;
     padding: 0 20px 8px 20px;
 
-    .inventory-header-right
-    {
-margin-top: 10px !important;
-margin-bottom: 10px !important;
+    .inventory-header-right {
+      margin-top: 10px !important;
+      margin-bottom: 10px !important;
     }
 
     .right-section {
@@ -1069,28 +1068,162 @@ margin-bottom: 10px !important;
 // Add these styles to your Inventory.scss
 
 .disabled-btn {
-    opacity: 0.6;
-    cursor: not-allowed !important;
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  background-color: #f5f5f5 !important;
+  color: #999 !important;
+  border-color: #ddd !important;
+
+  &:hover {
     background-color: #f5f5f5 !important;
     color: #999 !important;
     border-color: #ddd !important;
-    
-    &:hover {
-        background-color: #f5f5f5 !important;
-        color: #999 !important;
-        border-color: #ddd !important;
-        transform: none !important;
-        box-shadow: none !important;
-    }
+    transform: none !important;
+    box-shadow: none !important;
+  }
 }
 
 // If you want to add a tooltip effect
 .action-buttons-group {
+  position: relative;
+
+  .disabled-btn {
     position: relative;
-    
-    .disabled-btn {
-        position: relative;
-        
-        
+
+
+  }
+}
+
+
+
+
+// Batch History Styles
+.clickable-batch-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #f5f6fa !important;
+  }
+}
+
+.batch-number-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-expand-icon {
+  color: #7366ff;
+  font-size: 12px;
+}
+
+.batch-history-row {
+  background-color: #f9f9f9;
+
+  td {
+    padding: 0 !important;
+    border-bottom: 1px solid #ddd;
+  }
+}
+
+.batch-history-container {
+  padding: 20px;
+  background: white;
+  margin: 10px;
+  border-radius: 8px;
+  border: 1px solid #eee;
+
+  h5 {
+    margin: 0 0 15px 0;
+    color: #3f3f91;
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+.addition-history-table {
+  overflow-x: auto;
+}
+
+.addition-details-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+
+  th,
+  td {
+    padding: 10px 12px;
+    border: 1px solid #eee;
+    font-size: 12px;
+    text-align: left;
+  }
+
+  th {
+    background: #f0f4ff;
+    font-weight: 600;
+    color: #3f3f91;
+  }
+
+  .addition-row {
+    &:nth-child(even) {
+      background-color: #f9f9f9;
     }
+
+    &:hover {
+      background-color: #f1f1f1;
+    }
+  }
+
+  .quantity-added {
+    color: #388e3c;
+    font-weight: 600;
+    font-size: 11px;
+  }
+
+  .addition-price {
+    color: #1976d2;
+    font-weight: 500;
+  }
+
+  .addition-total-value {
+    color: #d32f2f;
+    font-weight: 600;
+  }
+
+  .addition-batches {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #666;
+  }
+
+  .addition-summary {
+    background: #e8f5e8;
+    font-weight: 600;
+
+    td {
+      border-top: 2px solid #388e3c;
+    }
+  }
+}
+
+.total-added-quantity {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.no-addition-history {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+// Ensure proper row highlighting
+.batch-main-row.expanded {
+  background-color: #e3f2fd !important;
 }

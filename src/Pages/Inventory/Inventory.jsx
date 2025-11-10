@@ -47,6 +47,23 @@ const Inventory = () => {
     // ✅ ADDED: User access control state
     const [userHasInventoryAccess, setUserHasInventoryAccess] = useState(true);
 
+    const [expandedBatchHistory, setExpandedBatchHistory] = useState(new Set());
+
+
+
+    const toggleBatchHistory = (batchNumber) => {
+        setExpandedBatchHistory(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(batchNumber)) {
+                newSet.delete(batchNumber);
+            } else {
+                newSet.add(batchNumber);
+            }
+            return newSet;
+        });
+    };
+
+
     useEffect(() => {
         window.scrollTo(0, 0);
         checkUserAccess(); // ✅ Check user access first
@@ -927,110 +944,201 @@ const Inventory = () => {
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody>
-                                                                                {item.batches.map((batch, batchIndex) => (
-                                                                                    <React.Fragment key={batchIndex}>
-                                                                                        <tr className="batch-main-row">
-                                                                                            <td className="batch-number-cell">
-                                                                                                <strong>{batch.batchNumber}</strong>
-                                                                                            </td>
-                                                                                            <td className="quantity-cell">
-                                                                                                <span className={`quantity-badge ${batch.currentQuantity === 0 ? 'zero' : ''}`}>
-                                                                                                    {batch.currentQuantity}
-                                                                                                </span>
-                                                                                            </td>
-                                                                                            <td className="disposed-cell">
-                                                                                                {batch.totalDisposed > 0 ? (
-                                                                                                    <span className="disposed-badge">
-                                                                                                        {batch.totalDisposed} units
-                                                                                                    </span>
-                                                                                                ) : (
-                                                                                                    <span className="no-disposal">-</span>
-                                                                                                )}
-                                                                                            </td>
-                                                                                            <td>{new Date(batch.manufactureDate).toLocaleDateString()}</td>
-                                                                                            <td className={
-                                                                                                new Date(batch.expiryDate) < new Date() ? 'expired-date' : ''
-                                                                                            }>
-                                                                                                {new Date(batch.expiryDate).toLocaleDateString()}
-                                                                                            </td>
-                                                                                            <td>{new Date(batch.addedAt).toLocaleDateString()}</td>
-                                                                                            <td className="disposal-info-cell">
-                                                                                                {batch.disposals && batch.disposals.length > 0 ? (
-                                                                                                    <button
-                                                                                                        className="view-disposal-btn"
-                                                                                                        onClick={() => toggleBatchDisposal(batch.batchNumber)}
-                                                                                                    >
-                                                                                                        {expandedBatchDisposals.has(batch.batchNumber) ? 'Hide' : 'View'} Details
-                                                                                                        ({batch.disposals.length})
-                                                                                                    </button>
-                                                                                                ) : (
-                                                                                                    <span className="no-disposal-history">No disposals</span>
-                                                                                                )}
-                                                                                            </td>
-                                                                                        </tr>
+                                                                                {item.batches.map((batch, batchIndex) => {
+                                                                                    // Calculate total quantity for this batch from priceHistory
+                                                                                    const batchAdditions = item.priceHistory?.filter(history =>
+                                                                                        history.batchNumbers?.includes(batch.batchNumber)
+                                                                                    ) || [];
 
-                                                                                        {/* Disposal Details Row */}
-                                                                                        {batch.disposals && batch.disposals.length > 0 &&
-                                                                                            expandedBatchDisposals.has(batch.batchNumber) && (
-                                                                                                <tr className="disposal-details-row">
+                                                                                    const totalBatchQuantity = batchAdditions.reduce((sum, addition) =>
+                                                                                        sum + (addition.quantityAdded || 0), 0
+                                                                                    );
+
+                                                                                    return (
+                                                                                        <React.Fragment key={batchIndex}>
+                                                                                            {/* Main Batch Row - NOW CLICKABLE */}
+                                                                                            <tr
+                                                                                                className={`batch-main-row clickable-batch-row ${expandedBatchHistory.has(batch.batchNumber) ? 'expanded' : ''}`}
+                                                                                                onClick={() => toggleBatchHistory(batch.batchNumber)}
+                                                                                            >
+                                                                                                <td className="batch-number-cell">
+                                                                                                    <div className="batch-number-with-icon">
+                                                                                                        <strong>{batch.batchNumber}</strong>
+                                                                                                        {expandedBatchHistory.has(batch.batchNumber) ?
+                                                                                                            <FaChevronUp className="batch-expand-icon" /> :
+                                                                                                            <FaChevronDown className="batch-expand-icon" />
+                                                                                                        }
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td className="quantity-cell">
+                                                                                                    <span className={`quantity-badge ${batch.currentQuantity === 0 ? 'zero' : ''}`}>
+                                                                                                        {batch.currentQuantity}
+                                                                                                    </span>
+                                                                                                    <div className="total-added-quantity">
+                                                                                                        Total Added: {totalBatchQuantity}
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                <td className="disposed-cell">
+                                                                                                    {batch.totalDisposed > 0 ? (
+                                                                                                        <span className="disposed-badge">
+                                                                                                            {batch.totalDisposed} units
+                                                                                                        </span>
+                                                                                                    ) : (
+                                                                                                        <span className="no-disposal">-</span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                                <td>{new Date(batch.manufactureDate).toLocaleDateString()}</td>
+                                                                                                <td className={
+                                                                                                    new Date(batch.expiryDate) < new Date() ? 'expired-date' : ''
+                                                                                                }>
+                                                                                                    {new Date(batch.expiryDate).toLocaleDateString()}
+                                                                                                </td>
+                                                                                                <td>{new Date(batch.addedAt).toLocaleDateString()}</td>
+                                                                                                <td className="disposal-info-cell">
+                                                                                                    {batch.disposals && batch.disposals.length > 0 ? (
+                                                                                                        <button
+                                                                                                            className="view-disposal-btn"
+                                                                                                            onClick={(e) => {
+                                                                                                                e.stopPropagation();
+                                                                                                                toggleBatchDisposal(batch.batchNumber);
+                                                                                                            }}
+                                                                                                        >
+                                                                                                            {expandedBatchDisposals.has(batch.batchNumber) ? 'Hide' : 'View'} Details
+                                                                                                            ({batch.disposals.length})
+                                                                                                        </button>
+                                                                                                    ) : (
+                                                                                                        <span className="no-disposal-history">No disposals</span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                            </tr>
+
+                                                                                            {/* Batch Addition History Row */}
+                                                                                            {expandedBatchHistory.has(batch.batchNumber) && (
+                                                                                                <tr className="batch-history-row">
                                                                                                     <td colSpan="7">
-                                                                                                        <div className="disposal-details-container">
-                                                                                                            <h5>Disposal History for Batch {batch.batchNumber}</h5>
-                                                                                                            <div className="disposal-table-container">
-                                                                                                                <table className="disposal-details-table">
-                                                                                                                    <thead>
-                                                                                                                        <tr>
-                                                                                                                            <th>Date</th>
-                                                                                                                            <th>Type</th>
-                                                                                                                            <th>Quantity</th>
-                                                                                                                            <th>Reason</th>
-                                                                                                                            <th>Disposal ID</th>
-                                                                                                                        </tr>
-                                                                                                                    </thead>
-                                                                                                                    <tbody>
-                                                                                                                        {batch.disposals.map((disposal, disposalIndex) => (
-                                                                                                                            <tr key={disposalIndex} className={`disposal-row ${disposal.type}`}>
-                                                                                                                                <td className="disposal-date">
-                                                                                                                                    {new Date(disposal.disposalDate).toLocaleDateString()}
+                                                                                                        <div className="batch-history-container">
+                                                                                                            <h5>Quantity Addition History for Batch {batch.batchNumber}</h5>
+                                                                                                            {batchAdditions.length > 0 ? (
+                                                                                                                <div className="addition-history-table">
+                                                                                                                    <table className="addition-details-table">
+                                                                                                                        <thead>
+                                                                                                                            <tr>
+                                                                                                                                <th>Date Added</th>
+                                                                                                                                <th>Quantity Added</th>
+                                                                                                                                <th>Price per Unit</th>
+                                                                                                                                <th>Total Value</th>
+                                                                                                                                <th>Added Batch Numbers</th>
+                                                                                                                            </tr>
+                                                                                                                        </thead>
+                                                                                                                        <tbody>
+                                                                                                                            {batchAdditions.map((addition, additionIndex) => (
+                                                                                                                                <tr key={additionIndex} className="addition-row">
+                                                                                                                                    <td className="addition-date">
+                                                                                                                                        {new Date(addition.addedAt).toLocaleDateString()}
+                                                                                                                                    </td>
+                                                                                                                                    <td className="addition-quantity">
+                                                                                                                                        <span className="quantity-added">
+                                                                                                                                            +{addition.quantityAdded} units
+                                                                                                                                        </span>
+                                                                                                                                    </td>
+                                                                                                                                    <td className="addition-price">
+                                                                                                                                        ₹{addition.price?.toFixed(2) || "0.00"}
+                                                                                                                                    </td>
+                                                                                                                                    <td className="addition-total-value">
+                                                                                                                                        ₹{(addition.quantityAdded * addition.price).toFixed(2)}
+                                                                                                                                    </td>
+                                                                                                                                    <td className="addition-batches">
+                                                                                                                                        {addition.batchNumbers?.join(', ') || batch.batchNumber}
+                                                                                                                                    </td>
+                                                                                                                                </tr>
+                                                                                                                            ))}
+                                                                                                                        </tbody>
+                                                                                                                        <tfoot>
+                                                                                                                            <tr className="addition-summary">
+                                                                                                                                <td colSpan="1">
+                                                                                                                                    <strong>Total Added:</strong>
                                                                                                                                 </td>
                                                                                                                                 <td>
-                                                                                                                                    <span className={`disposal-type-badge ${disposal.type}`}>
-                                                                                                                                        {disposal.type === 'defective' ? 'Defective' : 'Expired'}
-                                                                                                                                    </span>
+                                                                                                                                    <strong>{totalBatchQuantity} units</strong>
                                                                                                                                 </td>
-                                                                                                                                <td className="disposal-quantity">
-                                                                                                                                    <span className="quantity-removed">
-                                                                                                                                        {disposal.quantity} units
-                                                                                                                                    </span>
-                                                                                                                                </td>
-                                                                                                                                <td className="disposal-reason">
-                                                                                                                                    {disposal.reason || 'Not specified'}
-                                                                                                                                </td>
-                                                                                                                                <td className="disposal-id">
-                                                                                                                                    {disposal.disposalId}
-                                                                                                                                </td>
+                                                                                                                                <td colSpan="3"></td>
                                                                                                                             </tr>
-                                                                                                                        ))}
-                                                                                                                    </tbody>
-                                                                                                                </table>
-                                                                                                            </div>
-                                                                                                            <div className="disposal-summary">
-                                                                                                                <div className="summary-item">
-                                                                                                                    <strong>Original Quantity:</strong> {batch.originalQuantity} units
+                                                                                                                        </tfoot>
+                                                                                                                    </table>
                                                                                                                 </div>
-                                                                                                                <div className="summary-item">
-                                                                                                                    <strong>Total Disposed:</strong> {batch.totalDisposed} units
+                                                                                                            ) : (
+                                                                                                                <div className="no-addition-history">
+                                                                                                                    No addition history found for this batch
                                                                                                                 </div>
-                                                                                                                <div className="summary-item">
-                                                                                                                    <strong>Current Quantity:</strong> {batch.currentQuantity} units
-                                                                                                                </div>
-                                                                                                            </div>
+                                                                                                            )}
                                                                                                         </div>
                                                                                                     </td>
                                                                                                 </tr>
                                                                                             )}
-                                                                                    </React.Fragment>
-                                                                                ))}
+
+                                                                                            {/* Disposal Details Row */}
+                                                                                            {batch.disposals && batch.disposals.length > 0 &&
+                                                                                                expandedBatchDisposals.has(batch.batchNumber) && (
+                                                                                                    <tr className="disposal-details-row">
+                                                                                                        <td colSpan="7">
+                                                                                                            <div className="disposal-details-container">
+                                                                                                                <h5>Disposal History for Batch {batch.batchNumber}</h5>
+                                                                                                                <div className="disposal-table-container">
+                                                                                                                    <table className="disposal-details-table">
+                                                                                                                        <thead>
+                                                                                                                            <tr>
+                                                                                                                                <th>Date</th>
+                                                                                                                                <th>Type</th>
+                                                                                                                                <th>Quantity</th>
+                                                                                                                                <th>Reason</th>
+                                                                                                                                <th>Disposal ID</th>
+                                                                                                                            </tr>
+                                                                                                                        </thead>
+                                                                                                                        <tbody>
+                                                                                                                            {batch.disposals.map((disposal, disposalIndex) => (
+                                                                                                                                <tr key={disposalIndex} className={`disposal-row ${disposal.type}`}>
+                                                                                                                                    <td className="disposal-date">
+                                                                                                                                        {new Date(disposal.disposalDate).toLocaleDateString()}
+                                                                                                                                    </td>
+                                                                                                                                    <td>
+                                                                                                                                        <span className={`disposal-type-badge ${disposal.type}`}>
+                                                                                                                                            {disposal.type === 'defective' ? 'Defective' : 'Expired'}
+                                                                                                                                        </span>
+                                                                                                                                    </td>
+                                                                                                                                    <td className="disposal-quantity">
+                                                                                                                                        <span className="quantity-removed">
+                                                                                                                                            {disposal.quantity} units
+                                                                                                                                        </span>
+                                                                                                                                    </td>
+                                                                                                                                    <td className="disposal-reason">
+                                                                                                                                        {disposal.reason || 'Not specified'}
+                                                                                                                                    </td>
+                                                                                                                                    <td className="disposal-id">
+                                                                                                                                        {disposal.disposalId}
+                                                                                                                                    </td>
+                                                                                                                                </tr>
+                                                                                                                            ))}
+                                                                                                                        </tbody>
+                                                                                                                    </table>
+                                                                                                                </div>
+                                                                                                                <div className="disposal-summary">
+                                                                                                                    <div className="summary-item">
+                                                                                                                        <strong>Original Quantity:</strong> {batch.originalQuantity} units
+                                                                                                                    </div>
+                                                                                                                    <div className="summary-item">
+                                                                                                                        <strong>Total Disposed:</strong> {batch.totalDisposed} units
+                                                                                                                    </div>
+                                                                                                                    <div className="summary-item">
+                                                                                                                        <strong>Current Quantity:</strong> {batch.currentQuantity} units
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                )}
+                                                                                        </React.Fragment>
+                                                                                    );
+                                                                                })}
                                                                             </tbody>
                                                                         </table>
                                                                     </div>
