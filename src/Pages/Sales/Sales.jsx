@@ -3,6 +3,7 @@ import { Formik, Form, Field, ErrorMessage } from "formik";
 import * as Yup from "yup";
 import { toast, ToastContainer } from "react-toastify";
 import { FaPlus, FaFileExport, FaFileExcel, FaSearch, FaTrash, FaSave, FaFilePdf, FaSpinner, FaEdit, FaChevronDown } from "react-icons/fa";
+import { FaExchangeAlt } from 'react-icons/fa'; // For change product icon
 import Navbar from "../../Components/Sidebar/Navbar";
 import "react-toastify/dist/ReactToastify.css";
 import "./Sales.scss";
@@ -64,6 +65,23 @@ const Sales = () => {
   const [availableLoyaltyCoins, setAvailableLoyaltyCoins] = useState(0);
   const [usableLoyaltyCoins, setUsableLoyaltyCoins] = useState(0);
 
+
+  const [userPermissions, setUserPermissions] = useState([]);
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        setUserPermissions(user.permissions || []);
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+        setUserPermissions([]);
+      }
+    }
+  }, []);
+
+  const hasAdminPermission = userPermissions.includes('admin');
 
 
 
@@ -478,7 +496,7 @@ const Sales = () => {
     }
   };
 
-  const calculateInvoiceTotals = () => {
+  const calculateInvoiceTotals = (items, existingInvoice = null) => {
     let subtotal = 0;
     let totalDiscountAmount = 0;
     let totalBaseValue = 0;
@@ -487,10 +505,10 @@ const Sales = () => {
     let sgstAmount = 0;
     const taxPercentages = new Set();
 
-    // First calculate amount after all discounts
-    let amountAfterAllDiscounts = 0;
+    // First calculate amount after all item discounts
+    let amountAfterItemDiscounts = 0;
 
-    const itemsWithCalculations = selectedItems.map(item => {
+    const itemsWithCalculations = items.map(item => {
       const quantity = item.quantity || 1;
       const taxRate = item.taxSlab || 18;
       const discountPercentage = item.discount || 0;
@@ -503,7 +521,7 @@ const Sales = () => {
 
       subtotal += itemTotalInclTax;
       totalDiscountAmount += itemDiscountAmount;
-      amountAfterAllDiscounts += itemTotalAfterDiscount;
+      amountAfterItemDiscounts += itemTotalAfterDiscount;
 
       return {
         ...item,
@@ -512,26 +530,40 @@ const Sales = () => {
       };
     });
 
-    // Apply promo discount
+    // ✅ FIXED: Handle both new invoices and existing invoices properly
     let promoDiscountAmount = 0;
-    if (appliedPromo) {
-      promoDiscountAmount = amountAfterAllDiscounts * (appliedPromo.discount / 100);
+
+    // For NEW invoices (when creating)
+    if (appliedPromo && !existingInvoice) {
+      promoDiscountAmount = amountAfterItemDiscounts * (appliedPromo.discount / 100);
+    }
+    // For EXISTING invoices (when editing in modal)
+    else if (existingInvoice && existingInvoice.appliedPromoCode) {
+      // Use the original promo discount calculation
+      promoDiscountAmount = amountAfterItemDiscounts * (existingInvoice.appliedPromoCode.discount / 100);
     }
 
     // Amount after promo discount
-    const amountAfterPromo = amountAfterAllDiscounts - promoDiscountAmount;
+    const amountAfterPromo = amountAfterItemDiscounts - promoDiscountAmount;
 
-    // Apply loyalty coins discount (AFTER promo, BEFORE tax)
+    // ✅ FIXED: Handle both new and existing loyalty calculations
     let loyaltyDiscountAmount = 0;
     let actualLoyaltyCoinsUsed = 0;
 
-    if (useLoyaltyCoins && usableLoyaltyCoins > 0) {
-      // Maximum loyalty discount is the usable coins amount (1 coin = 1 rupee)
-      loyaltyDiscountAmount = Math.min(usableLoyaltyCoins, amountAfterPromo);
-      actualLoyaltyCoinsUsed = Math.floor(loyaltyDiscountAmount); // Since 1 coin = 1 rupee
+    // For existing invoices, use the original loyalty coins used
+    if (existingInvoice && existingInvoice.loyaltyCoinsUsed && existingInvoice.loyaltyCoinsUsed > 0) {
+      loyaltyDiscountAmount = Math.min(existingInvoice.loyaltyCoinsUsed, amountAfterPromo);
+      actualLoyaltyCoinsUsed = Math.floor(loyaltyDiscountAmount);
+    }
+    // For NEW invoices, calculate based on current loyalty coins selection
+    else if (useLoyaltyCoins && usableLoyaltyCoins > 0 && !existingInvoice) {
+      // Calculate maximum usable loyalty discount (1 coin = ₹1)
+      const maxLoyaltyDiscount = Math.min(usableLoyaltyCoins, amountAfterPromo);
+      loyaltyDiscountAmount = maxLoyaltyDiscount;
+      actualLoyaltyCoinsUsed = Math.floor(loyaltyDiscountAmount);
     }
 
-    // Final amount after ALL discounts (promo + loyalty)
+    // Final amount after ALL discounts (item + promo + loyalty)
     const finalAmountAfterAllDiscounts = amountAfterPromo - loyaltyDiscountAmount;
 
     // Calculate tax on the final amount after ALL discounts
@@ -539,7 +571,8 @@ const Sales = () => {
       const taxRate = item.taxSlab || 18;
 
       // Calculate tax based on final discounted amount for this item
-      const itemFinalAmount = (item.totalAmount / amountAfterAllDiscounts) * finalAmountAfterAllDiscounts;
+      // Distribute the total discount proportionally to each item
+      const itemFinalAmount = (item.totalAmount / amountAfterItemDiscounts) * finalAmountAfterAllDiscounts;
       const itemBaseValue = itemFinalAmount / (1 + taxRate / 100);
       const itemTaxAmount = itemFinalAmount - itemBaseValue;
       const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
@@ -582,13 +615,12 @@ const Sales = () => {
       sgst: sgstAmount,
       hasMixedTaxRates: hasMixedTaxRates,
       taxPercentages: Array.from(taxPercentages),
-      amountAfterAllDiscounts: amountAfterAllDiscounts,
+      amountAfterAllDiscounts: amountAfterItemDiscounts,
       finalAmountAfterAllDiscounts: finalAmountAfterAllDiscounts,
       grandTotal: grandTotal
     };
   };
 
-  // Add this function in your Sales component
 
   const calculateLoyaltyCoins = (invoiceTotals) => {
     // Use baseValue which is total after discounts but before tax
@@ -661,7 +693,7 @@ const Sales = () => {
       let customerToUse = { ...newCustomer };
 
       // Calculate loyalty coins
-      const invoiceTotals = calculateInvoiceTotals();
+      const invoiceTotals = calculateInvoiceTotals(selectedItems);
       const loyaltyCoinsEarned = calculateLoyaltyCoins(invoiceTotals);
       const loyaltyCoinsUsed = invoiceTotals.loyaltyCoinsUsed || 0;
 
@@ -1415,19 +1447,446 @@ const Sales = () => {
     }
   };
 
-  // Modal component
-  // Modal component - FIXED VERSION
-  const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete }) => {
+
+  const InvoiceModal = ({ invoice, onClose, onUpdate, onDelete, fetchInventory }) => {
     const [isEditing, setIsEditing] = useState(false);
+    const [isEditingProducts, setIsEditingProducts] = useState(false);
     const [editedInvoice, setEditedInvoice] = useState({});
+    const [editedItems, setEditedItems] = useState([]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [itemSearchTerm, setItemSearchTerm] = useState("");
+    const [showBatchDropdown, setShowBatchDropdown] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [userPermissions, setUserPermissions] = useState([]);
+
+    const getAvailableQuantity = (productId, batchNumber) => {
+      const inventoryItem = inventory.find(item => item.productId === productId);
+      if (!inventoryItem) return 0;
+
+      const batch = inventoryItem.batches.find(b => b.batchNumber === batchNumber);
+      return batch ? batch.quantity : 0;
+    };
+
+    useEffect(() => {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          setUserPermissions(user.permissions || []);
+        } catch (error) {
+          console.error("Error parsing user data:", error);
+          setUserPermissions([]);
+        }
+      }
+    }, []);
+
+
+    const hasAdminPermission = userPermissions.includes('admin');
+
+
+    // Refs
+    const batchDropdownRef = useRef(null);
 
     useEffect(() => {
       if (invoice) {
         setEditedInvoice({ ...invoice });
+        // ✅ FIXED: Create DEEP COPY of items to avoid reference issues
+        setEditedItems(invoice.items.map(item => ({
+          ...item,
+          // Ensure we have the original quantity for comparison
+          originalQuantity: item.quantity
+        })));
       }
     }, [invoice]);
 
+
+
+    // Add this useEffect in the InvoiceModal component to debug promo discount updates
+    // Update the debug useEffect to use the correct function call:
+
+    useEffect(() => {
+      if (isEditingProducts) {
+        const currentTotals = calculateInvoiceTotals(editedItems, invoice); // ✅ Pass invoice here
+        console.log("🔄 PROMO DISCOUNT UPDATE:", {
+          itemsCount: editedItems.length,
+          subtotal: currentTotals.subtotal,
+          amountAfterItemDiscounts: currentTotals.amountAfterAllDiscounts,
+          promoDiscount: currentTotals.promoDiscount,
+          appliedPromoCode: invoice.appliedPromoCode,
+          recalculated: new Date().toLocaleTimeString()
+        });
+      }
+    }, [editedItems, isEditingProducts, invoice]);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (batchDropdownRef.current && !batchDropdownRef.current.contains(event.target)) {
+          setShowBatchDropdown(null);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, []);
+
+    // Filter products for search
+    const filteredProducts = useMemo(() => {
+      if (!itemSearchTerm) return [];
+      const term = itemSearchTerm.toLowerCase();
+      return products.filter(product =>
+        (product.productName && product.productName.toLowerCase().includes(term)) ||
+        (product.hsnCode && product.hsnCode.toLowerCase().includes(term)) ||
+        (product.barcode && product.barcode.includes(term))
+      );
+    }, [itemSearchTerm, products]);
+
+    // Get available batches for product
+    const getAvailableBatches = (productId) => {
+      const inventoryItem = inventory.find(item => item.productId === productId);
+      if (!inventoryItem) return [];
+
+      const currentDate = new Date();
+      return inventoryItem.batches
+        .filter(batch => {
+          const isExpired = new Date(batch.expiryDate) < currentDate;
+          return batch.quantity > 0 && !isExpired;
+        })
+        .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+    };
+
+    // Handle product selection for adding new item
+    const handleProductSelect = (product) => {
+      const availableBatches = getAvailableBatches(product.productId);
+
+      if (availableBatches.length === 0) {
+        toast.error("No available stock for this product");
+        return;
+      }
+
+      if (availableBatches.length === 1) {
+        handleAddNewItem(product, availableBatches[0]);
+      } else {
+        setShowBatchDropdown(product.productId);
+      }
+    };
+
+    // Add new item to edited items
+    const handleAddNewItem = (product, batch) => {
+      const newItem = {
+        productId: product.productId,
+        id: product.productId,
+        name: product.productName,
+        category: product.category,
+        hsn: product.hsnCode || "",
+        barcode: product.barcode || "",
+        originalPrice: product.price || 0,
+        price: product.price || 0,
+        quantity: 1,
+        discount: product.discount || 0,
+        taxSlab: product.taxSlab || 18,
+        batchNumber: batch.batchNumber,
+        expiryDate: batch.expiryDate
+      };
+
+      setEditedItems(prev => [...prev, newItem]);
+      setItemSearchTerm("");
+      setShowBatchDropdown(null);
+    };
+
+    // Update existing item - FIXED QUANTITY UPDATE LOGIC
+    const handleItemUpdate = (index, field, value) => {
+      const updatedItems = [...editedItems];
+
+      if (field === 'quantity') {
+        // Ensure quantity is at least 1
+        const newQuantity = Math.max(1, parseInt(value) || 1);
+
+        // Store the original quantity if not already stored
+        if (!updatedItems[index].hasOwnProperty('originalQuantity')) {
+          updatedItems[index].originalQuantity = updatedItems[index].quantity;
+        }
+
+        updatedItems[index][field] = newQuantity;
+
+        console.log(`🔄 Quantity updated:`, {
+          product: updatedItems[index].name,
+          batch: updatedItems[index].batchNumber,
+          originalQuantity: updatedItems[index].originalQuantity,
+          newQuantity: newQuantity,
+          difference: newQuantity - updatedItems[index].originalQuantity
+        });
+      } else if (field === 'discount') {
+        updatedItems[index][field] = value === "" ? "" : parseInt(value) || 0;
+      } else if (field === 'price') {
+        updatedItems[index][field] = value;
+      } else {
+        updatedItems[index][field] = value;
+      }
+
+      setEditedItems(updatedItems);
+    };
+
+    // Remove item
+    const handleRemoveItem = (index) => {
+      const removedItem = editedItems[index];
+      console.log(`🗑️ Removing item:`, {
+        product: removedItem.name,
+        batch: removedItem.batchNumber,
+        quantity: removedItem.quantity
+      });
+
+      setEditedItems(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // FIXED: Save product changes with proper inventory synchronization
+    const handleSaveProducts = async () => {
+      if (!invoice) return;
+
+      setIsSaving(true);
+      try {
+        const userData = localStorage.getItem('user');
+        const user = userData ? JSON.parse(userData) : null;
+
+        console.log("🔄 Starting product update process...");
+        console.log("Original items from invoice:", invoice.items);
+        console.log("Updated items from edited state:", editedItems);
+
+        // Prepare updated items without the temporary originalQuantity field
+        const itemsToSend = editedItems.map(item => {
+          const { originalQuantity, ...itemToSend } = item;
+          return itemToSend;
+        });
+
+        // Debug: Check if quantities are actually different
+        invoice.items.forEach((originalItem, index) => {
+          const updatedItem = editedItems.find(item =>
+            item.productId === originalItem.productId &&
+            item.batchNumber === originalItem.batchNumber
+          );
+
+          if (updatedItem) {
+            console.log(`🔍 Quantity comparison for ${originalItem.name}:`, {
+              original: originalItem.quantity,
+              updated: updatedItem.quantity,
+              different: originalItem.quantity !== updatedItem.quantity,
+              batch: originalItem.batchNumber
+            });
+          }
+        });
+
+        const response = await axios.put(
+          `${import.meta.env.VITE_API_URL}/invoices/update-invoice-products/${invoice.invoiceNumber}`,
+          {
+            updatedItems: itemsToSend, // Use the cleaned items
+            originalItems: invoice.items, // Make sure this is the ORIGINAL from the invoice
+            userDetails: user ? {
+              userId: user.userId,
+              name: user.name,
+              email: user.email
+            } : null
+          }
+        );
+
+        if (response.data.success) {
+          // Update local state with new invoice data
+          setEditedInvoice(response.data.data);
+          setIsEditingProducts(false);
+
+          console.log("✅ Products updated successfully:", response.data.updateSummary);
+          toast.success("Invoice products updated successfully!");
+
+          // Refresh parent component if needed
+          if (onUpdate) {
+            onUpdate(response.data.data);
+          }
+
+          // Refresh inventory data to reflect changes
+          fetchInventory();
+
+          console.log("🔄 Inventory refresh triggered");
+        }
+      } catch (error) {
+        console.error("❌ Error updating invoice products:", error);
+
+        // More specific error messages
+        if (error.response?.data?.errors) {
+          const errors = error.response.data.errors;
+          if (Array.isArray(errors)) {
+            errors.forEach(err => {
+              toast.error(`Inventory error: ${err.productName} - ${err.error} (Available: ${err.available})`);
+            });
+          }
+        } else {
+          toast.error(error.response?.data?.message || "Failed to update products");
+        }
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    // FIXED: EXACT SAME CALCULATION LOGIC AS MAIN SALES COMPONENT
+    // const calculateInvoiceTotals = (items) => {
+    //   let subtotal = 0;
+    //   let totalDiscountAmount = 0;
+    //   let totalBaseValue = 0;
+    //   let totalTaxAmount = 0;
+    //   let cgstAmount = 0;
+    //   let sgstAmount = 0;
+    //   const taxPercentages = new Set();
+
+    //   // First calculate amount after all discounts
+    //   let amountAfterAllDiscounts = 0;
+
+    //   const itemsWithCalculations = items.map(item => {
+    //     const quantity = item.quantity || 1;
+    //     const taxRate = item.taxSlab || 18;
+    //     const discountPercentage = item.discount || 0;
+
+    //     taxPercentages.add(taxRate);
+
+    //     const itemTotalInclTax = item.price * quantity;
+    //     const itemDiscountAmount = itemTotalInclTax * (discountPercentage / 100);
+    //     const itemTotalAfterDiscount = itemTotalInclTax - itemDiscountAmount;
+
+    //     subtotal += itemTotalInclTax;
+    //     totalDiscountAmount += itemDiscountAmount;
+    //     amountAfterAllDiscounts += itemTotalAfterDiscount;
+
+    //     return {
+    //       ...item,
+    //       discountAmount: itemDiscountAmount,
+    //       totalAmount: itemTotalAfterDiscount
+    //     };
+    //   });
+
+    //   // Apply promo discount - PRESERVE ORIGINAL INVOICE'S PROMO DISCOUNT
+    //   let promoDiscountAmount = invoice.promoDiscount || 0;
+
+    //   // Amount after promo discount
+    //   const amountAfterPromo = amountAfterAllDiscounts - promoDiscountAmount;
+
+    //   // Apply loyalty coins discount - PRESERVE ORIGINAL INVOICE'S LOYALTY DISCOUNT
+    //   let loyaltyDiscountAmount = invoice.loyaltyDiscount || 0;
+
+    //   // Final amount after ALL discounts (promo + loyalty)
+    //   const finalAmountAfterAllDiscounts = amountAfterPromo - loyaltyDiscountAmount;
+
+    //   // Calculate tax on the final amount after ALL discounts
+    //   const itemsWithTaxCalculations = itemsWithCalculations.map(item => {
+    //     const taxRate = item.taxSlab || 18;
+
+    //     // Calculate tax based on final discounted amount for this item
+    //     const itemFinalAmount = (item.totalAmount / amountAfterAllDiscounts) * finalAmountAfterAllDiscounts;
+    //     const itemBaseValue = itemFinalAmount / (1 + taxRate / 100);
+    //     const itemTaxAmount = itemFinalAmount - itemBaseValue;
+    //     const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
+    //     const itemSgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
+
+    //     totalBaseValue += itemBaseValue;
+    //     totalTaxAmount += itemTaxAmount;
+    //     cgstAmount += itemCgstAmount;
+    //     sgstAmount += itemSgstAmount;
+
+    //     return {
+    //       ...item,
+    //       baseValue: itemBaseValue,
+    //       taxAmount: itemTaxAmount,
+    //       cgstAmount: itemCgstAmount,
+    //       sgstAmount: itemSgstAmount,
+    //       finalAmount: itemFinalAmount
+    //     };
+    //   });
+
+    //   const hasMixedTaxRates = taxPercentages.size > 1;
+    //   if (hasMixedTaxRates) {
+    //     cgstAmount = 0;
+    //     sgstAmount = 0;
+    //   }
+
+    //   // Final grand total
+    //   const grandTotal = finalAmountAfterAllDiscounts;
+
+    //   return {
+    //     items: itemsWithTaxCalculations,
+    //     subtotal: subtotal,
+    //     baseValue: totalBaseValue,
+    //     discount: totalDiscountAmount,
+    //     promoDiscount: promoDiscountAmount,
+    //     loyaltyDiscount: loyaltyDiscountAmount,
+    //     loyaltyCoinsUsed: invoice.loyaltyCoinsUsed || 0,
+    //     tax: totalTaxAmount,
+    //     cgst: cgstAmount,
+    //     sgst: sgstAmount,
+    //     hasMixedTaxRates: hasMixedTaxRates,
+    //     taxPercentages: Array.from(taxPercentages),
+    //     amountAfterAllDiscounts: amountAfterAllDiscounts,
+    //     finalAmountAfterAllDiscounts: finalAmountAfterAllDiscounts,
+    //     grandTotal: grandTotal
+    //   };
+    // };
+
+    // FIXED: Proper calculation breakdown for VIEW MODE that shows ALL discounts
+    const calculateInvoiceBreakdown = (invoice) => {
+      // For view mode, use the actual invoice data
+      const subtotal = invoice.subtotal || 0;
+      const itemDiscount = invoice.discount || 0;
+      const promoDiscount = invoice.promoDiscount || 0;
+      const loyaltyDiscount = invoice.loyaltyDiscount || 0;
+      const tax = invoice.tax || 0;
+      const cgst = invoice.cgst || 0;
+      const sgst = invoice.sgst || 0;
+      const total = invoice.total || 0;
+
+      // Calculate intermediate amounts based on your original logic
+      const amountBeforeTax = subtotal - itemDiscount;
+      const amountAfterPromo = amountBeforeTax - promoDiscount;
+      const amountAfterLoyalty = amountAfterPromo - loyaltyDiscount;
+
+      // For view mode, use the actual invoice total
+      const grandTotal = total;
+
+      return {
+        subtotal,
+        itemDiscount,
+        promoDiscount,
+        loyaltyDiscount,
+        amountBeforeTax,
+        amountAfterPromo,
+        amountAfterLoyalty,
+        tax,
+        cgst,
+        sgst,
+        grandTotal,
+        hasMixedTaxRates: invoice.hasMixedTaxRates || false,
+        taxPercentages: invoice.taxPercentages || [18],
+        loyaltyCoinsUsed: invoice.loyaltyCoinsUsed || 0
+      };
+    };
+
+    // In the InvoiceModal component, update the calculateCurrentTotals function:
+
+
+    const calculateCurrentTotals = () => {
+      if (isEditingProducts) {
+        // In edit mode, recalculate with the original invoice's promo and loyalty data
+        return calculateInvoiceTotals(editedItems, {
+          ...invoice,
+          // Preserve the original promo and loyalty data from the invoice
+          appliedPromoCode: invoice.appliedPromoCode,
+          loyaltyCoinsUsed: invoice.loyaltyCoinsUsed,
+          promoDiscount: invoice.promoDiscount,
+          loyaltyDiscount: invoice.loyaltyDiscount
+        });
+      } else {
+        // In view mode, use original invoice data
+        return calculateInvoiceBreakdown(invoice);
+      }
+    };
+
+    // Original functions
     const handleInputChange = (e) => {
       const { name, value } = e.target;
       if (name === "remarks") {
@@ -1462,33 +1921,6 @@ const Sales = () => {
       }
     };
 
-    // CORRECTED: Define calculateInvoiceBreakdown function properly
-    const calculateInvoiceBreakdown = (invoice) => {
-      const subtotal = invoice.subtotal || 0;
-      const itemDiscount = invoice.discount || 0;
-      const promoDiscount = invoice.promoDiscount || 0;
-      const loyaltyDiscount = invoice.loyaltyDiscount || 0;
-      const tax = invoice.tax || 0;
-
-      const amountBeforeTax = subtotal - itemDiscount;
-      const amountAfterPromo = amountBeforeTax - promoDiscount;
-      const amountAfterLoyalty = amountAfterPromo - loyaltyDiscount;
-      const grandTotal = amountAfterLoyalty;
-
-      return {
-        subtotal,
-        itemDiscount,
-        promoDiscount,
-        loyaltyDiscount,
-        amountBeforeTax,
-        amountAfterPromo,
-        amountAfterLoyalty,
-        tax,
-        grandTotal
-      };
-    };
-
-    // Calculate item totals for display
     const calculateItemTotal = (item) => {
       const quantity = item.quantity || 1;
       const price = item.price || 0;
@@ -1501,15 +1933,25 @@ const Sales = () => {
 
     if (!invoice) return null;
 
-    // Calculate invoice breakdown AFTER the function is defined
-    const invoiceBreakdown = calculateInvoiceBreakdown(invoice);
+    // FIXED: Use proper calculation based on mode
+    const currentTotals = calculateCurrentTotals();
+
+    // FIXED: Safe number formatting function
+    const safeToFixed = (value, decimals = 2) => {
+      if (value === undefined || value === null || isNaN(value)) {
+        return '0.00';
+      }
+      return Number(value).toFixed(decimals);
+    };
 
     return (
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-content invoice-modal-content" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <div className="modal-title">
-              {isEditing ? "Edit Invoice" : `Invoice Details: ${invoice.invoiceNumber}`}
+              {isEditingProducts ? "Edit Invoice Products" :
+                isEditing ? "Edit Invoice" :
+                  `Invoice Details: ${invoice.invoiceNumber}`}
             </div>
             <button className="modal-close" onClick={onClose}>
               &times;
@@ -1617,7 +2059,7 @@ const Sales = () => {
                   <div className="detail-row">
                     <span className="detail-label">Loyalty Coins Used:</span>
                     <span className="detail-value">
-                      {invoice.loyaltyCoinsUsed} coins (₹{invoiceBreakdown.loyaltyDiscount.toFixed(2)})
+                      {invoice.loyaltyCoinsUsed} coins (₹{safeToFixed(currentTotals.loyaltyDiscount)})
                     </span>
                   </div>
                 )}
@@ -1638,139 +2080,371 @@ const Sales = () => {
 
             {/* Items Details Section */}
             <div className="invoice-section">
-              <h3 className="section-title">Items Details ({invoice.items?.length || 0} items)</h3>
-              {invoice.items && invoice.items.length > 0 ? (
-                <div className="items-table-container">
-                  <table className="items-details-table">
-                    <thead>
-                      <tr>
-                        <th width="5%">Sr No</th>
-                        <th width="20%">Product Name</th>
-                        <th width="10%">HSN Code</th>
-                        <th width="10%">Category</th>
-                        <th width="10%">Batch No</th>
-                        <th width="8%">Qty</th>
-                        <th width="12%">Price</th>
-                        <th width="10%">Discount %</th>
-                        <th width="15%">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoice.items.map((item, index) => (
-                        <tr key={`${item.productId}-${item.batchNumber}-${index}`}>
-                          <td>{index + 1}</td>
-                          <td>
-                            <div className="product-name">{item.name}</div>
-                            {item.barcode && (
-                              <div className="product-barcode">Barcode: {item.barcode}</div>
-                            )}
-                          </td>
-                          <td>{item.hsn || "N/A"}</td>
-                          <td>
-                            <span className="category-tag">{item.category || "N/A"}</span>
-                          </td>
-                          <td>
-                            <div className="batch-info">
-                              <span className="batch-tag">{item.batchNumber || "N/A"}</span>
-                              {item.expiryDate && (
-                                <div className="expiry-date">
-                                  Exp: {new Date(item.expiryDate).toLocaleDateString()}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3 className="section-title">
+                  Items Details ({isEditingProducts ? editedItems.length : invoice.items?.length || 0} items)
+                  {isEditingProducts && (
+                    <span style={{ fontSize: '14px', color: '#666', marginLeft: '10px' }}>
+                      (Editing Mode)
+                    </span>
+                  )}
+                </h3>
+
+                {!isEditing && !isEditingProducts && hasAdminPermission && (
+                  <button
+                    className="update-btn"
+                    onClick={() => setIsEditingProducts(true)}
+                    style={{ margin: 0 }}
+                  >
+                    <FaEdit /> Update Products
+                  </button>
+                )}
+              </div>
+
+              {isEditingProducts ? (
+                /* EDIT MODE - Products Editing */
+                <div>
+                  {/* Search and Add New Product */}
+                  <div className="form-group-row">
+                    <div className="field-wrapper">
+                      <label>Add New Product</label>
+                      <input
+                        type="text"
+                        placeholder="Search products to add..."
+                        value={itemSearchTerm}
+                        onChange={(e) => setItemSearchTerm(e.target.value)}
+                      />
+                      {itemSearchTerm && filteredProducts.length > 0 && (
+                        <div className="search-dropdown">
+                          {filteredProducts.map(product => {
+                            const availableBatches = getAvailableBatches(product.productId);
+                            const totalAvailable = availableBatches.reduce((sum, batch) => sum + batch.quantity, 0);
+
+                            return (
+                              <div
+                                key={product.productId}
+                                className={`dropdown-item ${totalAvailable === 0 ? 'out-of-stock' : ''}`}
+                                onClick={() => {
+                                  if (totalAvailable > 0) {
+                                    handleProductSelect(product);
+                                  }
+                                }}
+                              >
+                                <div>
+                                  {product.productName}
+                                  {totalAvailable > 0 && (
+                                    <span className="stock-badge">In Stock: {totalAvailable}</span>
+                                  )}
+                                  {totalAvailable === 0 && (
+                                    <span className="stock-badge out-of-stock">Out of Stock</span>
+                                  )}
                                 </div>
-                              )}
+                                <div>
+                                  HSN: {product.hsnCode || "N/A"} |
+                                  Price: ₹{product.price || 0} |
+                                  Category: {product.category}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Batch Selection Modal */}
+                  {showBatchDropdown && (
+                    <div className="batch-dropdown-overlay">
+                      <div className="batch-dropdown" ref={batchDropdownRef}>
+                        <h4>Select Batch</h4>
+                        {getAvailableBatches(showBatchDropdown).map(batch => (
+                          <div
+                            key={batch.batchNumber}
+                            className="batch-option"
+                            onClick={() => {
+                              const product = products.find(p => p.productId === showBatchDropdown);
+                              handleAddNewItem(product, batch);
+                            }}
+                          >
+                            <div className="batch-info">
+                              <strong>Batch: {batch.batchNumber}</strong>
+                              <span>Qty: {batch.quantity}</span>
                             </div>
-                          </td>
-                          <td>{item.quantity || 0}</td>
-                          <td>₹{(item.price || 0).toFixed(2)}</td>
-                          <td>{item.discount || 0}%</td>
-                          <td className="amount-cell">₹{calculateItemTotal(item).toFixed(2)}</td>
+                            <div className="batch-details">
+                              Expiry: {new Date(batch.expiryDate).toLocaleDateString()}
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          className="cancel-batch-select"
+                          onClick={() => setShowBatchDropdown(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Editable Items Table */}
+                  <div className="items-table-container">
+                    <table className="items-details-table">
+                      <thead>
+                        <tr>
+                          <th width="5%">Sr No</th>
+                          <th width="20%">Product Name</th>
+                          <th width="10%">Batch No</th>
+                          <th width="8%">Qty</th>
+                          <th width="12%">Price</th>
+                          <th width="10%">Discount %</th>
+                          <th width="15%">Total</th>
+                          <th width="20%">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {editedItems.map((item, index) => (
+                          <tr key={`${item.productId}-${item.batchNumber}-${index}`}>
+                            <td>{index + 1}</td>
+                            <td>
+                              <div className="product-name">{item.name}</div>
+                              <div style={{ fontSize: '12px', color: '#666' }}>
+                                {item.category} | HSN: {item.hsn || "N/A"}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="batch-info">
+                                <span className="batch-tag">{item.batchNumber || "N/A"}</span>
+                                {item.expiryDate && (
+                                  <div className="expiry-date">
+                                    Exp: {new Date(item.expiryDate).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="1"
+                                max={getAvailableQuantity(item.productId, item.batchNumber)}
+                                value={item.quantity || 1}
+                                onChange={(e) => handleItemUpdate(index, 'quantity', parseInt(e.target.value) || 1)}
+                                style={{ width: '60px', padding: '4px' }}
+                              />
+                              <div className="available-qty" style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>
+                                Max: {getAvailableQuantity(item.productId, item.batchNumber)}
+                              </div>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.price || 0}
+                                onChange={(e) => handleItemUpdate(index, 'price', parseFloat(e.target.value) || 0)}
+                                style={{ width: '80px', padding: '4px' }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={item.discount || 0}
+                                onChange={(e) => handleItemUpdate(index, 'discount', parseInt(e.target.value) || 0)}
+                                style={{ width: '60px', padding: '4px' }}
+                              />%
+                            </td>
+                            <td className="amount-cell">
+                              ₹{safeToFixed(calculateItemTotal(item))}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '5px' }}>
+                                <button
+                                  className="invoice-remove-btn"
+                                  onClick={() => handleRemoveItem(index)}
+                                  style={{ padding: '4px 8px', fontSize: '12px' }}
+                                >
+                                  <FaTrash /> Remove
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Current Calculation Preview */}
+                  <div style={{ marginTop: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
+                    <h4>Current Calculation Preview</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <strong>Subtotal:</strong> ₹{safeToFixed(currentTotals.subtotal)}
+                      </div>
+                      <div>
+                        <strong>Discount:</strong> ₹{safeToFixed(currentTotals.discount)}
+                      </div>
+                      {currentTotals.promoDiscount > 0 && (
+                        <div>
+                          <strong>Promo Discount:</strong> ₹{safeToFixed(currentTotals.promoDiscount)}
+                        </div>
+                      )}
+                      {currentTotals.loyaltyDiscount > 0 && (
+                        <div>
+                          <strong>Loyalty Discount:</strong> ₹{safeToFixed(currentTotals.loyaltyDiscount)}
+                        </div>
+                      )}
+                      <div>
+                        <strong>Tax:</strong> ₹{safeToFixed(currentTotals.tax)}
+                      </div>
+                      <div>
+                        <strong>Grand Total:</strong> ₹{safeToFixed(currentTotals.grandTotal)}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="no-items-message">No items found in this invoice</div>
+                /* VIEW MODE - Original Items Display */
+                invoice.items && invoice.items.length > 0 ? (
+                  <div className="items-table-container">
+                    <table className="items-details-table">
+                      <thead>
+                        <tr>
+                          <th width="5%">Sr No</th>
+                          <th width="20%">Product Name</th>
+                          <th width="10%">HSN Code</th>
+                          <th width="10%">Category</th>
+                          <th width="10%">Batch No</th>
+                          <th width="8%">Qty</th>
+                          <th width="12%">Price</th>
+                          <th width="10%">Discount %</th>
+                          <th width="15%">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoice.items.map((item, index) => (
+                          <tr key={`${item.productId}-${item.batchNumber}-${index}`}>
+                            <td>{index + 1}</td>
+                            <td>
+                              <div className="product-name">{item.name}</div>
+                              {item.barcode && (
+                                <div className="product-barcode">Barcode: {item.barcode}</div>
+                              )}
+                            </td>
+                            <td>{item.hsn || "N/A"}</td>
+                            <td>
+                              <span className="category-tag">{item.category || "N/A"}</span>
+                            </td>
+                            <td>
+                              <div className="batch-info">
+                                <span className="batch-tag">{item.batchNumber || "N/A"}</span>
+                                {item.expiryDate && (
+                                  <div className="expiry-date">
+                                    Exp: {new Date(item.expiryDate).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td>{item.quantity || 0}</td>
+                            <td>₹{safeToFixed(item.price || 0)}</td>
+                            <td>{item.discount || 0}%</td>
+                            <td className="amount-cell">₹{safeToFixed(calculateItemTotal(item))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="no-items-message">No items found in this invoice</div>
+                )
               )}
             </div>
 
-            {/* Invoice Summary Section */}
+            {/* Invoice Summary Section - FIXED CALCULATION BREAKDOWN */}
             <div className="invoice-section">
-              <h3 className="section-title">Invoice Calculation Breakdown</h3>
+              <h3 className="section-title">
+                Invoice Calculation Breakdown
+                {isEditingProducts && " (Preview)"}
+              </h3>
               <div className="invoice-summary-grid detailed-calculation">
                 <div className="calculation-step">
                   <span className="step-label">Subtotal (Incl. Tax):</span>
-                  <span className="step-value">₹{invoiceBreakdown.subtotal.toFixed(2)}</span>
+                  <span className="step-value">₹{safeToFixed(currentTotals.subtotal)}</span>
                 </div>
 
                 <div className="calculation-step discount-step">
                   <span className="step-label">Total Item Discount:</span>
-                  <span className="step-value">-₹{invoiceBreakdown.itemDiscount.toFixed(2)}</span>
+                  <span className="step-value">-₹{safeToFixed(currentTotals.discount)}</span>
                 </div>
 
                 <div className="calculation-step amount-before-tax">
                   <span className="step-label">Amount Before Tax:</span>
-                  <span className="step-value">₹{invoiceBreakdown.amountBeforeTax.toFixed(2)}</span>
+                  <span className="step-value">₹{safeToFixed(currentTotals.subtotal - currentTotals.discount)}</span>
                 </div>
 
-                {/* Add Promo Discount Section */}
-                {invoice.appliedPromoCode && (
+                {/* Promo Discount Section - ALWAYS SHOW IF EXISTS */}
+                {currentTotals.promoDiscount > 0 && (
                   <>
                     <div className="calculation-step promo-step">
                       <span className="step-label">
-                        Promo Discount ({invoice.appliedPromoCode.discount}%):
+                        Promo Discount ({invoice.appliedPromoCode?.discount || 0}%):
                       </span>
-                      <span className="step-value">-₹{invoiceBreakdown.promoDiscount.toFixed(2)}</span>
+                      <span className="step-value">-₹{safeToFixed(currentTotals.promoDiscount)}</span>
                     </div>
 
                     <div className="calculation-step taxable-amount">
                       <span className="step-label">Amount After Promo:</span>
-                      <span className="step-value">₹{invoiceBreakdown.amountAfterPromo.toFixed(2)}</span>
+                      <span className="step-value">
+                        ₹{safeToFixed((currentTotals.subtotal - currentTotals.discount) - currentTotals.promoDiscount)}
+                      </span>
                     </div>
                   </>
                 )}
 
-                {/* Add Loyalty Coins Section */}
-                {invoice.loyaltyCoinsUsed > 0 && (
+                {/* Loyalty Coins Section - ALWAYS SHOW IF EXISTS */}
+                {currentTotals.loyaltyDiscount > 0 && (
                   <>
                     <div className="calculation-step loyalty-step">
                       <span className="step-label">
-                        Loyalty Coins Used ({invoice.loyaltyCoinsUsed} coins):
+                        Loyalty Coins Used ({currentTotals.loyaltyCoinsUsed} coins):
                       </span>
-                      <span className="step-value">-₹{invoiceBreakdown.loyaltyDiscount.toFixed(2)}</span>
+                      <span className="step-value">-₹{safeToFixed(currentTotals.loyaltyDiscount)}</span>
                     </div>
 
                     <div className="calculation-step amount-after-loyalty">
                       <span className="step-label">Amount After Loyalty:</span>
-                      <span className="step-value">₹{invoiceBreakdown.amountAfterLoyalty.toFixed(2)}</span>
+                      <span className="step-value">
+                        ₹{safeToFixed(
+                          (currentTotals.subtotal - currentTotals.discount - currentTotals.promoDiscount) - currentTotals.loyaltyDiscount
+                        )}
+                      </span>
                     </div>
                   </>
                 )}
 
                 {/* Tax Calculation */}
-                {!invoice.hasMixedTaxRates && invoice.taxPercentages && invoice.taxPercentages.length > 0 && (
+                {!currentTotals.hasMixedTaxRates && currentTotals.taxPercentages && currentTotals.taxPercentages.length > 0 && (
                   <>
                     <div className="calculation-step tax-step">
-                      <span className="step-label">CGST ({invoice.taxPercentages[0] / 2}%):</span>
-                      <span className="step-value">+₹{invoice.cgst?.toFixed(2) || '0.00'}</span>
+                      <span className="step-label">CGST ({currentTotals.taxPercentages[0] / 2}%):</span>
+                      <span className="step-value">+₹{safeToFixed(currentTotals.cgst)}</span>
                     </div>
                     <div className="calculation-step tax-step">
-                      <span className="step-label">SGST ({invoice.taxPercentages[0] / 2}%):</span>
-                      <span className="step-value">+₹{invoice.sgst?.toFixed(2) || '0.00'}</span>
+                      <span className="step-label">SGST ({currentTotals.taxPercentages[0] / 2}%):</span>
+                      <span className="step-value">+₹{safeToFixed(currentTotals.sgst)}</span>
                     </div>
                   </>
                 )}
 
-                {invoice.hasMixedTaxRates && (
+                {currentTotals.hasMixedTaxRates && (
                   <div className="calculation-step tax-step">
                     <span className="step-label">Total GST:</span>
-                    <span className="step-value">+₹{invoiceBreakdown.tax.toFixed(2)}</span>
+                    <span className="step-value">+₹{safeToFixed(currentTotals.tax)}</span>
                   </div>
                 )}
 
                 <div className="calculation-step total-row">
                   <span className="step-label">Grand Total:</span>
                   <span className="step-value total-amount">
-                    ₹{invoiceBreakdown.grandTotal.toFixed(2)}
+                    ₹{safeToFixed(currentTotals.grandTotal)}
                   </span>
                 </div>
               </div>
@@ -1778,19 +2452,47 @@ const Sales = () => {
           </div>
 
           <div className="modal-footer">
-            <button
-              className={`update-btn ${isEditing ? 'save-btn' : ''}`}
-              onClick={isEditing ? handleSave : () => setIsEditing(true)}
-            >
-              {isEditing ? <FaSave /> : <FaEdit />}
-              {isEditing ? "Save Changes" : "Update"}
-            </button>
-            <button
-              className="delete-btn"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <FaTrash /> Delete
-            </button>
+            {isEditingProducts ? (
+              /* EDIT PRODUCTS MODE BUTTONS */
+              <>
+                <button
+                  className="cancel-btn"
+                  onClick={() => {
+                    setIsEditingProducts(false);
+                    setEditedItems([...invoice.items]); // Reset changes
+                    setItemSearchTerm("");
+                  }}
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="update-btn save-btn"
+                  onClick={handleSaveProducts}
+                  disabled={isSaving}
+                >
+                  {isSaving ? <FaSpinner className="spinner" /> : <FaSave />}
+                  {isSaving ? "Saving..." : "Save Products"}
+                </button>
+              </>
+            ) : (
+              /* VIEW MODE BUTTONS */
+              <>
+                <button
+                  className={`update-btn ${isEditing ? 'save-btn' : ''}`}
+                  onClick={isEditing ? handleSave : () => setIsEditing(true)}
+                >
+                  {isEditing ? <FaSave /> : <FaEdit />}
+                  {isEditing ? "Save Changes" : "Update"}
+                </button>
+                <button
+                  className="delete-btn"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <FaTrash /> Delete
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1982,8 +2684,34 @@ const Sales = () => {
     );
   };
 
-  const invoiceTotals = calculateInvoiceTotals();
 
+
+  const invoiceTotals = useMemo(() => {
+    console.log("🔄 Recalculating invoice totals:", {
+      itemsCount: selectedItems.length,
+      hasPromo: !!appliedPromo,
+      promoCode: appliedPromo?.code,
+      useLoyaltyCoins,
+      usableLoyaltyCoins,
+      appliedPromo: appliedPromo // Add this for debugging
+    });
+
+    // For new invoice creation, don't pass any existing invoice
+    return calculateInvoiceTotals(selectedItems);
+  }, [selectedItems, appliedPromo, useLoyaltyCoins, usableLoyaltyCoins]);
+
+
+
+  // Add this useEffect to debug the promo discount calculation
+  useEffect(() => {
+    console.log("🔍 PROMO DEBUG:", {
+      appliedPromo: appliedPromo,
+      selectedItemsCount: selectedItems.length,
+      subtotal: invoiceTotals.subtotal,
+      promoDiscount: invoiceTotals.promoDiscount,
+      recalculated: new Date().toLocaleTimeString()
+    });
+  }, [invoiceTotals.promoDiscount, appliedPromo, selectedItems]);
   return (
     <Navbar>
       {/* <ToastContainer position="top-center" autoClose={3000} />  */}
@@ -2665,6 +3393,7 @@ const Sales = () => {
             onClose={() => setSelectedInvoice(null)}
             onUpdate={handleUpdateInvoice}
             onDelete={handleDeleteInvoice}
+            fetchInventory={fetchInventory}
           />
         )}
 
