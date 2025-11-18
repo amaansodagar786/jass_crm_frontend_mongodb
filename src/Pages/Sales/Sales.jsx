@@ -2810,7 +2810,7 @@ const Sales = () => {
 
         {showForm && (
           <div className="form-container premium">
-            <h2>Create Tax Invoice</h2>
+            <h2>Create Tax Invoice.</h2>
             <Formik
               initialValues={{ paymentType: "cash" }}
               validationSchema={Yup.object().shape({
