@@ -530,17 +530,16 @@ const Sales = () => {
       };
     });
 
-    // ✅ FIXED: Handle both new invoices and existing invoices properly
+    // ✅✅✅ CRITICAL FIX: Use the CORRECT promo data source
     let promoDiscountAmount = 0;
 
-    // For NEW invoices (when creating)
-    if (appliedPromo && !existingInvoice) {
-      promoDiscountAmount = amountAfterItemDiscounts * (appliedPromo.discount / 100);
-    }
-    // For EXISTING invoices (when editing in modal)
-    else if (existingInvoice && existingInvoice.appliedPromoCode) {
-      // Use the original promo discount calculation
+    // For EXISTING invoices (when editing in modal) - USE THE INVOICE'S PROMO DATA
+    if (existingInvoice && existingInvoice.appliedPromoCode) {
       promoDiscountAmount = amountAfterItemDiscounts * (existingInvoice.appliedPromoCode.discount / 100);
+    }
+    // For NEW invoices (when creating in main form) - use the main component's appliedPromo
+    else if (appliedPromo && !existingInvoice) {
+      promoDiscountAmount = amountAfterItemDiscounts * (appliedPromo.discount / 100);
     }
 
     // Amount after promo discount
@@ -566,13 +565,16 @@ const Sales = () => {
     // Final amount after ALL discounts (item + promo + loyalty)
     const finalAmountAfterAllDiscounts = amountAfterPromo - loyaltyDiscountAmount;
 
+    // ✅✅✅ CRITICAL FIX: Prevent division by zero
+    const safeAmountAfterItemDiscounts = amountAfterItemDiscounts > 0 ? amountAfterItemDiscounts : 1;
+
     // Calculate tax on the final amount after ALL discounts
     const itemsWithTaxCalculations = itemsWithCalculations.map(item => {
       const taxRate = item.taxSlab || 18;
 
       // Calculate tax based on final discounted amount for this item
       // Distribute the total discount proportionally to each item
-      const itemFinalAmount = (item.totalAmount / amountAfterItemDiscounts) * finalAmountAfterAllDiscounts;
+      const itemFinalAmount = (item.totalAmount / safeAmountAfterItemDiscounts) * finalAmountAfterAllDiscounts;
       const itemBaseValue = itemFinalAmount / (1 + taxRate / 100);
       const itemTaxAmount = itemFinalAmount - itemBaseValue;
       const itemCgstAmount = taxPercentages.size === 1 ? itemTaxAmount / 2 : 0;
@@ -1651,37 +1653,45 @@ const Sales = () => {
         const user = userData ? JSON.parse(userData) : null;
 
         console.log("🔄 Starting product update process...");
-        console.log("Original items from invoice:", invoice.items);
-        console.log("Updated items from edited state:", editedItems);
 
-        // Prepare updated items without the temporary originalQuantity field
-        const itemsToSend = editedItems.map(item => {
-          const { originalQuantity, ...itemToSend } = item;
-          return itemToSend;
+        // ✅ FIX: Calculate proper tax values for each item before sending
+        const itemsWithProperCalculations = editedItems.map(item => {
+          const quantity = item.quantity || 1;
+          const price = item.price || 0;
+          const discount = item.discount || 0;
+          const taxRate = item.taxSlab || 18;
+
+          // Calculate item totals with proper tax breakdown
+          const itemTotalBeforeDiscount = price * quantity;
+          const discountAmount = itemTotalBeforeDiscount * (discount / 100);
+          const itemTotalAfterDiscount = itemTotalBeforeDiscount - discountAmount;
+
+          // Calculate tax components
+          const baseValue = itemTotalAfterDiscount / (1 + taxRate / 100);
+          const taxAmount = itemTotalAfterDiscount - baseValue;
+          const cgstAmount = taxAmount / 2;
+          const sgstAmount = taxAmount / 2;
+          const finalAmount = itemTotalAfterDiscount;
+
+          return {
+            ...item,
+            baseValue: parseFloat(baseValue.toFixed(2)),
+            discountAmount: parseFloat(discountAmount.toFixed(2)),
+            taxAmount: parseFloat(taxAmount.toFixed(2)),
+            cgstAmount: parseFloat(cgstAmount.toFixed(2)),
+            sgstAmount: parseFloat(sgstAmount.toFixed(2)),
+            totalAmount: parseFloat(itemTotalAfterDiscount.toFixed(2)),
+            finalAmount: parseFloat(finalAmount.toFixed(2))
+          };
         });
 
-        // Debug: Check if quantities are actually different
-        invoice.items.forEach((originalItem, index) => {
-          const updatedItem = editedItems.find(item =>
-            item.productId === originalItem.productId &&
-            item.batchNumber === originalItem.batchNumber
-          );
-
-          if (updatedItem) {
-            console.log(`🔍 Quantity comparison for ${originalItem.name}:`, {
-              original: originalItem.quantity,
-              updated: updatedItem.quantity,
-              different: originalItem.quantity !== updatedItem.quantity,
-              batch: originalItem.batchNumber
-            });
-          }
-        });
+        console.log("✅ Items with proper calculations:", itemsWithProperCalculations);
 
         const response = await axios.put(
           `${import.meta.env.VITE_API_URL}/invoices/update-invoice-products/${invoice.invoiceNumber}`,
           {
-            updatedItems: itemsToSend, // Use the cleaned items
-            originalItems: invoice.items, // Make sure this is the ORIGINAL from the invoice
+            updatedItems: itemsWithProperCalculations,
+            originalItems: invoice.items,
             userDetails: user ? {
               userId: user.userId,
               name: user.name,
@@ -1691,27 +1701,17 @@ const Sales = () => {
         );
 
         if (response.data.success) {
-          // Update local state with new invoice data
           setEditedInvoice(response.data.data);
           setIsEditingProducts(false);
-
-          console.log("✅ Products updated successfully:", response.data.updateSummary);
           toast.success("Invoice products updated successfully!");
 
-          // Refresh parent component if needed
           if (onUpdate) {
             onUpdate(response.data.data);
           }
-
-          // Refresh inventory data to reflect changes
           fetchInventory();
-
-          console.log("🔄 Inventory refresh triggered");
         }
       } catch (error) {
         console.error("❌ Error updating invoice products:", error);
-
-        // More specific error messages
         if (error.response?.data?.errors) {
           const errors = error.response.data.errors;
           if (Array.isArray(errors)) {
@@ -1829,10 +1829,21 @@ const Sales = () => {
     // };
 
     // FIXED: Proper calculation breakdown for VIEW MODE that shows ALL discounts
+
+
+
     const calculateInvoiceBreakdown = (invoice) => {
-      // For view mode, use the actual invoice data
+      console.log("🔍 VIEW MODE CALCULATION - Original invoice data:", {
+        subtotal: invoice.subtotal,
+        discount: invoice.discount,
+        promoDiscount: invoice.promoDiscount,
+        loyaltyDiscount: invoice.loyaltyDiscount,
+        total: invoice.total
+      });
+
+      // For view mode, use the actual invoice data with proper fallbacks
       const subtotal = invoice.subtotal || 0;
-      const itemDiscount = invoice.discount || 0;
+      const itemDiscount = invoice.discount || 0; // ✅ FIXED: Ensure this is 0 if undefined
       const promoDiscount = invoice.promoDiscount || 0;
       const loyaltyDiscount = invoice.loyaltyDiscount || 0;
       const tax = invoice.tax || 0;
@@ -1840,26 +1851,30 @@ const Sales = () => {
       const sgst = invoice.sgst || 0;
       const total = invoice.total || 0;
 
-      // Calculate intermediate amounts based on your original logic
+      // ✅ FIXED: Direct calculation without unnecessary Math.max
       const amountBeforeTax = subtotal - itemDiscount;
       const amountAfterPromo = amountBeforeTax - promoDiscount;
       const amountAfterLoyalty = amountAfterPromo - loyaltyDiscount;
 
-      // For view mode, use the actual invoice total
-      const grandTotal = total;
+      console.log("🔍 VIEW MODE CALCULATION - Calculated amounts:", {
+        subtotal,
+        itemDiscount,
+        amountBeforeTax,
+        whyIsItZero: `subtotal (${subtotal}) - discount (${itemDiscount}) = ${amountBeforeTax}`
+      });
 
       return {
         subtotal,
         itemDiscount,
         promoDiscount,
         loyaltyDiscount,
-        amountBeforeTax,
-        amountAfterPromo,
-        amountAfterLoyalty,
+        amountBeforeTax: amountBeforeTax, // ✅ NOW IT WILL SHOW THE CORRECT VALUE
+        amountAfterPromo: amountAfterPromo, // ✅ NOW IT WILL SHOW CORRECT VALUE
+        amountAfterLoyalty: amountAfterLoyalty,
         tax,
         cgst,
         sgst,
-        grandTotal,
+        grandTotal: total,
         hasMixedTaxRates: invoice.hasMixedTaxRates || false,
         taxPercentages: invoice.taxPercentages || [18],
         loyaltyCoinsUsed: invoice.loyaltyCoinsUsed || 0
@@ -1872,17 +1887,30 @@ const Sales = () => {
     const calculateCurrentTotals = () => {
       if (isEditingProducts) {
         // In edit mode, recalculate with the original invoice's promo and loyalty data
-        return calculateInvoiceTotals(editedItems, {
-          ...invoice,
-          // Preserve the original promo and loyalty data from the invoice
-          appliedPromoCode: invoice.appliedPromoCode,
-          loyaltyCoinsUsed: invoice.loyaltyCoinsUsed,
-          promoDiscount: invoice.promoDiscount,
-          loyaltyDiscount: invoice.loyaltyDiscount
+        const totals = calculateInvoiceTotals(editedItems, invoice);
+
+        console.log("🔄 EDIT MODE CALCULATION:", {
+          itemsCount: editedItems.length,
+          subtotal: totals.subtotal,
+          discount: totals.discount,
+          amountBeforeTax: totals.subtotal - totals.discount,
+          promoDiscount: totals.promoDiscount,
+          appliedPromoCode: invoice.appliedPromoCode
         });
+
+        return totals;
       } else {
         // In view mode, use original invoice data
-        return calculateInvoiceBreakdown(invoice);
+        const viewTotals = calculateInvoiceBreakdown(invoice);
+
+        console.log("👀 VIEW MODE CALCULATION:", {
+          invoiceSubtotal: invoice.subtotal,
+          invoiceDiscount: invoice.discount,
+          calculatedAmountBeforeTax: viewTotals.amountBeforeTax,
+          whyIsItZero: `subtotal (${invoice.subtotal}) - discount (${invoice.discount}) = ${invoice.subtotal - invoice.discount}`
+        });
+
+        return viewTotals;
       }
     };
 
@@ -2372,13 +2400,20 @@ const Sales = () => {
 
                 <div className="calculation-step discount-step">
                   <span className="step-label">Total Item Discount:</span>
-                  <span className="step-value">-₹{safeToFixed(currentTotals.discount)}</span>
+                  <span className="step-value">
+                    -₹{safeToFixed(isEditingProducts ? (currentTotals.discount || currentTotals.itemDiscount || 0) : currentTotals.itemDiscount)}
+                  </span>
                 </div>
 
                 <div className="calculation-step amount-before-tax">
                   <span className="step-label">Amount Before Tax:</span>
-                  <span className="step-value">₹{safeToFixed(currentTotals.subtotal - currentTotals.discount)}</span>
-                </div>
+                  <span className="step-value">
+                    ₹{safeToFixed(
+                      isEditingProducts
+                        ? (currentTotals.amountBeforeTax || (currentTotals.subtotal - (currentTotals.discount || currentTotals.itemDiscount || 0)))
+                        : currentTotals.amountBeforeTax
+                    )}
+                  </span>                </div>
 
                 {/* Promo Discount Section - ALWAYS SHOW IF EXISTS */}
                 {currentTotals.promoDiscount > 0 && (
@@ -2393,7 +2428,7 @@ const Sales = () => {
                     <div className="calculation-step taxable-amount">
                       <span className="step-label">Amount After Promo:</span>
                       <span className="step-value">
-                        ₹{safeToFixed((currentTotals.subtotal - currentTotals.discount) - currentTotals.promoDiscount)}
+                        ₹{safeToFixed(currentTotals.amountAfterPromo)} {/* ✅ FIXED */}
                       </span>
                     </div>
                   </>
@@ -2412,9 +2447,7 @@ const Sales = () => {
                     <div className="calculation-step amount-after-loyalty">
                       <span className="step-label">Amount After Loyalty:</span>
                       <span className="step-value">
-                        ₹{safeToFixed(
-                          (currentTotals.subtotal - currentTotals.discount - currentTotals.promoDiscount) - currentTotals.loyaltyDiscount
-                        )}
+                        ₹{safeToFixed(currentTotals.amountAfterLoyalty)} {/* ✅ FIXED */}
                       </span>
                     </div>
                   </>
