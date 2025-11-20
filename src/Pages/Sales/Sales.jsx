@@ -68,6 +68,109 @@ const Sales = () => {
 
   const [userPermissions, setUserPermissions] = useState([]);
 
+
+
+  // Add these state variables after your existing state declarations
+  const [timeFilter, setTimeFilter] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
+
+  // Add this function to get date ranges
+  const getDateRange = (filterType) => {
+    const today = new Date();
+    const startDate = new Date();
+    const endDate = new Date();
+
+    switch (filterType) {
+      case "today":
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case "this-week":
+        startDate.setDate(today.getDate() - today.getDay());
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case "this-month":
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(today.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case "last-6-months":
+        startDate.setMonth(today.getMonth() - 6);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case "this-year":
+        startDate.setMonth(0, 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(11, 31);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      default:
+        return { start: null, end: null };
+    }
+
+    return { start: startDate, end: endDate };
+  };
+
+  // Update the filteredInvoices function to include time and year filters
+  const filteredInvoices = useMemo(() => {
+    let filtered = invoices;
+
+    // Apply time filter
+    if (timeFilter) {
+      const { start, end } = getDateRange(timeFilter);
+      if (start && end) {
+        filtered = filtered.filter(invoice => {
+          const invoiceDate = new Date(invoice.date);
+          return invoiceDate >= start && invoiceDate <= end;
+        });
+      }
+    }
+
+    // Apply year filter
+    if (yearFilter) {
+      filtered = filtered.filter(invoice => {
+        const invoiceYear = new Date(invoice.date).getFullYear().toString();
+        return invoiceYear === yearFilter;
+      });
+    }
+
+    // Apply category filter
+    if (categoryFilter) {
+      filtered = filtered.filter(invoice => {
+        return invoice.items?.some(item => item.category === categoryFilter);
+      });
+    }
+
+    // Apply search term filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(invoice =>
+        (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
+        (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
+        (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
+        (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
+        (invoice.total && invoice.total.toString().includes(term))
+      );
+    }
+
+    return filtered;
+  }, [searchTerm, invoices, categoryFilter, timeFilter, yearFilter]);
+
+  // Add function to get available years from invoices
+  const getAvailableYears = () => {
+    const years = new Set();
+    invoices.forEach(invoice => {
+      if (invoice.date) {
+        const year = new Date(invoice.date).getFullYear();
+        years.add(year.toString());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  };
+
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -1037,14 +1140,14 @@ const Sales = () => {
     }
   };
 
-  // Excel export - UPDATED VERSION with complete calculations
+  // Update the handleExportExcel function
   const handleExportExcel = () => {
-    if (invoices.length === 0) {
+    if (filteredInvoices.length === 0) {
       toast.warn("No invoices to export");
       return;
     }
 
-    const data = invoices.flatMap((invoice) => {
+    const data = filteredInvoices.flatMap((invoice) => {
       // Filter items based on category filter
       let filteredItems = invoice.items || [];
 
@@ -1081,7 +1184,11 @@ const Sales = () => {
           'Category': 'N/A',
           'Quantity': 0,
           'Price': 0,
-          'Item Total': '0.00'
+          'Item Total': '0.00',
+          // NEW COLUMNS
+          'Promo Name': invoice.appliedPromoCode?.code || '',
+          'Promo Amount': `₹${invoice.promoDiscount?.toFixed(2) || '0.00'}`,
+          'Loyalty Coins Used': invoice.loyaltyCoinsUsed || 0
         }];
       }
 
@@ -1113,13 +1220,17 @@ const Sales = () => {
           'Quantity': item.quantity || 0,
           'Price': `₹${(item.price || 0).toFixed(2)}`,
           'Discount %': `${item.discount || 0}%`,
-          'Item Total': `₹${itemTotalAfterDiscount.toFixed(2)}`
+          'Item Total': `₹${itemTotalAfterDiscount.toFixed(2)}`,
+          // NEW COLUMNS
+          'Promo Name': invoice.appliedPromoCode?.code || '',
+          'Promo Amount': `₹${invoice.promoDiscount?.toFixed(2) || '0.00'}`,
+          'Loyalty Coins Used': invoice.loyaltyCoinsUsed || 0
         };
       });
     });
 
     if (data.length === 0) {
-      toast.warn(`No invoices found with category: ${categoryFilter}`);
+      toast.warn(`No invoices found with current filters`);
       return;
     }
 
@@ -1127,14 +1238,35 @@ const Sales = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Invoices");
 
-    const fileName = categoryFilter
-      ? `invoices_${categoryFilter.replace(/\s+/g, '_')}.xlsx`
-      : "invoices.xlsx";
+    // Create filename based on filters
+    let fileName = "invoices";
+
+    if (timeFilter) {
+      fileName += `_${timeFilter.replace(/\s+/g, '_')}`;
+    }
+    if (yearFilter) {
+      fileName += `_${yearFilter}`;
+    }
+    if (categoryFilter) {
+      fileName += `_${categoryFilter.replace(/\s+/g, '_')}`;
+    }
+
+    fileName += ".xlsx";
 
     XLSX.writeFile(workbook, fileName);
 
     const invoiceCount = new Set(data.map(item => item['Invoice Number'])).size;
-    toast.success(`Exported ${invoiceCount} invoices with ${data.length} item rows${categoryFilter ? ` (Filtered by: ${categoryFilter})` : ''}`);
+
+    let filterMessage = `Exported ${invoiceCount} invoices with ${data.length} item rows`;
+    if (timeFilter || yearFilter || categoryFilter) {
+      filterMessage += " (Filtered by:";
+      if (timeFilter) filterMessage += ` ${timeFilter}`;
+      if (yearFilter) filterMessage += ` ${yearFilter}`;
+      if (categoryFilter) filterMessage += ` ${categoryFilter}`;
+      filterMessage += ")";
+    }
+
+    toast.success(filterMessage);
   };
 
   const handleUpdateInvoice = async (updatedInvoice) => {
@@ -1244,33 +1376,33 @@ const Sales = () => {
   }, [customerMobileSearch, customers]);
 
   // Filter functions - UPDATED VERSION
-  const filteredInvoices = useMemo(() => {
-    if (!searchTerm && !categoryFilter) return invoices;
+  // const filteredInvoices = useMemo(() => {
+  //   if (!searchTerm && !categoryFilter) return invoices;
 
-    let filtered = invoices;
+  //   let filtered = invoices;
 
-    // Apply category filter first
-    if (categoryFilter) {
-      filtered = filtered.filter(invoice => {
-        // Check if any item in the invoice matches the selected category
-        return invoice.items?.some(item => item.category === categoryFilter);
-      });
-    }
+  //   // Apply category filter first
+  //   if (categoryFilter) {
+  //     filtered = filtered.filter(invoice => {
+  //       // Check if any item in the invoice matches the selected category
+  //       return invoice.items?.some(item => item.category === categoryFilter);
+  //     });
+  //   }
 
-    // Apply search term filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(invoice =>
-        (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
-        (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
-        (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
-        (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
-        (invoice.total && invoice.total.toString().includes(term))
-      );
-    }
+  //   // Apply search term filter
+  //   if (searchTerm) {
+  //     const term = searchTerm.toLowerCase();
+  //     filtered = filtered.filter(invoice =>
+  //       (invoice.invoiceNumber && invoice.invoiceNumber.toLowerCase().includes(term)) ||
+  //       (invoice.customer?.name && invoice.customer.name.toLowerCase().includes(term)) ||
+  //       (invoice.customer?.mobile && invoice.customer.mobile.includes(term)) ||
+  //       (invoice.paymentType && invoice.paymentType.toLowerCase().includes(term)) ||
+  //       (invoice.total && invoice.total.toString().includes(term))
+  //     );
+  //   }
 
-    return filtered;
-  }, [searchTerm, invoices, categoryFilter]);
+  //   return filtered;
+  // }, [searchTerm, invoices, categoryFilter]);
 
 
   // Bulk import function - Groups items by invoice
@@ -2765,13 +2897,45 @@ const Sales = () => {
         <div className="page-header">
           {/* <h2>Tax Invoices</h2>  */}
           <div className="right-section">
+            <div className="time-filter">
+              <select
+                value={timeFilter}
+                onChange={(e) => {
+                  setTimeFilter(e.target.value);
+                  if (e.target.value) setYearFilter(""); // Clear year filter when time filter is selected
+                }}
+              >
+                <option value="">All Time</option>
+                <option value="today">Today</option>
+                <option value="this-week">This Week</option>
+                <option value="this-month">This Month</option>
+                <option value="last-6-months">Last 6 Months</option>
+                <option value="this-year">This Year</option>
+              </select>
+            </div>
+
+            {/* Year Filter */}
+            <div className="year-filter">
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setYearFilter(e.target.value);
+                  if (e.target.value) setTimeFilter(""); // Clear time filter when year filter is selected
+                }}
+              >
+                <option value="">All Years</option>
+                {getAvailableYears().map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="category-filter">
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
               >
-                <option value="">All Categories</option>
+                <option value="">Categories</option>
                 {categories.map(category => (
                   <option key={category} value={category}>{category}</option>
                 ))}
